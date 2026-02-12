@@ -1,0 +1,9 @@
+package net.velcore.hyperion_client
+
+import android.os.Build
+
+class AndroidPlatform : Platform {
+    override val name: String = "Android ${Build.VERSION.SDK_INT}"
+}
+
+fun getPlatform(): Platform = AndroidPlatform()

@@ -50,6 +50,7 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.activity.compose)
+            implementation(libs.ktor.client.okhttp)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -64,6 +65,8 @@ kotlin {
 
             // Trixnity dependency versions are covered by the Trixnity BOM
             implementation("de.connect2x.trixnity:trixnity-client")
+
+            implementation(libs.ktor.client.core)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -71,6 +74,11 @@ kotlin {
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
+            implementation(libs.ktor.client.okhttp)
+        }
+
+        jsMain.dependencies {
+            implementation(libs.ktor.client.js)
         }
     }
 }

@@ -1,4 +1,7 @@
 package net.velcore.hyperion_client.infrastructure.network
 
-object HttpClient {
+import io.ktor.client.engine.HttpClientEngine
+
+expect object HttpEngineProvider {
+    fun provide(): HttpClientEngine
 }

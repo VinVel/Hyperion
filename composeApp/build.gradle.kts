@@ -23,15 +23,15 @@ kotlin {
         }
     }
 
-    listOf(
-        iosArm64(),
-        iosSimulatorArm64()
-    ).forEach { iosTarget ->
-        iosTarget.binaries.framework {
-            baseName = "ComposeApp"
-            isStatic = true
-        }
-    }
+//    listOf(
+//        iosArm64(),
+//        iosSimulatorArm64()
+//    ).forEach { iosTarget ->
+//        iosTarget.binaries.framework {
+//            baseName = "ComposeApp"
+//            isStatic = true
+//        }
+//    }
 
     jvm()
 
@@ -51,6 +51,7 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.activity.compose)
             implementation(libs.ktor.client.okhttp)
+
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -61,7 +62,8 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
-            implementation(libs.trixnity)
+            implementation(libs.trixnity.client)
+            implementation(libs.trixnity.crypto)
             implementation(libs.ktor.client.core)
             implementation(libs.composables.icons.lucide.cmp)
             implementation(libs.composeunstyled)
@@ -96,3 +98,8 @@ compose.desktop {
         }
     }
 }
+
+dependencyLocking {
+    lockAllConfigurations()
+}
+

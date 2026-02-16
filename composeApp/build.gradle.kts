@@ -11,7 +11,7 @@ plugins {
 
 kotlin {
     androidLibrary {
-        namespace = "net.velcore.hyperion_client.composeapplibrary"
+        namespace = "net.velcore.hyperion.composeapplibrary"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
 
         compilerOptions {
@@ -87,11 +87,11 @@ dependencies {
 
 compose.desktop {
     application {
-        mainClass = "net.velcore.hyperion_client.MainKt"
+        mainClass = "net.velcore.hyperion.MainKt"
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "net.velcore.hyperion_client"
+            packageName = "net.velcore.hyperion"
             packageVersion = "1.0.0"
         }
     }

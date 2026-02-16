@@ -21,11 +21,11 @@ kotlin {
 }
 
 android {
-    namespace = "net.velcore.hyperion_client"
+    namespace = "net.velcore.hyperion"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "net.velcore.hyperion_client"
+        applicationId = "net.velcore.hyperion"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1

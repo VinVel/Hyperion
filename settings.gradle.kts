@@ -1,4 +1,4 @@
-rootProject.name = "hyperion_client"
+rootProject.name = "hyperion"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {

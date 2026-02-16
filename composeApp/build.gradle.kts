@@ -63,6 +63,8 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.trixnity)
             implementation(libs.ktor.client.core)
+            implementation(libs.composables.icons.lucide.cmp)
+            implementation(libs.composeunstyled)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

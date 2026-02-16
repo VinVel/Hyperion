@@ -1,4 +1,4 @@
-package net.velcore.hyperion_client.scope
+package net.velcore.hyperion_client.infrastructure.scope
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

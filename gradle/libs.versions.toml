@@ -46,7 +46,7 @@ ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "kto
 ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
 ktor-client-js = { module = "io.ktor:ktor-client-js", version.ref = "ktor" }
 trixnity-client = { module = "de.connect2x.trixnity:trixnity-client", version.ref = "trixnity" }
-trixnity-crypto = { module = "de.connect2x.trixnity:trixnity-crypto", version.ref = "trixnity" }
+trixnity-crypto = { module = "de.connect2x.trixnity:trixnity-crypto-core", version.ref = "trixnity" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

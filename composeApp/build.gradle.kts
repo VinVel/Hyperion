@@ -51,6 +51,13 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.activity.compose)
             implementation(libs.ktor.client.okhttp)
+            implementation(libs.trixnity.client.repository.room)
+
+            // Media
+            implementation(libs.trixnity.client.media.okio)
+
+            // Crypto Driver (Vodozemac)
+            implementation(libs.trixnity.client.cryptodriver.vodozemac)
 
         }
         commonMain.dependencies {
@@ -62,11 +69,25 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
-            implementation(libs.trixnity.client)
-            implementation(libs.trixnity.crypto)
             implementation(libs.ktor.client.core)
             implementation(libs.composables.icons.lucide.cmp)
             implementation(libs.composeunstyled)
+            implementation(project.dependencies.platform(libs.trixnity.bom))
+
+            // Core Client
+            implementation(libs.trixnity.client)
+            implementation(libs.trixnity.core)
+
+            // Crypto API (plattformunabhängig)
+            implementation(libs.trixnity.crypto)
+            implementation(libs.trixnity.crypto.core)
+            implementation(libs.trixnity.crypto.driver)
+
+            // Client-Server API (für Login etc.)
+            implementation(libs.trixnity.clientserverapi.client)
+            implementation(libs.trixnity.clientserverapi.model)
+
+
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -75,10 +96,23 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
             implementation(libs.ktor.client.okhttp)
+            implementation(libs.trixnity.client.repository.room)
+
+            // Media
+            implementation(libs.trixnity.client.media.okio)
+
+            // Crypto Driver (Vodozemac)
+            implementation(libs.trixnity.client.cryptodriver.vodozemac)
         }
 
         jsMain.dependencies {
             implementation(libs.ktor.client.js)
+            implementation(libs.trixnity.client)
+            implementation(libs.trixnity.core)
+            implementation(libs.trixnity.crypto)
+            implementation(libs.trixnity.client.repository.indexeddb)
+            implementation(libs.trixnity.client.media.indexeddb)
+            implementation(libs.trixnity.client.cryptodriver.vodozemac)
         }
     }
 }

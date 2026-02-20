@@ -45,8 +45,60 @@ ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
 ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
 ktor-client-js = { module = "io.ktor:ktor-client-js", version.ref = "ktor" }
-trixnity-client = { module = "de.connect2x.trixnity:trixnity-client", version.ref = "trixnity" }
-trixnity-crypto = { module = "de.connect2x.trixnity:trixnity-crypto-core", version.ref = "trixnity" }
+
+# Trixnity
+
+# BOM
+trixnity-bom = { module = "de.connect2x.trixnity:trixnity-bom", version.ref = "trixnity" }
+
+# Core
+trixnity-api-client = { module = "de.connect2x.trixnity:trixnity-api-client" }
+trixnity-api-server = { module = "de.connect2x.trixnity:trixnity-api-server" }
+trixnity-client = { module = "de.connect2x.trixnity:trixnity-client" }
+trixnity-core = { module = "de.connect2x.trixnity:trixnity-core" }
+
+# Crypto
+trixnity-crypto = { module = "de.connect2x.trixnity:trixnity-crypto" }
+trixnity-crypto-core = { module = "de.connect2x.trixnity:trixnity-crypto-core" }
+trixnity-crypto-driver = { module = "de.connect2x.trixnity:trixnity-crypto-driver" }
+trixnity-crypto-driver-libolm = { module = "de.connect2x.trixnity:trixnity-crypto-driver-libolm" }
+trixnity-crypto-driver-vodozemac = { module = "de.connect2x.trixnity:trixnity-crypto-driver-vodozemac" }
+
+# Client Crypto Drivers
+trixnity-client-cryptodriver-libolm = { module = "de.connect2x.trixnity:trixnity-client-cryptodriver-libolm" }
+trixnity-client-cryptodriver-vodozemac = { module = "de.connect2x.trixnity:trixnity-client-cryptodriver-vodozemac" }
+
+# Media
+trixnity-client-media-indexeddb = { module = "de.connect2x.trixnity:trixnity-client-media-indexeddb" }
+trixnity-client-media-okio = { module = "de.connect2x.trixnity:trixnity-client-media-okio" }
+trixnity-client-media-opfs = { module = "de.connect2x.trixnity:trixnity-client-media-opfs" }
+
+# Repository
+trixnity-client-repository-exposed = { module = "de.connect2x.trixnity:trixnity-client-repository-exposed" }
+trixnity-client-repository-indexeddb = { module = "de.connect2x.trixnity:trixnity-client-repository-indexeddb" }
+trixnity-client-repository-room = { module = "de.connect2x.trixnity:trixnity-client-repository-room" }
+
+# APIs
+trixnity-clientserverapi-client = { module = "de.connect2x.trixnity:trixnity-clientserverapi-client" }
+trixnity-clientserverapi-model = { module = "de.connect2x.trixnity:trixnity-clientserverapi-model" }
+trixnity-clientserverapi-server = { module = "de.connect2x.trixnity:trixnity-clientserverapi-server" }
+
+trixnity-serverserverapi-client = { module = "de.connect2x.trixnity:trixnity-serverserverapi-client" }
+trixnity-serverserverapi-model = { module = "de.connect2x.trixnity:trixnity-serverserverapi-model" }
+trixnity-serverserverapi-server = { module = "de.connect2x.trixnity:trixnity-serverserverapi-server" }
+
+trixnity-applicationserviceapi-model = { module = "de.connect2x.trixnity:trixnity-applicationserviceapi-model" }
+trixnity-applicationserviceapi-server = { module = "de.connect2x.trixnity:trixnity-applicationserviceapi-server" }
+
+# Utils
+trixnity-utils = { module = "de.connect2x.trixnity:trixnity-utils" }
+trixnity-test-utils = { module = "de.connect2x.trixnity:trixnity-test-utils" }
+trixnity-idb-utils = { module = "de.connect2x.trixnity:trixnity-idb-utils" }
+
+# Native bindings
+trixnity-libolm = { module = "de.connect2x.trixnity:trixnity-libolm" }
+trixnity-vodozemac = { module = "de.connect2x.trixnity:trixnity-vodozemac" }
+trixnity-vodozemac-binaries = { module = "de.connect2x.trixnity:trixnity-vodozemac-binaries" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

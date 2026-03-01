@@ -1,7 +1,18 @@
-# Tauri + React + Typescript
+## [LICENSE](./LICENSE)
+```
+    Hyperion, a multiplattform Matrix Client
+    Copyright (C) 2026 VinVel
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as
+    published by the Free Software Foundation, only version 3 of the
+    License.
 
-## Recommended IDE Setup
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+    You should have received a copy of the GNU Affero General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+```

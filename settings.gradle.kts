@@ -12,6 +12,7 @@ pluginManagement {
         }
         mavenCentral()
         gradlePluginPortal()
+        maven("https://gitlab.com/api/v4/projects/40350101/packages/maven") // Trixnity
     }
 }
 
@@ -25,6 +26,7 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
+        maven("https://gitlab.com/api/v4/projects/40350101/packages/maven") // Trixnity
     }
 }
 

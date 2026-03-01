@@ -12,8 +12,9 @@
  * Project home: hyperion.velcore.net
  */
 
-package net.velcore.hyperion.infrastructure.utils
-
-import org.koin.core.module.Module
-
-expect suspend fun createRepositoriesModule(): Module
+package net.velcore.hyperion.account
+interface AccountStore {
+    suspend fun save(account: StoredAccount)
+    suspend fun loadAll(): List<StoredAccount>
+    suspend fun delete(userId: String)
+}

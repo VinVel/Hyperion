@@ -12,8 +12,20 @@
  * Project home: hyperion.velcore.net
  */
 
-package net.velcore.hyperion.infrastructure.utils
+package net.velcore.hyperion.account.session
 
-import de.connect2x.trixnity.client.media.MediaStore
+import de.connect2x.trixnity.client.MatrixClient
 
-expect suspend fun createMediaStore(path: String): MediaStore
+class MatrixSession(
+    val client: MatrixClient
+) {
+
+    suspend fun start() {
+        client.startSync()
+    }
+
+    suspend fun logout() {
+        client.logout()
+        client.closeSuspending()
+    }
+}

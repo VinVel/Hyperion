@@ -87,7 +87,6 @@ kotlin {
             implementation(libs.trixnity.clientserverapi.client)
             implementation(libs.trixnity.clientserverapi.model)
 
-
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

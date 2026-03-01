@@ -12,10 +12,14 @@
  * Project home: hyperion.velcore.net
  */
 
-package net.velcore.hyperion.account
+package net.velcore.hyperion.platform
 
-interface AccountRegistry {
-    suspend fun getAll(): List<AccountId>
-    suspend fun add(accountId: AccountId)
-    suspend fun remove(accountId: AccountId)
-}
+import de.connect2x.trixnity.client.media.MediaStore
+import de.connect2x.trixnity.core.model.UserId
+import org.koin.core.module.Module
+
+expect suspend fun createRepositoriesModule(): Module
+
+expect suspend fun createMediaStore(userId: UserId): MediaStore
+
+expect suspend fun createCryptoDriverModule(): Module

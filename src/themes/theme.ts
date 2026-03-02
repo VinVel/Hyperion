@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright (c) 2026 VinVel
  * 
  * SPDX-License-Identifier: AGPL-3.0-only
@@ -13,15 +13,21 @@
  * Project home: hyperion.velcore.net
  */
 
-import React from "react";
-import ReactDOM from "react-dom/client";
-import App from "./App";
-import { ThemeProvider } from "./context/ThemeContext";
+export type ThemeMode = 'light' | 'dark' | 'system';
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <ThemeProvider>
-      <App />
-    </ThemeProvider>
-  </React.StrictMode>,
-);
+export const colors = {
+  light: {
+    background: '#FFFFFF',
+    primary: '#007AFF',
+    secondary: '#5856D6',
+    text: '#000000',
+    accent: '#FF2D55',
+  },
+  dark: {
+    background: '#000000',
+    primary: '#0A84FF',
+    secondary: '#5E5CE6',
+    text: '#FFFFFF',
+    accent: '#FF375F',
+  },
+};   

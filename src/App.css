@@ -1,3 +1,18 @@
+/*
+ * Copyright (c) 2026 VinVel
+ * 
+ * SPDX-License-Identifier: AGPL-3.0-only
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, version 3 only.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ * 
+ * Project home: hyperion.velcore.net
+ */
+
 .logo.vite:hover {
   filter: drop-shadow(0 0 2em #747bff);
 }
@@ -5,14 +20,15 @@
 .logo.react:hover {
   filter: drop-shadow(0 0 2em #61dafb);
 }
+
 :root {
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
   font-size: 16px;
   line-height: 24px;
   font-weight: 400;
 
-  color: #0f0f0f;
-  background-color: #f6f6f6;
+  color: var(--text);
+  background-color: var(--background);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -28,6 +44,7 @@
   flex-direction: column;
   justify-content: center;
   text-align: center;
+  color: var(--text);
 }
 
 .logo {
@@ -48,12 +65,12 @@
 
 a {
   font-weight: 500;
-  color: #646cff;
+  color: var(--primary);
   text-decoration: inherit;
 }
 
 a:hover {
-  color: #535bf2;
+  color: var(--secondary);
 }
 
 h1 {
@@ -63,13 +80,13 @@ h1 {
 input,
 button {
   border-radius: 8px;
-  border: 1px solid transparent;
+  border: 1px solid var(--secondary);
   padding: 0.6em 1.2em;
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
+  color: var(--text);
+  background-color: var(--background);
   transition: border-color 0.25s;
   box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
 }
@@ -79,11 +96,11 @@ button {
 }
 
 button:hover {
-  border-color: #396cd8;
+  border-color: var(--primary);
 }
 button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
+  border-color: var(--primary);
+  background-color: color-mix(in srgb, var(--background) 80%, var(--text));
 }
 
 input,
@@ -93,24 +110,4 @@ button {
 
 #greet-input {
   margin-right: 5px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
-  }
-
-  a:hover {
-    color: #24c8db;
-  }
-
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
-  }
-  button:active {
-    background-color: #0f0f0f69;
-  }
 }

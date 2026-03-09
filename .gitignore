@@ -23,5 +23,5 @@ dist-ssr
 *.sln
 *.sw?
 
-# Local Cargo Android toolchain config
-.android-env
+# Local Android toolchain config
+.cargo/config.toml

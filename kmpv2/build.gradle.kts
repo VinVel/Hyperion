@@ -7,5 +7,9 @@ plugins {
     alias(libs.plugins.composeCompiler) apply false
     alias(libs.plugins.kotlinMultiplatform) apply false
     alias(libs.plugins.kotlinAndroid) apply false
+    alias(libs.plugins.androidLibrary) apply false
     alias(libs.plugins.androidMultiplatformLibrary) apply false
+    id("dev.gobley.cargo") version "0.3.7" apply false
+    id("dev.gobley.uniffi") version "0.3.7" apply false
+    kotlin("plugin.atomicfu") version libs.versions.kotlin apply false
 }

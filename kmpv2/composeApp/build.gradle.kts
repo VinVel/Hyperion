@@ -3,23 +3,19 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.androidMultiplatformLibrary)
+    alias(libs.plugins.androidLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
+    id("dev.gobley.cargo") version "0.3.7"
+    id("dev.gobley.uniffi") version "0.3.7"
+    kotlin("plugin.atomicfu") version libs.versions.kotlin
 }
 
 kotlin {
-    androidLibrary {
-        namespace = "net.velcore.hyperion.composeapplibrary"
-        compileSdk = libs.versions.android.compileSdk.get().toInt()
-
+    androidTarget {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_11)
-        }
-
-        androidResources {
-            enable = true
         }
     }
 
@@ -75,8 +71,26 @@ kotlin {
     }
 }
 
+android {
+    namespace = "net.velcore.hyperion.composeapplibrary"
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
+
+    defaultConfig {
+        minSdk = libs.versions.android.minSdk.get().toInt()
+    }
+
+    androidResources {
+        enable = true
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+}
+
 dependencies {
-    androidRuntimeClasspath(libs.compose.uiTooling)
+    debugImplementation(libs.compose.uiTooling)
 }
 
 compose.desktop {

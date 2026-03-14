@@ -1,0 +1,93 @@
+<!--
+  ~ Copyright (c) 2026 VinVel
+  ~ SPDX-License-Identifier: AGPL-3.0-or-later
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as
+  ~ published by the Free Software Foundation, version 3.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program. If not, see <https://www.gnu.org/licenses/>.
+  ~
+  ~ Project home: hyperion.velcore.net
+  -->
+
+<resources>
+    <!-- ERROR CODES BEGINNING -->
+    <!-- GENERIC FALLBACKS -->
+    <string name="error_unknown">An unknown error occurred.</string>
+    <string name="error_generic">%1$s</string>
+
+    <!-- AUTH & ACCESS -->
+    <string name="error_M_FORBIDDEN">Access denied.</string>
+    <string name="error_M_UNAUTHORIZED">Authentication failed.</string>
+    <string name="error_M_UNKNOWN_TOKEN">Your session has expired. Please log in again.</string>
+    <string name="error_M_MISSING_TOKEN">Authentication token is missing.</string>
+    <string name="error_M_USER_DEACTIVATED">This account has been deactivated.</string>
+    <string name="error_M_USER_SUSPENDED">This account has been suspended.</string>
+    <string name="error_M_USER_LOCKED">This account is locked.</string>
+    <string name="error_M_APPSERVICE_LOGIN_UNSUPPORTED">Application service login is not supported by this server.</string>
+
+    <!-- VALIDATION & REQUEST -->
+    <string name="error_M_BAD_JSON">The request contains malformed data.</string>
+    <string name="error_M_NOT_JSON">The request body is not valid JSON.</string>
+    <string name="error_M_MISSING_PARAM">A required parameter is missing.</string>
+    <string name="error_M_INVALID_PARAM">A parameter has an invalid value.</string>
+    <string name="error_M_TOO_LARGE">The request is too large.</string>
+    <string name="error_M_UNRECOGNIZED">The server did not understand the request.</string>
+
+    <!-- USER / REGISTRATION -->
+    <string name="error_M_USER_IN_USE">This user ID is already in use.</string>
+    <string name="error_M_INVALID_USERNAME">The chosen username is not valid.</string>
+
+    <!-- ROOM -->
+    <string name="error_M_ROOM_IN_USE">This room alias is already in use.</string>
+    <string name="error_M_INVALID_ROOM_STATE">The initial room state is invalid.</string>
+    <string name="error_M_BAD_STATE">The requested state change is not allowed.</string>
+    <string name="error_M_GUEST_ACCESS_FORBIDDEN">Guests are not allowed to access this resource.</string>
+    <string name="error_M_UNSUPPORTED_ROOM_VERSION">The requested room version is not supported.</string>
+    <string name="error_M_INCOMPATIBLE_ROOM_VERSION">The room version is not supported by this server.</string>
+    <string name="error_M_WRONG_ROOM_KEYS_VERSION">Room keys version mismatch.</string>
+    <string name="error_M_UNABLE_TO_AUTHORISE_JOIN">Unable to authorise join request.</string>
+    <string name="error_M_UNABLE_TO_GRANT_JOIN">Unable to grant join request.</string>
+    <string name="error_M_CANNOT_LEAVE_SERVER_NOTICE_ROOM">You cannot leave the server notice room.</string>
+    <string name="error_M_DUPLICATE_ANNOTATION">Duplicate annotation detected.</string>
+
+    <!-- THREEPID -->
+    <string name="error_M_THREEPID_IN_USE">This third-party identifier is already in use.</string>
+    <string name="error_M_THREEPID_MEDIUM_NOT_SUPPORTED">This third-party identifier medium is not supported.</string>
+    <string name="error_M_THREEPID_NOT_FOUND">Third-party identifier not found.</string>
+    <string name="error_M_THREEPID_AUTH_FAILED">Authentication of third-party identifier failed.</string>
+    <string name="error_M_THREEPID_DENIED">This third-party identifier is not permitted.</string>
+
+    <!-- SERVER -->
+    <string name="error_M_SERVER_NOT_TRUSTED">The server does not trust the specified identity server.</string>
+    <string name="error_M_NOT_FOUND">The requested resource was not found.</string>
+    <string name="error_M_LIMIT_EXCEEDED">Too many requests. Please try again later.</string>
+    <string name="error_M_RESOURCE_LIMIT_EXCEEDED">The server has reached its resource limit. Please contact the administrator.</string>
+    <string name="error_M_EXCLUSIVE">This resource is reserved and cannot be accessed.</string>
+    <string name="error_M_UNKNOWN">An unknown server error occurred.</string>
+
+    <!-- CAPTCHA -->
+    <string name="error_M_CAPTCHA_NEEDED">Captcha verification is required.</string>
+    <string name="error_M_CAPTCHA_INVALID">The captcha verification failed.</string>
+
+    <!-- CUSTOM VALIDATION RULES -->
+    <string name="validation_required">%1$s is required.</string>
+    <string name="validation_length_max">%1$s must be at most %2$s characters long.</string>
+    <string name="validation_length_min">%1$s must be at least %2$s characters long.</string>
+    <string name="validation_length_eq">%1$s must be exactly %2$s characters long.</string>
+    <string name="validation_email">%1$s must be a valid email address.</string>
+    <string name="validation_url">%1$s must be a valid URL.</string>
+    <string name="validation_range">%1$s must be between %2$s and %3$s.</string>
+    
+    <!-- ATTRIBUTE NAMES -->
+    <string name="attr_type">Type</string>
+    <string name="attr_password">Password</string>
+    <string name="attr_identifier">Identifier</string>
+    <string name="attr_identifier_user">Username</string>
+    <string name="attr_device_id">Device ID</string>
+    <string name="attr_initial_device_display_name">Device display name</string>
+    <!-- ERROR CODES ENDING -->
+
+</resources>

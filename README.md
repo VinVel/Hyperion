@@ -1,3 +1,7 @@
+[![Desktop CI](https://github.com/VinVel/Hyperion/actions/workflows/desktop-ci.yml/badge.svg)](https://github.com/VinVel/Hyperion/actions/workflows/desktop-ci.yml)
+
+[![Mobile CI](https://github.com/VinVel/Hyperion/actions/workflows/mobile-ci.yml/badge.svg)](https://github.com/VinVel/Hyperion/actions/workflows/mobile-ci.yml)
+
 ## [LICENSE](./LICENSE)
 ```
     Hyperion, a multiplattform Matrix Client

@@ -1,0 +1,76 @@
+name: iOS Simulator CI
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-simulator-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  ios-simulator:
+    name: iOS simulator app
+    runs-on: macos-15
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Read Rust toolchain channel
+        id: rust-toolchain
+        shell: bash
+        run: |
+          toolchain="$(sed -nE 's/^channel = "(.*)"$/\1/p' rust-toolchain.toml | head -n1)"
+          if [[ -z "$toolchain" ]]; then
+            echo "Could not read 'channel' from rust-toolchain.toml" >&2
+            exit 1
+          fi
+          echo "toolchain=$toolchain" >> "$GITHUB_OUTPUT"
+
+      - name: Install Rust toolchain and simulator target
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust-toolchain.outputs.toolchain }}
+          targets: aarch64-apple-ios-sim
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install JavaScript dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Provide cargo-tauri wrapper for Xcode
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.cargo/bin"
+          cat <<'EOF' > "$HOME/.cargo/bin/cargo-tauri"
+          #!/usr/bin/env bash
+          if [[ "${1:-}" == "tauri" ]]; then
+            shift
+          fi
+          exec bun run tauri "$@"
+          EOF
+          chmod +x "$HOME/.cargo/bin/cargo-tauri"
+
+      - name: Build iOS simulator app
+        run: bun run tauri ios build --ci --target aarch64-sim
+
+      - name: Upload iOS simulator app
+        uses: actions/upload-artifact@v6
+        with:
+          name: hyperion-ios-simulator
+          if-no-files-found: error
+          retention-days: 14
+          path: src-tauri/gen/apple/build/**/*.app

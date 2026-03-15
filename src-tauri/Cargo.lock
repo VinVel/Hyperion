@@ -2317,7 +2317,6 @@ name = "hyperion"
 version = "0.1.0"
 dependencies = [
  "matrix-sdk",
- "matrix-sdk-crypto",
  "rust-i18n",
  "serde",
  "serde_json",

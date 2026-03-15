@@ -27,7 +27,7 @@ rust-i18n = "3.1.5"
 
 [dependencies.matrix-sdk]
 version = "0.16.0"
-default_features = false
+default-features = false
 features = [
     "e2e-encryption", 
     "automatic-room-key-forwarding", 

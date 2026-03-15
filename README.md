@@ -39,3 +39,24 @@ They generate two ignored files:
 
 The scripts use `ANDROID_HOME` when it is already set and otherwise expect an
 installed Android SDK that contains an `ndk/<version>` directory.
+
+## Linux desktop setup
+
+For Tauri desktop builds on Debian-based Linux systems, install the native
+libraries required by GTK, GLib, and WebKit before running `bun tauri dev` or `bun tauri build`:
+
+```bash
+sudo apt update
+sudo apt install \
+  libglib2.0-dev \
+  libgtk-3-dev \
+  libwebkit2gtk-4.1-dev \
+  build-essential \
+  curl \
+  wget \
+  file \
+  libxdo-dev \
+  libssl-dev \
+  libayatana-appindicator3-dev \
+  librsvg2-dev
+```

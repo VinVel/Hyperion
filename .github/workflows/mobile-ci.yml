@@ -174,9 +174,13 @@ jobs:
           path: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
 
   ios:
-    name: iOS unsigned IPA
+    name: iOS signed IPA
     runs-on: macos-15
     timeout-minutes: 120
+    env:
+      IOS_CERTIFICATE: ${{ secrets.IOS_CERTIFICATE }}
+      IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+      IOS_MOBILE_PROVISION: ${{ secrets.IOS_MOBILE_PROVISION }}
 
     steps:
       - name: Check out repository
@@ -220,34 +224,20 @@ jobs:
           EOF
           chmod +x "$HOME/.cargo/bin/cargo-tauri"
 
-      - name: Build unsigned iOS app
+      - name: Validate iOS signing secrets
         shell: bash
         run: |
-          cd src-tauri/gen/apple
-          xcodebuild \
-            -project hyperion.xcodeproj \
-            -scheme hyperion_iOS \
-            -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            build
+          test -n "$IOS_CERTIFICATE" || { echo "Missing IOS_CERTIFICATE secret" >&2; exit 1; }
+          test -n "$IOS_CERTIFICATE_PASSWORD" || { echo "Missing IOS_CERTIFICATE_PASSWORD secret" >&2; exit 1; }
+          test -n "$IOS_MOBILE_PROVISION" || { echo "Missing IOS_MOBILE_PROVISION secret" >&2; exit 1; }
 
-      - name: Package unsigned IPA
-        shell: bash
-        run: |
-          rm -rf src-tauri/gen/apple/Payload src-tauri/gen/apple/hyperion-unsigned.ipa
-          mkdir -p src-tauri/gen/apple/Payload
-          cp -R src-tauri/gen/apple/build/Build/Products/Release-iphoneos/hyperion.app src-tauri/gen/apple/Payload/
-          cd src-tauri/gen/apple
-          zip -qry hyperion-unsigned.ipa Payload
+      - name: Build signed iOS IPA
+        run: bun run tauri ios build --ci --target aarch64 --export-method debugging
 
-      - name: Upload unsigned iOS IPA
+      - name: Upload signed iOS IPA
         uses: actions/upload-artifact@v6
         with:
-          name: hyperion-ios-unsigned
+          name: hyperion-ios-signed
           if-no-files-found: error
           retention-days: 14
-          path: src-tauri/gen/apple/hyperion-unsigned.ipa
+          path: src-tauri/gen/apple/build/arm64/*.ipa

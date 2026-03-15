@@ -1,0 +1,86 @@
+name: iOS Signed CI
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-signed-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  ios-signed:
+    name: iOS signed IPA
+    runs-on: macos-15
+    timeout-minutes: 120
+    env:
+      IOS_CERTIFICATE: ${{ secrets.IOS_CERTIFICATE }}
+      IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+      IOS_MOBILE_PROVISION: ${{ secrets.IOS_MOBILE_PROVISION }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Read Rust toolchain channel
+        id: rust-toolchain
+        shell: bash
+        run: |
+          toolchain="$(sed -nE 's/^channel = "(.*)"$/\1/p' rust-toolchain.toml | head -n1)"
+          if [[ -z "$toolchain" ]]; then
+            echo "Could not read 'channel' from rust-toolchain.toml" >&2
+            exit 1
+          fi
+          echo "toolchain=$toolchain" >> "$GITHUB_OUTPUT"
+
+      - name: Install Rust toolchain and device target
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust-toolchain.outputs.toolchain }}
+          targets: aarch64-apple-ios
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install JavaScript dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Provide cargo-tauri wrapper for Xcode
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.cargo/bin"
+          cat <<'EOF' > "$HOME/.cargo/bin/cargo-tauri"
+          #!/usr/bin/env bash
+          if [[ "${1:-}" == "tauri" ]]; then
+            shift
+          fi
+          exec bun run tauri "$@"
+          EOF
+          chmod +x "$HOME/.cargo/bin/cargo-tauri"
+
+      - name: Validate iOS signing secrets
+        shell: bash
+        run: |
+          test -n "$IOS_CERTIFICATE" || { echo "Missing IOS_CERTIFICATE secret" >&2; exit 1; }
+          test -n "$IOS_CERTIFICATE_PASSWORD" || { echo "Missing IOS_CERTIFICATE_PASSWORD secret" >&2; exit 1; }
+          test -n "$IOS_MOBILE_PROVISION" || { echo "Missing IOS_MOBILE_PROVISION secret" >&2; exit 1; }
+
+      - name: Build signed iOS IPA
+        run: bun run tauri ios build --ci --target aarch64 --export-method debugging
+
+      - name: Upload signed iOS IPA
+        uses: actions/upload-artifact@v6
+        with:
+          name: hyperion-ios-signed
+          if-no-files-found: error
+          retention-days: 14
+          path: src-tauri/gen/apple/build/arm64/*.ipa

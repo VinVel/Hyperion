@@ -27,8 +27,8 @@
   line-height: 24px;
   font-weight: 400;
 
-  color: var(--text);
-  background-color: var(--background);
+  color: var(--on-surface);
+  background-color: var(--surface);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -44,7 +44,7 @@
   flex-direction: column;
   justify-content: center;
   text-align: center;
-  color: var(--text);
+  color: var(--on-surface);
 }
 
 .logo {
@@ -80,15 +80,15 @@ h1 {
 input,
 button {
   border-radius: 8px;
-  border: 1px solid var(--secondary);
+  border: 1px solid var(--outline);
   padding: 0.6em 1.2em;
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  color: var(--text);
-  background-color: var(--background);
+  color: var(--on-surface);
+  background-color: var(--surface-container-lowest);
   transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 2px color-mix(in srgb, var(--shadow) 20%, transparent);
 }
 
 button {
@@ -100,7 +100,7 @@ button:hover {
 }
 button:active {
   border-color: var(--primary);
-  background-color: color-mix(in srgb, var(--background) 80%, var(--text));
+  background-color: var(--surface-container-high);
 }
 
 input,

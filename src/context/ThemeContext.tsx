@@ -14,13 +14,13 @@
  */
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import { colors, ThemeMode } from '../themes/theme';
+import { colors, type ThemeColors, ThemeMode } from '../themes/theme';
 import { useColorScheme } from '../hooks/useColorScheme';
 
 interface ThemeContextType {
   theme: ThemeMode;
   setTheme: (mode: ThemeMode) => void;
-  colors: typeof colors.light;
+  colors: ThemeColors;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -37,7 +37,8 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     root.dataset.theme = isDark ? 'dark' : 'light';
 
     for (const [token, value] of Object.entries(currentColors)) {
-      root.style.setProperty(`--${token}`, value);
+      const cssToken = token.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`);
+      root.style.setProperty(`--${cssToken}`, value);
     }
   }, [isDark, currentColors]);
 

@@ -47,6 +47,13 @@ async fn active_account(
     Ok(manager.active_account().await)
 }
 
+#[tauri::command]
+async fn validate_active_account(
+    manager: State<'_, AccountManager>,
+) -> Result<Option<AccountSummary>, String> {
+    manager.validate_active_account().await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -56,7 +63,8 @@ pub fn run() {
             login_account,
             list_accounts,
             switch_active_account,
-            active_account
+            active_account,
+            validate_active_account
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

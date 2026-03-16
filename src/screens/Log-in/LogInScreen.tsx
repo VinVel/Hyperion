@@ -37,6 +37,7 @@ type FormValues = {
 };
 
 const DEFAULT_HOMESERVER = "https://matrix.org";
+const ACTIVE_SESSION_POLL_INTERVAL_MS = 5000;
 const navigationItems = ["Home", "Info", "Terms", "Contact"];
 
 const defaultFormValues: FormValues = {
@@ -175,6 +176,70 @@ export default function LogInScreen() {
   const usernameMissing = validationRequested && formValues.username.trim().length === 0;
   const passwordMissing = validationRequested && formValues.password.length === 0;
   const currentAccount = activeAccount ?? accounts.find((account) => account.is_active) ?? null;
+
+  useEffect(() => {
+    if (!currentAccount) {
+      return;
+    }
+
+    const currentAccountUserId = currentAccount.user_id;
+    let cancelled = false;
+
+    async function validateActiveSession() {
+      try {
+        const validatedAccount =
+          await invoke<AccountSummary | null>("validate_active_account");
+
+        if (cancelled) {
+          return;
+        }
+
+        if (validatedAccount) {
+          return;
+        }
+
+        const didSync = await syncSessionState();
+        if (cancelled) {
+          return;
+        }
+
+        setFeedback({
+          tone: didSync ? "info" : "error",
+          text: didSync
+            ? `${currentAccountUserId} was deauthorized and has been logged out locally.`
+            : `The active session for ${currentAccountUserId} is no longer valid.`,
+        });
+      } catch {
+        // Validation failures should not interrupt the current UI flow.
+      }
+    }
+
+    void validateActiveSession();
+
+    const intervalId = window.setInterval(() => {
+      void validateActiveSession();
+    }, ACTIVE_SESSION_POLL_INTERVAL_MS);
+
+    const handleWindowFocus = () => {
+      void validateActiveSession();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void validateActiveSession();
+      }
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [currentAccount?.account_key]);
 
   function updateField(field: keyof FormValues, value: string) {
     setFormValues((currentValues) => ({

@@ -1,0 +1,528 @@
+/*
+ * Copyright (c) 2026 VinVel
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, version 3 only.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * Project home: hyperion.velcore.net
+ */
+
+.login-shell {
+  min-height: 100dvh;
+  background: var(--surface);
+  padding:
+    max(1.25rem, env(safe-area-inset-top))
+    max(1.25rem, env(safe-area-inset-right))
+    max(1.25rem, env(safe-area-inset-bottom))
+    max(1.25rem, env(safe-area-inset-left));
+}
+
+.login-topbar,
+.login-stage {
+  max-width: 82rem;
+  margin: 0 auto;
+}
+
+.login-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+.login-brand-logo {
+  width: 2.85rem;
+  height: 2.85rem;
+  border-radius: 14px;
+  object-fit: cover;
+}
+
+.login-brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.login-brand-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.login-brand-tag {
+  color: var(--on-surface-variant);
+  font-size: 0.78rem;
+}
+
+.login-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.login-nav-button,
+.login-signup-button,
+.login-text-action,
+.login-account-button {
+  cursor: pointer;
+}
+
+.login-nav-button {
+  border: none;
+  border-radius: 25px;
+  background: transparent;
+  color: var(--on-surface-variant);
+  padding: 0.7rem 0.95rem;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.login-nav-button:hover {
+  color: var(--on-surface);
+  background: color-mix(in srgb, var(--surface-container-high) 70%, transparent);
+  transform: translateY(-1px);
+}
+
+.login-signup-button {
+  min-width: 7rem;
+  border: none;
+  border-radius: 25px;
+  background: var(--surface-container-low);
+  color: var(--on-surface-variant);
+  padding: 0.75rem 1.15rem;
+  box-shadow:
+    0 12px 24px color-mix(in srgb, var(--shadow) 8%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--outline) 45%, transparent);
+}
+
+.login-signup-button:disabled {
+  cursor: not-allowed;
+}
+
+.login-stage {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100dvh - 5.5rem);
+  padding-block: clamp(2rem, 6vw, 5rem);
+}
+
+.login-panel-kicker,
+.login-active-label,
+.login-account-state {
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.login-panel {
+  width: clamp(22rem, 50vw, 56rem);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  border-radius: 25px;
+  background: var(--surface-container-low);
+  padding: clamp(1.4rem, 3vw, 2rem);
+  box-shadow:
+    0 28px 72px color-mix(in srgb, var(--shadow) 12%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--outline-variant) 74%, transparent);
+}
+
+.login-avatar {
+  width: 4.75rem;
+  height: 4.75rem;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-container-high);
+  color: var(--primary);
+  box-shadow:
+    0 16px 32px color-mix(in srgb, var(--shadow) 10%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--outline) 46%, transparent);
+}
+
+.login-avatar svg {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+.login-panel-kicker {
+  margin: 0;
+  color: var(--secondary);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.login-panel-title {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 2.4rem);
+  text-align: center;
+}
+
+.login-panel-copy {
+  margin: 0;
+  color: var(--on-surface-variant);
+  text-align: center;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.login-field-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--on-surface-variant);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.login-field-required {
+  color: var(--error);
+  font-weight: 700;
+}
+
+.login-field-control {
+  width: 100%;
+  border: none;
+  border-radius: 25px;
+  background: var(--surface-container-highest);
+  color: var(--on-surface);
+  padding: 0.95rem 1.1rem;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--outline) 52%, transparent),
+    0 12px 24px color-mix(in srgb, var(--shadow) 8%, transparent);
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.login-field-control:hover {
+  transform: translateY(-1px);
+}
+
+.login-field-control::placeholder {
+  color: var(--outline);
+  opacity: 1;
+}
+
+.login-field-control[data-invalid="true"] {
+  box-shadow:
+    inset 0 0 0 1px var(--error),
+    0 12px 24px color-mix(in srgb, var(--shadow) 10%, transparent);
+}
+
+.login-field-control:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px var(--primary),
+    0 0 0 4px color-mix(in srgb, var(--primary) 18%, transparent),
+    0 12px 24px color-mix(in srgb, var(--shadow) 10%, transparent);
+}
+
+.login-password-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.login-submit-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  width: 3.55rem;
+  aspect-ratio: 1;
+  border: none;
+  border-radius: 25px;
+  background: var(--primary);
+  color: var(--on-primary);
+  box-shadow: 0 18px 32px color-mix(in srgb, var(--primary) 22%, transparent);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
+}
+
+.login-submit-button:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 24px 40px color-mix(in srgb, var(--primary) 28%, transparent);
+}
+
+.login-submit-button:disabled {
+  cursor: progress;
+  filter: saturate(0.7);
+  opacity: 0.8;
+}
+
+.login-submit-button svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.login-submit-label {
+  display: none;
+  font-weight: 600;
+}
+
+.login-support-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+}
+
+.login-text-action {
+  border: none;
+  background: transparent;
+  color: var(--secondary);
+  padding: 0;
+}
+
+.login-text-action:hover {
+  color: var(--primary);
+}
+
+.login-required-copy {
+  color: var(--on-surface-variant);
+  font-size: 0.9rem;
+}
+
+.login-feedback {
+  margin: 0;
+  border-radius: 25px;
+  padding: 0.9rem 1rem;
+  font-size: 0.95rem;
+}
+
+.login-feedback--error {
+  background: color-mix(in srgb, var(--error-container) 88%, transparent);
+  color: var(--on-error-container);
+}
+
+.login-feedback--success {
+  background: color-mix(in srgb, var(--primary-container) 82%, transparent);
+  color: var(--on-primary-container);
+}
+
+.login-feedback--info {
+  background: color-mix(in srgb, var(--secondary-container) 82%, transparent);
+  color: var(--on-secondary-container);
+}
+
+.login-session-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  border-radius: 25px;
+  background: var(--surface-container);
+  padding: 1rem;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--outline-variant) 74%, transparent);
+}
+
+.login-session-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.login-section-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.login-section-meta {
+  color: var(--on-surface-variant);
+  font-size: 0.88rem;
+}
+
+.login-active-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  border-radius: 25px;
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+  padding: 0.95rem 1rem;
+}
+
+.login-active-label {
+  font-size: 0.74rem;
+  opacity: 0.8;
+}
+
+.login-active-user,
+.login-account-user,
+.login-account-home {
+  word-break: break-word;
+}
+
+.login-active-user {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.login-active-home {
+  font-size: 0.9rem;
+  opacity: 0.88;
+}
+
+.login-session-empty {
+  margin: 0;
+  color: var(--on-surface-variant);
+}
+
+.login-account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.login-account-button {
+  width: 100%;
+  border: none;
+  border-radius: 25px;
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+  padding: 0.9rem 1rem;
+  text-align: left;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--outline-variant) 80%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.login-account-button:hover:not(:disabled) {
+  transform: translateX(2px);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 42%, transparent);
+}
+
+.login-account-button:disabled {
+  cursor: default;
+}
+
+.login-account-button--active {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 38%, transparent);
+}
+
+.login-account-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.login-account-user {
+  font-weight: 700;
+}
+
+.login-account-home {
+  color: var(--on-surface-variant);
+  font-size: 0.86rem;
+}
+
+.login-account-button--active .login-account-home,
+.login-account-button--active .login-account-state {
+  color: color-mix(in srgb, var(--on-primary-container) 80%, transparent);
+}
+
+.login-account-state {
+  color: var(--secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+@media (max-width: 960px) {
+  .login-topbar {
+    flex-wrap: wrap;
+  }
+
+  .login-nav {
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .login-stage {
+    min-height: auto;
+  }
+
+  .login-panel {
+    width: min(100%, 42rem);
+  }
+}
+
+@media (max-width: 640px) {
+  .login-brand {
+    flex: 1 1 auto;
+  }
+
+  .login-signup-button {
+    min-width: auto;
+  }
+
+  .login-panel {
+    width: 100%;
+    border-radius: 25px;
+    padding: 1.25rem;
+  }
+
+  .login-password-row {
+    grid-template-columns: 1fr;
+  }
+
+  .login-submit-button {
+    width: 100%;
+    min-height: 3.4rem;
+    border-radius: 25px;
+    aspect-ratio: auto;
+  }
+
+  .login-submit-label {
+    display: inline;
+  }
+
+  .login-support-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .login-account-button {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

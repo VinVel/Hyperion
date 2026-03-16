@@ -65,7 +65,7 @@ jobs:
           chmod +x "$HOME/.cargo/bin/cargo-tauri"
 
       - name: Build iOS simulator app
-        run: bun run tauri ios build --ci --target aarch64-sim
+        run: bun run tauri ios build --ci --debug --target aarch64-sim
 
       - name: Upload iOS simulator app
         uses: actions/upload-artifact@v6

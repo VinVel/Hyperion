@@ -93,7 +93,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build ABI-specific Android APK
-        run: bun run tauri android build --ci --apk --split-per-abi --target ${{ matrix.tauri_target }}
+        run: bun run tauri android build --ci --debug --apk --split-per-abi --target ${{ matrix.tauri_target }}
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v6
@@ -163,7 +163,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build universal Android APK
-        run: bun run tauri android build --ci --apk
+        run: bun run tauri android build --ci --debug --apk
 
       - name: Upload universal Android APK
         uses: actions/upload-artifact@v6
@@ -171,4 +171,4 @@ jobs:
           name: hyperion-android-universal
           if-no-files-found: error
           retention-days: 14
-          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+          path: src-tauri/gen/android/app/build/outputs/apk/universal/debug/*.apk

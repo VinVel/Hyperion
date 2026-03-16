@@ -75,7 +75,7 @@ jobs:
           test -n "$IOS_MOBILE_PROVISION" || { echo "Missing IOS_MOBILE_PROVISION secret" >&2; exit 1; }
 
       - name: Build signed iOS IPA
-        run: bun run tauri ios build --ci --target aarch64 --export-method debugging
+        run: bun run tauri ios build --ci --debug --target aarch64 --export-method debugging
 
       - name: Upload signed iOS IPA
         uses: actions/upload-artifact@v6

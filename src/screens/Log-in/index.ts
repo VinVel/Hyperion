@@ -13,11 +13,4 @@
  * Project home: hyperion.velcore.net
  */
 
-import "./App.css";
-import { LogInScreen } from "./screens/Log-in";
-
-function App() {
-  return <LogInScreen />;
-}
-
-export default App;
+export { default as LogInScreen } from "./LogInScreen";

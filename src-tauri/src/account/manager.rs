@@ -1,15 +1,15 @@
 /*
  * Copyright (c) 2026 VinVel
- * 
+ *
  * SPDX-License-Identifier: AGPL-3.0-only
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, version 3 only.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
- * 
+ *
  * Project home: hyperion.velcore.net
  */
 
@@ -57,7 +57,9 @@ impl AccountManager {
         // its own sqlite database directory under the app data folder.
         let store_dir = self.account_store_dir(app, &request.homeserver_url, &request.username)?;
 
-        let client = self.login_client_with_recovery(&store_dir, &request).await?;
+        let client = self
+            .login_client_with_recovery(&store_dir, &request)
+            .await?;
 
         let user_id = client
             .user_id()
@@ -177,7 +179,9 @@ impl AccountManager {
 
                 Ok(None)
             }
-            Err(error) => Err(format!("Failed to validate active account session: {error}")),
+            Err(error) => Err(format!(
+                "Failed to validate active account session: {error}"
+            )),
         }
     }
 
@@ -345,8 +349,7 @@ impl AccountManager {
                 match fs::remove_dir_all(store_dir) {
                     Ok(()) => {}
                     Err(err)
-                        if err.raw_os_error() == Some(32)
-                            && attempt + 1 < RESET_RETRY_ATTEMPTS =>
+                        if err.raw_os_error() == Some(32) && attempt + 1 < RESET_RETRY_ATTEMPTS =>
                     {
                         thread::sleep(RESET_RETRY_DELAY);
                         continue;

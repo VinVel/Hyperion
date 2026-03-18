@@ -22,10 +22,21 @@ use std::{
     time::Duration,
 };
 
-use matrix_sdk::Client;
+use matrix_sdk::{
+    Client, Error as MatrixError,
+    ruma::api::client::account::register::v3::{
+        Request as MatrixRegistrationRequest, Response as MatrixRegistrationResponse,
+    },
+};
+use reqwest::Client as HttpClient;
 use tauri::{AppHandle, Manager};
 
-use super::types::{AccountSummary, LoginRequest};
+use super::types::{
+    AccountSummary, HomeserverDirectory, HomeserverDirectoryEntry, LoginRequest,
+    RegisterAccountRequest, RegistrationFlow, RegistrationOutcome,
+};
+
+const HOMESERVER_DIRECTORY_URL: &str = "https://servers.joinmatrix.org/servers.json";
 
 struct ManagedAccount {
     // Each logged-in account owns its own Matrix client instance.
@@ -56,48 +67,21 @@ impl AccountManager {
         // Multi-account support requires isolated stores. Every account gets
         // its own sqlite database directory under the app data folder.
         let store_dir = self.account_store_dir(app, &request.homeserver_url, &request.username)?;
-
         let client = self
             .login_client_with_recovery(&store_dir, &request)
             .await?;
-
         let user_id = client
             .user_id()
             .ok_or_else(|| String::from("Login succeeded, but user id is not available"))?
             .to_string();
 
-        let account_key = user_id.clone();
-        let homeserver_url = request.homeserver_url;
-        let mut accounts = self
-            .accounts
-            .write()
-            .expect("account manager accounts lock poisoned");
-        // Replacing an existing entry lets the same account log in again
-        // without leaving a stale client instance behind.
-        accounts.insert(
-            account_key.clone(),
-            ManagedAccount {
-                _client: client,
-                user_id: user_id.clone(),
-                homeserver_url: homeserver_url.clone(),
-                store_dir: store_dir.clone(),
-            },
-        );
-
-        let mut active_account = self
-            .active_account_key
-            .write()
-            .expect("account manager active account lock poisoned");
-        if active_account.is_none() {
-            *active_account = Some(account_key.clone());
-        }
-
-        Ok(AccountSummary {
-            account_key: account_key.clone(),
+        Ok(self.store_logged_in_account(
+            user_id.clone(),
             user_id,
-            homeserver_url,
-            is_active: active_account.as_deref() == Some(account_key.as_str()),
-        })
+            request.homeserver_url,
+            store_dir,
+            client,
+        ))
     }
 
     pub async fn list_accounts(&self) -> Vec<AccountSummary> {
@@ -185,6 +169,56 @@ impl AccountManager {
         }
     }
 
+    pub async fn list_registration_homeservers(&self) -> Result<HomeserverDirectory, String> {
+        // Fetch the directory on demand so the UI always sees the latest
+        // registration metadata published by joinmatrix.org.
+        let mut directory = HttpClient::new()
+            .get(HOMESERVER_DIRECTORY_URL)
+            .send()
+            .await
+            .map_err(|err| format!("Failed to fetch the homeserver directory: {err}"))?
+            .error_for_status()
+            .map_err(|err| format!("Failed to fetch the homeserver directory: {err}"))?
+            .json::<HomeserverDirectory>()
+            .await
+            .map_err(|err| format!("Failed to parse the homeserver directory: {err}"))?;
+
+        for homeserver in &mut directory.public_servers {
+            Self::enrich_homeserver_entry(homeserver);
+        }
+
+        Ok(directory)
+    }
+
+    pub async fn register_account(
+        &self,
+        app: &AppHandle,
+        request: RegisterAccountRequest,
+    ) -> Result<RegistrationOutcome, String> {
+        // Resolve the server against a fresh directory response each time the
+        // register button is pressed, as requested by the flow design.
+        let directory = self.list_registration_homeservers().await?;
+        let homeserver = directory
+            .public_servers
+            .into_iter()
+            .find(|homeserver| homeserver.server_id == request.server_id)
+            .ok_or_else(|| format!("Unknown homeserver id: {}", request.server_id))?;
+
+        match homeserver.registration_flow {
+            RegistrationFlow::MatrixSdk => {
+                self.register_with_matrix_sdk(app, homeserver, request)
+                    .await
+            }
+            RegistrationFlow::ExternalLink => self.open_external_registration(homeserver),
+            RegistrationFlow::InfoOnly => Ok(RegistrationOutcome::InformationOnly {
+                homeserver,
+                message: String::from(
+                    "This homeserver uses a registration flow that Hyperion does not implement yet. Present its metadata in the UI for manual guidance.",
+                ),
+            }),
+        }
+    }
+
     fn account_store_dir(
         &self,
         app: &AppHandle,
@@ -197,7 +231,9 @@ impl AccountManager {
             .map_err(|err| format!("Failed to resolve app data directory: {err}"))?;
 
         // Homeserver + username makes the on-disk store stable before we know
-        // the final Matrix user id returned by the server.
+        // the final Matrix user id returned by the server. This keeps each
+        // account in its own sqlite database, which is required for
+        // multi-account support with the Matrix Rust SDK.
         let account_folder = format!(
             "{}_{}",
             Self::sanitize_for_path(homeserver_url),
@@ -303,16 +339,103 @@ impl AccountManager {
         ))
     }
 
+    async fn register_with_matrix_sdk(
+        &self,
+        app: &AppHandle,
+        homeserver: HomeserverDirectoryEntry,
+        request: RegisterAccountRequest,
+    ) -> Result<RegistrationOutcome, String> {
+        let homeserver_url = homeserver
+            .homeserver_url
+            .clone()
+            .ok_or_else(|| String::from("The selected homeserver does not expose a client URL"))?;
+        let homeserver_target = Self::registration_homeserver_target(&homeserver);
+        let store_dir = self.account_store_dir(app, &homeserver_url, &request.username)?;
+        let client = Self::build_client(&homeserver_target, &store_dir).await?;
+        let response = match Self::perform_registration(&client, &request).await {
+            Ok(response) => response,
+            Err(error) if error.as_uiaa_response().is_some() => {
+                return self.handle_uiaa_registration_requirement(homeserver, error);
+            }
+            Err(error) => {
+                return Err(format!("Registration failed: {error}"));
+            }
+        };
+
+        let mut notes = Vec::new();
+
+        // Matrix registration creates the account first; optional profile data
+        // such as the display name is set once the SDK has established a session.
+        if let Some(display_name) = request.display_name.as_deref() {
+            if let Err(error) = client.account().set_display_name(Some(display_name)).await {
+                notes.push(format!(
+                    "The account was created, but setting the display name failed: {error}"
+                ));
+            }
+        }
+
+        if request.email.is_some() {
+            notes.push(String::from(
+                "Email was collected in the request, but Matrix email verification flows are not implemented in Hyperion yet.",
+            ));
+        }
+
+        let user_id = response.user_id.to_string();
+        let account = self.store_logged_in_account(
+            user_id.clone(),
+            user_id,
+            homeserver_url,
+            store_dir,
+            client,
+        );
+
+        Ok(RegistrationOutcome::Registered {
+            account,
+            homeserver,
+            email_submitted: request.email.is_some(),
+            email_applied: false,
+            note: (!notes.is_empty()).then(|| notes.join(" ")),
+        })
+    }
+
+    fn open_external_registration(
+        &self,
+        homeserver: HomeserverDirectoryEntry,
+    ) -> Result<RegistrationOutcome, String> {
+        let reg_link = homeserver.reg_link.clone().ok_or_else(|| {
+            String::from("The selected homeserver does not provide a registration link")
+        })?;
+
+        Ok(RegistrationOutcome::ExternalRegistrationOpened {
+            homeserver,
+            reg_link,
+        })
+    }
+
+    fn handle_uiaa_registration_requirement(
+        &self,
+        homeserver: HomeserverDirectoryEntry,
+        error: MatrixError,
+    ) -> Result<RegistrationOutcome, String> {
+        if homeserver.reg_link.is_some() {
+            return self.open_external_registration(homeserver);
+        }
+
+        Ok(RegistrationOutcome::InformationOnly {
+            homeserver,
+            message: format!(
+                "This homeserver requires interactive registration steps that Hyperion does not \
+                 support yet. Complete the server's registration flow first, then sign in here. \
+                 Details: {error}"
+            ),
+        })
+    }
+
     async fn build_and_login_client(
         store_dir: &Path,
         request: &LoginRequest,
     ) -> Result<Client, String> {
-        let client = Client::builder()
-            .homeserver_url(request.homeserver_url.clone())
-            .sqlite_store(store_dir, None)
-            .build()
-            .await
-            .map_err(|err| format!("Failed to build Matrix client: {err}"))?;
+        let client = Self::build_client(&request.homeserver_url, store_dir).await?;
 
         let mut login_builder = client
             .matrix_auth()
@@ -328,6 +451,125 @@ impl AccountManager {
             .map_err(|err| format!("Login failed: {err}"))?;
 
         Ok(client)
+    }
+
+    async fn build_client(homeserver_target: &str, store_dir: &Path) -> Result<Client, String> {
+        Client::builder()
+            .server_name_or_homeserver_url(homeserver_target)
+            .sqlite_store(store_dir, None)
+            .build()
+            .await
+            .map_err(|err| format!("Failed to build Matrix client: {err}"))
+    }
+
+    async fn perform_registration(
+        client: &Client,
+        request: &RegisterAccountRequest,
+    ) -> Result<MatrixRegistrationResponse, MatrixError> {
+        let mut registration_request = MatrixRegistrationRequest::new();
+        registration_request.username = Some(request.username.clone());
+        registration_request.password = Some(request.password.clone());
+        registration_request.initial_device_display_name = request.device_display_name.clone();
+
+        client.matrix_auth().register(registration_request).await
+    }
+
+    fn store_logged_in_account(
+        &self,
+        account_key: String,
+        user_id: String,
+        homeserver_url: String,
+        store_dir: PathBuf,
+        client: Client,
+    ) -> AccountSummary {
+        let mut accounts = self
+            .accounts
+            .write()
+            .expect("account manager accounts lock poisoned");
+
+        // Replacing an existing entry lets the same account log in or register
+        // again without leaving a stale client instance behind.
+        accounts.insert(
+            account_key.clone(),
+            ManagedAccount {
+                _client: client,
+                user_id: user_id.clone(),
+                homeserver_url: homeserver_url.clone(),
+                store_dir,
+            },
+        );
+
+        let mut active_account = self
+            .active_account_key
+            .write()
+            .expect("account manager active account lock poisoned");
+        if active_account.is_none() {
+            *active_account = Some(account_key.clone());
+        }
+
+        AccountSummary {
+            account_key: account_key.clone(),
+            user_id,
+            homeserver_url,
+            is_active: active_account.as_deref() == Some(account_key.as_str()),
+        }
+    }
+
+    fn enrich_homeserver_entry(homeserver: &mut HomeserverDirectoryEntry) {
+        homeserver.server_id = Self::derive_server_id(homeserver);
+        homeserver.homeserver_url = Self::derive_homeserver_url(homeserver);
+        homeserver.registration_flow = Self::derive_registration_flow(homeserver);
+        homeserver.supports_display_name =
+            matches!(homeserver.registration_flow, RegistrationFlow::MatrixSdk);
+    }
+
+    fn derive_server_id(homeserver: &HomeserverDirectoryEntry) -> String {
+        homeserver
+            .client_domain
+            .clone()
+            .or_else(|| homeserver.server_domain.clone())
+            .unwrap_or_else(|| homeserver.name.clone())
+    }
+
+    fn derive_homeserver_url(homeserver: &HomeserverDirectoryEntry) -> Option<String> {
+        homeserver
+            .client_domain
+            .as_deref()
+            .or(homeserver.server_domain.as_deref())
+            .map(Self::ensure_https_url)
+    }
+
+    fn registration_homeserver_target(homeserver: &HomeserverDirectoryEntry) -> String {
+        homeserver
+            .server_domain
+            .clone()
+            .or_else(|| homeserver.client_domain.clone())
+            .or_else(|| homeserver.homeserver_url.clone())
+            .unwrap_or_else(|| homeserver.server_id.clone())
+    }
+
+    fn derive_registration_flow(homeserver: &HomeserverDirectoryEntry) -> RegistrationFlow {
+        if homeserver.using_vanilla_reg == Some(true) {
+            RegistrationFlow::MatrixSdk
+        } else if homeserver.using_vanilla_reg == Some(false)
+            && homeserver.reg_link.is_some()
+            && matches!(
+                homeserver.reg_method.as_deref(),
+                Some("SSO") | Some("In-house Element") | Some("Application Form")
+            )
+        {
+            RegistrationFlow::ExternalLink
+        } else {
+            RegistrationFlow::InfoOnly
+        }
+    }
+
+    fn ensure_https_url(value: &str) -> String {
+        if value.contains("://") {
+            value.to_owned()
+        } else {
+            format!("https://{value}")
+        }
     }
 
     fn is_stale_crypto_store_error(error_message: &str) -> bool {

@@ -13,10 +13,4 @@
  * Project home: hyperion.velcore.net
  */
 
-pub mod manager;
-pub mod types;
-
-pub use manager::AccountManager;
-pub use types::{
-    AccountSummary, HomeserverDirectory, LoginRequest, RegisterAccountRequest, RegistrationOutcome,
-};
+export { default as RegistrationScreen } from "./RegistrationScreen";

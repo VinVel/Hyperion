@@ -36,6 +36,12 @@ type FormValues = {
   password: string;
 };
 
+type LogInScreenProps = {
+  initialFeedback?: FeedbackMessage | null;
+  initialHomeserver?: string;
+  onOpenRegistration?: () => void;
+};
+
 const DEFAULT_HOMESERVER = "https://matrix.org";
 const ACTIVE_SESSION_POLL_INTERVAL_MS = 5000;
 const navigationItems = ["Home", "Info", "Terms", "Contact"];
@@ -135,11 +141,18 @@ function ArrowGlyph() {
   );
 }
 
-export default function LogInScreen() {
-  const [formValues, setFormValues] = useState<FormValues>(defaultFormValues);
+export default function LogInScreen({
+  initialFeedback = null,
+  initialHomeserver = "",
+  onOpenRegistration,
+}: LogInScreenProps) {
+  const [formValues, setFormValues] = useState<FormValues>(() => ({
+    ...defaultFormValues,
+    homeserver: initialHomeserver,
+  }));
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [activeAccount, setActiveAccount] = useState<AccountSummary | null>(null);
-  const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
+  const [feedback, setFeedback] = useState<FeedbackMessage | null>(initialFeedback);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [switchingAccountKey, setSwitchingAccountKey] = useState<string | null>(null);
   const [validationRequested, setValidationRequested] = useState(false);
@@ -172,6 +185,25 @@ export default function LogInScreen() {
   useEffect(() => {
     void syncSessionState();
   }, []);
+
+  useEffect(() => {
+    if (initialFeedback) {
+      setFeedback(initialFeedback);
+    }
+  }, [initialFeedback]);
+
+  useEffect(() => {
+    if (initialHomeserver.length === 0) {
+      return;
+    }
+
+    setFormValues((currentValues) => ({
+      ...currentValues,
+      homeserver: currentValues.homeserver.trim().length > 0
+        ? currentValues.homeserver
+        : initialHomeserver,
+    }));
+  }, [initialHomeserver]);
 
   const usernameMissing = validationRequested && formValues.username.trim().length === 0;
   const passwordMissing = validationRequested && formValues.password.length === 0;
@@ -357,7 +389,12 @@ export default function LogInScreen() {
           ))}
         </nav>
 
-        <button type="button" className="login-signup-button" disabled>
+        <button
+          type="button"
+          className="login-signup-button"
+          disabled={!onOpenRegistration}
+          onClick={() => onOpenRegistration?.()}
+        >
           Sign up
         </button>
       </header>

@@ -106,6 +106,17 @@
   box-shadow:
     0 12px 24px color-mix(in srgb, var(--shadow) 8%, transparent),
     inset 0 0 0 1px color-mix(in srgb, var(--outline) 45%, transparent);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.login-signup-button:hover:not(:disabled) {
+  color: var(--on-surface);
+  background: var(--surface-container);
+  transform: translateY(-1px);
 }
 
 .login-signup-button:disabled {

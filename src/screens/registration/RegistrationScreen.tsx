@@ -15,6 +15,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { Webview } from "@tauri-apps/api/webview";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { LogicalPosition, LogicalSize, getCurrentWindow } from "@tauri-apps/api/window";
 import {
   type FormEvent,
@@ -237,6 +238,10 @@ function handoffWarning(
   return `${homeserverTitle(homeserver)} uses its own registration flow. Hyperion is opening the homeserver's published registration page inside the app.`;
 }
 
+function isMobileWebviewUnavailableError(error: unknown): boolean {
+  return getErrorMessage(error).toLowerCase().includes("webview api not available on mobile");
+}
+
 function BackArrowGlyph() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -409,6 +414,20 @@ export default function RegistrationScreen({
     void openWebview().catch((error) => {
       if (disposed) return;
 
+      if (isMobileWebviewUnavailableError(error)) {
+        void fallbackToExternalBrowser(embeddedWebview).catch((fallbackError) => {
+          if (disposed) return;
+
+          setEmbeddedWebview(null);
+          setStage(embeddedWebview.returnStage);
+          setFeedback({
+            tone: "error",
+            text: `Failed to open the browser fallback: ${getErrorMessage(fallbackError)}`,
+          });
+        });
+        return;
+      }
+
       setEmbeddedWebview(null);
       setStage(embeddedWebview.returnStage);
       setFeedback({
@@ -467,6 +486,26 @@ export default function RegistrationScreen({
 
   function finishInLogin(nextLaunchState?: LoginLaunchState) {
     onBackToLogin(nextLaunchState ?? null);
+  }
+
+  async function fallbackToExternalBrowser(nextWebview: EmbeddedWebviewState) {
+    await openUrl(nextWebview.url);
+    setEmbeddedWebview(null);
+
+    if (nextWebview.kind === "registration" && selectedHomeserver) {
+      finishInLogin({
+        homeserver: selectedHomeserver.homeserver_url ?? undefined,
+        text: `Opened the registration page in your browser because the in-app webview is not available on mobile. Complete registration there, then sign in here.`,
+        tone: "info",
+      });
+      return;
+    }
+
+    setStage(nextWebview.returnStage);
+    setFeedback({
+      tone: "info",
+      text: "Opened the page in your browser because the in-app webview is not available on mobile.",
+    });
   }
 
   function openEmbeddedWebview(nextWebview: EmbeddedWebviewState) {

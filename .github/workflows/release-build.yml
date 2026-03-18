@@ -1,0 +1,522 @@
+name: Release Build
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      changelog_path:
+        required: true
+        type: string
+    outputs:
+      tag:
+        description: Published release tag
+        value: ${{ jobs.publish-release.outputs.tag }}
+      version:
+        description: Published release version
+        value: ${{ jobs.publish-release.outputs.version }}
+    secrets:
+      IOS_CERTIFICATE:
+        required: true
+      IOS_CERTIFICATE_PASSWORD:
+        required: true
+      IOS_MOBILE_PROVISION:
+        required: true
+      ANDROID_KEYSTORE:
+        required: false
+      ANDROID_KEY_ALIAS:
+        required: false
+      ANDROID_KEY_PASSWORD:
+        required: false
+      ANDROID_STORE_PASSWORD:
+        required: false
+      APPLE_CERTIFICATE:
+        required: false
+      APPLE_CERTIFICATE_PASSWORD:
+        required: false
+      APPLE_ID:
+        required: false
+      APPLE_PASSWORD:
+        required: false
+      APPLE_TEAM_ID:
+        required: false
+      APPLE_API_KEY:
+        required: false
+      APPLE_API_ISSUER:
+        required: false
+      KEYCHAIN_PASSWORD:
+        required: false
+      TAURI_SIGNING_PRIVATE_KEY:
+        required: false
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD:
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-build-${{ inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  CI: true
+  CARGO_INCREMENTAL: 0
+  ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+  ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+  ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+  ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+  APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+  APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+  APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+  APPLE_ID: ${{ secrets.APPLE_ID }}
+  APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+  APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+  KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+jobs:
+  desktop:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64 release
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: release-windows-x64
+          - name: Windows arm64 release
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            artifact: release-windows-arm64
+          - name: macOS Intel release
+            runner: macos-13
+            target: x86_64-apple-darwin
+            artifact: release-macos-intel
+          - name: macOS arm64 release
+            runner: macos-15
+            target: aarch64-apple-darwin
+            artifact: release-macos-arm64
+          - name: Linux x64 release
+            runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            artifact: release-linux-x64
+          - name: Linux arm64 release
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            artifact: release-linux-arm64
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            libgtk-3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            patchelf \
+            rpm \
+            wget \
+            xdg-utils
+
+      - name: Prepare Apple API key file
+        if: runner.os == 'macOS' && env.APPLE_API_KEY != ''
+        shell: bash
+        run: |
+          api_key_path="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s' "$APPLE_API_KEY" > "$api_key_path"
+          echo "APPLE_API_KEY_PATH=$api_key_path" >> "$GITHUB_ENV"
+
+      - name: Read Rust toolchain channel
+        id: rust-toolchain
+        shell: bash
+        run: |
+          toolchain="$(sed -nE 's/^channel = "(.*)"$/\1/p' rust-toolchain.toml | head -n1)"
+          if [[ -z "$toolchain" ]]; then
+            echo "Could not read 'channel' from rust-toolchain.toml" >&2
+            exit 1
+          fi
+          echo "toolchain=$toolchain" >> "$GITHUB_OUTPUT"
+
+      - name: Install Rust toolchain and target
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust-toolchain.outputs.toolchain }}
+          targets: ${{ matrix.target }}
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install JavaScript dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build Tauri bundles
+        run: bun run tauri build --target ${{ matrix.target }}
+
+      - name: Upload desktop bundles
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.artifact }}
+          if-no-files-found: error
+          retention-days: 7
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/
+
+  android-split:
+    name: Android ${{ matrix.abi_label }} release
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tauri_target: aarch64
+            rust_target: aarch64-linux-android
+            abi_label: arm64-v8a
+            artifact: release-android-arm64-v8a
+          - tauri_target: armv7
+            rust_target: armv7-linux-androideabi
+            abi_label: armeabi-v7a
+            artifact: release-android-armeabi-v7a
+          - tauri_target: i686
+            rust_target: i686-linux-android
+            abi_label: x86
+            artifact: release-android-x86
+          - tauri_target: x86_64
+            rust_target: x86_64-linux-android
+            abi_label: x86_64
+            artifact: release-android-x86_64
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+
+      - name: Read Rust toolchain channel
+        id: rust-toolchain
+        shell: bash
+        run: |
+          toolchain="$(sed -nE 's/^channel = "(.*)"$/\1/p' rust-toolchain.toml | head -n1)"
+          if [[ -z "$toolchain" ]]; then
+            echo "Could not read 'channel' from rust-toolchain.toml" >&2
+            exit 1
+          fi
+          echo "toolchain=$toolchain" >> "$GITHUB_OUTPUT"
+
+      - name: Install Rust toolchain and target
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust-toolchain.outputs.toolchain }}
+          targets: ${{ matrix.rust_target }}
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;27.1.12297006"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.1.12297006" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.1.12297006" >> "$GITHUB_ENV"
+
+      - name: Configure Android release signing
+        if: env.ANDROID_KEYSTORE != '' && env.ANDROID_KEY_ALIAS != '' && env.ANDROID_KEY_PASSWORD != '' && env.ANDROID_STORE_PASSWORD != ''
+        shell: bash
+        run: |
+          keystore_path="$RUNNER_TEMP/hyperion-release.keystore"
+          printf '%s' "$ANDROID_KEYSTORE" | base64 --decode > "$keystore_path"
+          cat > src-tauri/gen/android/keystore.properties <<EOF
+          storeFile=$keystore_path
+          storePassword=$ANDROID_STORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          password=$ANDROID_KEY_PASSWORD
+          EOF
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install JavaScript dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build ABI-specific Android APK
+        run: bun run tauri android build --ci --apk --split-per-abi --target ${{ matrix.tauri_target }}
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.artifact }}
+          if-no-files-found: error
+          retention-days: 7
+          path: src-tauri/gen/android/app/build/outputs/apk/**/release/*.apk
+
+  android-universal:
+    name: Android universal release
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+
+      - name: Read Rust toolchain channel
+        id: rust-toolchain
+        shell: bash
+        run: |
+          toolchain="$(sed -nE 's/^channel = "(.*)"$/\1/p' rust-toolchain.toml | head -n1)"
+          if [[ -z "$toolchain" ]]; then
+            echo "Could not read 'channel' from rust-toolchain.toml" >&2
+            exit 1
+          fi
+          echo "toolchain=$toolchain" >> "$GITHUB_OUTPUT"
+
+      - name: Install Rust toolchain and Android targets
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust-toolchain.outputs.toolchain }}
+          targets: |
+            aarch64-linux-android
+            armv7-linux-androideabi
+            i686-linux-android
+            x86_64-linux-android
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;27.1.12297006"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.1.12297006" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.1.12297006" >> "$GITHUB_ENV"
+
+      - name: Configure Android release signing
+        if: env.ANDROID_KEYSTORE != '' && env.ANDROID_KEY_ALIAS != '' && env.ANDROID_KEY_PASSWORD != '' && env.ANDROID_STORE_PASSWORD != ''
+        shell: bash
+        run: |
+          keystore_path="$RUNNER_TEMP/hyperion-release.keystore"
+          printf '%s' "$ANDROID_KEYSTORE" | base64 --decode > "$keystore_path"
+          cat > src-tauri/gen/android/keystore.properties <<EOF
+          storeFile=$keystore_path
+          storePassword=$ANDROID_STORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          password=$ANDROID_KEY_PASSWORD
+          EOF
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install JavaScript dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build universal Android APK
+        run: bun run tauri android build --ci --apk
+
+      - name: Upload universal Android APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-android-universal
+          if-no-files-found: error
+          retention-days: 7
+          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+
+  ios-signed:
+    name: iOS signed IPA
+    runs-on: macos-15
+    timeout-minutes: 120
+    env:
+      IOS_CERTIFICATE: ${{ secrets.IOS_CERTIFICATE }}
+      IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+      IOS_MOBILE_PROVISION: ${{ secrets.IOS_MOBILE_PROVISION }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+
+      - name: Read Rust toolchain channel
+        id: rust-toolchain
+        shell: bash
+        run: |
+          toolchain="$(sed -nE 's/^channel = "(.*)"$/\1/p' rust-toolchain.toml | head -n1)"
+          if [[ -z "$toolchain" ]]; then
+            echo "Could not read 'channel' from rust-toolchain.toml" >&2
+            exit 1
+          fi
+          echo "toolchain=$toolchain" >> "$GITHUB_OUTPUT"
+
+      - name: Install Rust toolchain and device target
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust-toolchain.outputs.toolchain }}
+          targets: aarch64-apple-ios
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install JavaScript dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Provide cargo-tauri wrapper for Xcode
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.cargo/bin"
+          cat <<'EOF' > "$HOME/.cargo/bin/cargo-tauri"
+          #!/usr/bin/env bash
+          if [[ "${1:-}" == "tauri" ]]; then
+            shift
+          fi
+          exec bun run tauri "$@"
+          EOF
+          chmod +x "$HOME/.cargo/bin/cargo-tauri"
+
+      - name: Validate iOS signing secrets
+        shell: bash
+        run: |
+          test -n "$IOS_CERTIFICATE" || { echo "Missing IOS_CERTIFICATE secret" >&2; exit 1; }
+          test -n "$IOS_CERTIFICATE_PASSWORD" || { echo "Missing IOS_CERTIFICATE_PASSWORD secret" >&2; exit 1; }
+          test -n "$IOS_MOBILE_PROVISION" || { echo "Missing IOS_MOBILE_PROVISION secret" >&2; exit 1; }
+
+      - name: Build signed iOS IPA
+        run: bun run tauri ios build --ci --target aarch64 --export-method debugging
+
+      - name: Upload signed iOS IPA
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-ios-signed
+          if-no-files-found: error
+          retention-days: 7
+          path: src-tauri/gen/apple/build/arm64/*.ipa
+
+  publish-release:
+    name: Publish GitHub release
+    runs-on: ubuntu-latest
+    needs:
+      - desktop
+      - android-split
+      - android-universal
+      - ios-signed
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ steps.meta.outputs.version }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: refs/tags/${{ inputs.tag }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v5
+        with:
+          pattern: release-*
+          path: ${{ runner.temp }}/release-artifacts
+          merge-multiple: false
+
+      - name: Collect release assets
+        shell: bash
+        run: |
+          source_dir="$RUNNER_TEMP/release-artifacts"
+          asset_dir="$RUNNER_TEMP/release-assets"
+          mkdir -p "$asset_dir"
+          shopt -s globstar nullglob
+
+          for file in "$source_dir"/**/*; do
+            [[ -f "$file" ]] || continue
+            case "$file" in
+              *.deb|*.rpm|*.AppImage|*.msi|*.exe|*.zip|*.dmg|*.pkg|*.apk|*.ipa|*.tar.gz)
+                cp "$file" "$asset_dir/"
+                ;;
+            esac
+          done
+
+          if ! compgen -G "$asset_dir/*" > /dev/null; then
+            echo "No release assets were collected from workflow artifacts" >&2
+            exit 1
+          fi
+
+          (
+            cd "$asset_dir"
+            sha256sum * > SHA256SUMS.txt
+          )
+
+      - name: Create or update GitHub release
+        shell: bash
+        run: |
+          tag="${{ inputs.tag }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release edit "$tag" \
+              --title "$tag" \
+              --notes-file "${{ inputs.changelog_path }}"
+          else
+            gh release create "$tag" \
+              --title "$tag" \
+              --notes-file "${{ inputs.changelog_path }}"
+          fi
+
+      - name: Upload release assets
+        shell: bash
+        run: |
+          gh release upload "${{ inputs.tag }}" "$RUNNER_TEMP/release-assets"/* --clobber
+
+      - name: Expose release metadata
+        id: meta
+        shell: bash
+        run: |
+          echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"

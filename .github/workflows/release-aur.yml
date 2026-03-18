@@ -1,0 +1,138 @@
+name: Release AUR Update
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      aur_repo_ssh_url:
+        required: true
+        type: string
+    secrets:
+      AUR_SSH_PRIVATE_KEY:
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-aur-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Update AUR packaging repository
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Validate AUR configuration
+        shell: bash
+        run: |
+          if [[ -z "${{ inputs.aur_repo_ssh_url }}" ]]; then
+            echo "Missing AUR repository SSH URL. Set the repository variable AUR_REPO_SSH_URL." >&2
+            exit 1
+          fi
+
+      - name: Install tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker.io git openssh-client
+
+      - name: Configure SSH for AUR access
+        shell: bash
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > "$HOME/.ssh/aur"
+          chmod 600 "$HOME/.ssh/aur"
+          ssh-keyscan aur.archlinux.org >> "$HOME/.ssh/known_hosts"
+
+      - name: Clone AUR repository
+        shell: bash
+        run: |
+          GIT_SSH_COMMAND="ssh -i $HOME/.ssh/aur -o IdentitiesOnly=yes" \
+            git clone "${{ inputs.aur_repo_ssh_url }}" "$RUNNER_TEMP/aur-repo"
+
+      - name: Download release binary for AUR packaging
+        shell: bash
+        run: |
+          asset_dir="$RUNNER_TEMP/aur-assets"
+          mkdir -p "$asset_dir"
+          gh release download "${{ inputs.tag }}" --pattern '*_amd64.AppImage' --dir "$asset_dir"
+          if ! compgen -G "$asset_dir/*.AppImage" > /dev/null; then
+            echo "Could not find an x86_64 AppImage asset in release ${{ inputs.tag }}" >&2
+            exit 1
+          fi
+
+      - name: Update PKGBUILD
+        shell: bash
+        env:
+          RELEASE_BASE_URL: https://github.com/${{ github.repository }}/releases/download/${{ inputs.tag }}
+        run: |
+          cd "$RUNNER_TEMP/aur-repo"
+
+          if [[ ! -f PKGBUILD ]]; then
+            echo "The AUR repository does not contain a PKGBUILD file" >&2
+            exit 1
+          fi
+
+          asset_path="$(find "$RUNNER_TEMP/aur-assets" -maxdepth 1 -type f -name '*.AppImage' | head -n1)"
+          asset_name="$(basename "$asset_path")"
+          asset_sha="$(sha256sum "$asset_path" | awk '{print $1}')"
+          asset_url="$RELEASE_BASE_URL/$asset_name"
+
+          sed -i -E "s/^pkgver=.*/pkgver=${{ inputs.version }}/" PKGBUILD
+          if grep -q '^pkgrel=' PKGBUILD; then
+            sed -i -E 's/^pkgrel=.*/pkgrel=1/' PKGBUILD
+          else
+            printf '\npkgrel=1\n' >> PKGBUILD
+          fi
+
+          if grep -q '^source_x86_64=' PKGBUILD; then
+            sed -i -E "s|^source_x86_64=.*|source_x86_64=(\"$asset_name::$asset_url\")|" PKGBUILD
+          elif grep -q '^source=' PKGBUILD; then
+            sed -i -E "s|^source=.*|source=(\"$asset_name::$asset_url\")|" PKGBUILD
+          else
+            printf '\nsource_x86_64=("%s::%s")\n' "$asset_name" "$asset_url" >> PKGBUILD
+          fi
+
+          if grep -q '^sha256sums_x86_64=' PKGBUILD; then
+            sed -i -E "s|^sha256sums_x86_64=.*|sha256sums_x86_64=('$asset_sha')|" PKGBUILD
+          elif grep -q '^sha256sums=' PKGBUILD; then
+            sed -i -E "s|^sha256sums=.*|sha256sums=('$asset_sha')|" PKGBUILD
+          else
+            printf '\nsha256sums_x86_64=(%s)\n' "'$asset_sha'" >> PKGBUILD
+          fi
+
+      - name: Regenerate .SRCINFO
+        shell: bash
+        run: |
+          docker run --rm \
+            -v "$RUNNER_TEMP/aur-repo:/work" \
+            archlinux:base-devel \
+            bash -lc "pacman -Syu --noconfirm >/dev/null && cd /work && makepkg --printsrcinfo > .SRCINFO"
+
+      - name: Commit and push AUR update
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/aur-repo"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add PKGBUILD .SRCINFO
+
+          if git diff --cached --quiet; then
+            echo "No AUR repository changes to publish."
+            exit 0
+          fi
+
+          git commit -m "Update to ${{ inputs.tag }}"
+          GIT_SSH_COMMAND="ssh -i $HOME/.ssh/aur -o IdentitiesOnly=yes" \
+            git push origin HEAD:master

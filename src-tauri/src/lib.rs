@@ -15,7 +15,10 @@
 
 mod account;
 
-use account::{AccountManager, AccountSummary, LoginRequest};
+use account::{
+    AccountManager, AccountSummary, HomeserverDirectory, LoginRequest, RegisterAccountRequest,
+    RegistrationOutcome,
+};
 use tauri::{AppHandle, State};
 
 #[tauri::command]
@@ -54,6 +57,22 @@ async fn validate_active_account(
     manager.validate_active_account().await
 }
 
+#[tauri::command]
+async fn list_registration_homeservers(
+    manager: State<'_, AccountManager>,
+) -> Result<HomeserverDirectory, String> {
+    manager.list_registration_homeservers().await
+}
+
+#[tauri::command]
+async fn register_account(
+    app: AppHandle,
+    manager: State<'_, AccountManager>,
+    request: RegisterAccountRequest,
+) -> Result<RegistrationOutcome, String> {
+    manager.register_account(&app, request).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -64,7 +83,9 @@ pub fn run() {
             list_accounts,
             switch_active_account,
             active_account,
-            validate_active_account
+            validate_active_account,
+            list_registration_homeservers,
+            register_account
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,0 +1,541 @@
+/*
+ * Copyright (c) 2026 VinVel
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, version 3 only.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * Project home: hyperion.velcore.net
+ */
+
+.registration-shell {
+  min-height: 100dvh;
+  background: var(--surface);
+  padding:
+    max(1.25rem, env(safe-area-inset-top))
+    max(1.25rem, env(safe-area-inset-right))
+    max(1.25rem, env(safe-area-inset-bottom))
+    max(1.25rem, env(safe-area-inset-left));
+}
+
+.registration-header,
+.registration-main {
+  max-width: 78rem;
+  margin: 0 auto;
+}
+
+.registration-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 1rem;
+}
+
+.registration-back-button,
+.registration-secondary-button,
+.registration-primary-button,
+.registration-server-card {
+  cursor: pointer;
+}
+
+.registration-back-button,
+.registration-secondary-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: none;
+  border-radius: 25px;
+  background: var(--surface-container-low);
+  color: var(--on-surface);
+  padding: 0.8rem 1rem;
+  box-shadow:
+    0 12px 24px color-mix(in srgb, var(--shadow) 8%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--outline) 45%, transparent);
+  transition:
+    transform 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.registration-back-button:hover,
+.registration-secondary-button:hover {
+  transform: translateY(-1px);
+  background: var(--surface-container);
+}
+
+.registration-back-button svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.registration-screen-copy,
+.registration-toolbar-meta,
+.registration-detail-copy,
+.registration-required-copy {
+  color: var(--on-surface-variant);
+}
+
+.registration-main {
+  padding-block: clamp(2rem, 6vw, 4rem);
+}
+
+.registration-screen {
+  border-radius: 25px;
+  background: var(--surface-container-low);
+  padding: clamp(1.2rem, 2.6vw, 1.8rem);
+  box-shadow:
+    0 28px 72px color-mix(in srgb, var(--shadow) 10%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--outline-variant) 74%, transparent);
+}
+
+.registration-screen--narrow,
+.registration-screen--form {
+  max-width: 58rem;
+  margin: 0 auto;
+}
+
+.registration-field-label,
+.registration-flow-pill,
+.registration-info-pill,
+.registration-official-pill {
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.registration-screen-title {
+  margin: 0;
+  font-size: clamp(1.9rem, 4vw, 2.4rem);
+}
+
+.registration-screen-copy {
+  margin: 0.75rem 0 0;
+  max-width: 58ch;
+}
+
+.registration-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-top: 1.4rem;
+}
+
+.registration-search {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+}
+
+.registration-search-icon {
+  position: absolute;
+  left: 1rem;
+  display: grid;
+  place-items: center;
+  color: var(--on-surface-variant);
+}
+
+.registration-search-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.registration-search-control,
+.registration-field-control {
+  width: 100%;
+  border: none;
+  border-radius: 25px;
+  background: var(--surface-container-highest);
+  color: var(--on-surface);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--outline) 52%, transparent),
+    0 12px 24px color-mix(in srgb, var(--shadow) 8%, transparent);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.registration-search-control {
+  padding: 0.95rem 1rem 0.95rem 2.8rem;
+}
+
+.registration-field-control {
+  padding: 0.95rem 1.1rem;
+}
+
+.registration-search-control:hover,
+.registration-field-control:hover,
+.registration-server-card:hover {
+  transform: translateY(-1px);
+}
+
+.registration-search-control:focus-visible,
+.registration-field-control:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px var(--primary),
+    0 0 0 4px color-mix(in srgb, var(--primary) 18%, transparent),
+    0 12px 24px color-mix(in srgb, var(--shadow) 10%, transparent);
+}
+
+.registration-field-control[data-invalid="true"] {
+  box-shadow:
+    inset 0 0 0 1px var(--error),
+    0 12px 24px color-mix(in srgb, var(--shadow) 10%, transparent);
+}
+
+.registration-toolbar-meta,
+.registration-feedback,
+.registration-empty-state,
+.registration-note {
+  margin: 1rem 0 0;
+}
+
+.registration-directory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.registration-server-card {
+  width: 100%;
+  border: none;
+  border-radius: 25px;
+  background: var(--surface-container);
+  color: var(--on-surface);
+  padding: 1rem;
+  text-align: left;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--outline-variant) 82%, transparent);
+  transition:
+    transform 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.registration-server-card:hover {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 40%, transparent),
+    0 18px 36px color-mix(in srgb, var(--shadow) 10%, transparent);
+}
+
+.registration-server-card-head,
+.registration-server-meta,
+.registration-detail-tags,
+.registration-form-foot,
+.registration-action-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.registration-server-card-head {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.registration-server-card-copy {
+  min-width: 0;
+}
+
+.registration-server-title,
+.registration-server-subtitle {
+  display: block;
+}
+
+.registration-server-title {
+  font-weight: 700;
+}
+
+.registration-server-subtitle {
+  color: var(--on-surface-variant);
+  font-size: 0.86rem;
+  margin-top: 0.15rem;
+  word-break: break-word;
+}
+
+.registration-server-description {
+  margin: 0.8rem 0 0.9rem;
+}
+
+.registration-flow-pill,
+.registration-info-pill,
+.registration-official-pill {
+  border-radius: 999px;
+  font-size: 0.68rem;
+  padding: 0.38rem 0.7rem;
+}
+
+.registration-flow-pill {
+  background: color-mix(in srgb, var(--secondary-container) 90%, transparent);
+  color: var(--on-secondary-container);
+}
+
+.registration-info-pill {
+  background: color-mix(in srgb, var(--surface-container-high) 92%, transparent);
+  color: var(--on-surface-variant);
+}
+
+.registration-official-pill {
+  background: color-mix(in srgb, var(--primary-container) 88%, transparent);
+  color: var(--on-primary-container);
+}
+
+.registration-detail-tags {
+  margin-top: 1rem;
+}
+
+.registration-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.registration-detail-card {
+  border-radius: 25px;
+  background: var(--surface-container);
+  padding: 1rem;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--outline-variant) 82%, transparent);
+}
+
+.registration-detail-title {
+  margin: 0 0 0.8rem;
+  font-size: 1rem;
+}
+
+.registration-link-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.registration-link {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 0.2rem;
+}
+
+.registration-link-button {
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 0.2rem;
+}
+
+.registration-link:hover {
+  color: var(--secondary);
+}
+
+.registration-link-button:hover {
+  color: var(--secondary);
+}
+
+.registration-detail-list {
+  display: grid;
+  gap: 0.8rem;
+  margin: 0;
+}
+
+.registration-detail-list div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.registration-detail-list dt {
+  color: var(--on-surface-variant);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.registration-detail-list dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.registration-note,
+.registration-feedback {
+  border-radius: 25px;
+  padding: 0.9rem 1rem;
+}
+
+.registration-warning {
+  margin: 1rem 0 0;
+  border-radius: 25px;
+  padding: 0.9rem 1rem;
+  background: color-mix(in srgb, var(--tertiary-container) 84%, transparent);
+  color: var(--on-tertiary-container);
+}
+
+.registration-warning--accent {
+  background: color-mix(in srgb, var(--error-container) 82%, transparent);
+  color: var(--on-error-container);
+}
+
+.registration-note {
+  background: color-mix(in srgb, var(--secondary-container) 82%, transparent);
+  color: var(--on-secondary-container);
+}
+
+.registration-feedback--error {
+  background: color-mix(in srgb, var(--error-container) 88%, transparent);
+  color: var(--on-error-container);
+}
+
+.registration-feedback--success {
+  background: color-mix(in srgb, var(--primary-container) 82%, transparent);
+  color: var(--on-primary-container);
+}
+
+.registration-feedback--info {
+  background: color-mix(in srgb, var(--secondary-container) 82%, transparent);
+  color: var(--on-secondary-container);
+}
+
+.registration-action-row {
+  margin-top: 1.25rem;
+  justify-content: flex-end;
+}
+
+.registration-form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.2rem;
+}
+
+.registration-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.registration-field-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--on-surface-variant);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.registration-field-required {
+  color: var(--error);
+  font-weight: 700;
+}
+
+.registration-form-foot {
+  justify-content: space-between;
+}
+
+.registration-primary-button {
+  border: none;
+  border-radius: 25px;
+  background: var(--primary);
+  color: var(--on-primary);
+  padding: 0.95rem 1.3rem;
+  box-shadow: 0 18px 32px color-mix(in srgb, var(--primary) 22%, transparent);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
+}
+
+.registration-primary-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 24px 40px color-mix(in srgb, var(--primary) 28%, transparent);
+}
+
+.registration-primary-button:disabled,
+.registration-secondary-button:disabled {
+  cursor: progress;
+  opacity: 0.8;
+}
+
+.registration-screen--webview {
+  overflow: hidden;
+}
+
+.registration-webview-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--outline-variant) 82%, transparent);
+}
+
+.registration-webview-copy {
+  min-width: 0;
+}
+
+.registration-webview-eyebrow {
+  display: inline-flex;
+  color: var(--on-surface-variant);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.registration-webview-title {
+  margin: 0.45rem 0 0;
+  font-size: clamp(1.35rem, 3.2vw, 1.9rem);
+}
+
+.registration-webview-url {
+  margin: 0.35rem 0 0;
+  color: var(--on-surface-variant);
+  word-break: break-word;
+}
+
+.registration-webview-host {
+  min-height: clamp(24rem, 72dvh, 52rem);
+  margin-top: 1rem;
+  border-radius: 25px;
+  background: var(--surface-container-highest);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--outline-variant) 82%, transparent),
+    0 18px 36px color-mix(in srgb, var(--shadow) 8%, transparent);
+}
+
+.registration-empty-state {
+  color: var(--on-surface-variant);
+}
+
+@media (max-width: 760px) {
+  .registration-header {
+    align-items: flex-start;
+  }
+
+  .registration-toolbar,
+  .registration-form-foot,
+  .registration-webview-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .registration-directory-grid,
+  .registration-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .registration-action-row {
+    justify-content: stretch;
+  }
+
+  .registration-primary-button,
+  .registration-secondary-button {
+    width: 100%;
+  }
+}

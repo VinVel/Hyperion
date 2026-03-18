@@ -14,10 +14,43 @@
  */
 
 import "./App.css";
+import { useState } from "react";
 import { LogInScreen } from "./screens/Log-in";
+import { RegistrationScreen } from "./screens/registration";
+
+type EntryScreen = "login" | "registration";
+
+type LoginLaunchState = {
+  homeserver?: string;
+  text: string;
+  tone: "error" | "success" | "info";
+};
 
 function App() {
-  return <LogInScreen />;
+  const [activeScreen, setActiveScreen] = useState<EntryScreen>("login");
+  const [loginLaunchState, setLoginLaunchState] = useState<LoginLaunchState | null>(null);
+
+  if (activeScreen === "registration") {
+    return (
+      <RegistrationScreen
+        onBackToLogin={(nextLaunchState) => {
+          setLoginLaunchState(nextLaunchState ?? null);
+          setActiveScreen("login");
+        }}
+      />
+    );
+  }
+
+  return (
+    <LogInScreen
+      initialFeedback={loginLaunchState}
+      initialHomeserver={loginLaunchState?.homeserver}
+      onOpenRegistration={() => {
+        setLoginLaunchState(null);
+        setActiveScreen("registration");
+      }}
+    />
+  );
 }
 
 export default App;

@@ -4,6 +4,7 @@
   "windows": ["main"],
   "platforms": ["iOS", "android"],
   "permissions": [
-    "core:app:default"
+    "core:app:default",
+    "opener:default"
   ]
 }

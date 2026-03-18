@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag in the form vX.Y.Z
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ steps.meta.outputs.version }}
+      changelog_path: ${{ steps.meta.outputs.changelog_path }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
+
+      - name: Validate tag and changelog
+        id: meta
+        shell: bash
+        run: |
+          tag="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
+
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tags must match vX.Y.Z" >&2
+            exit 1
+          fi
+
+          git rev-parse "refs/tags/$tag" >/dev/null 2>&1 || {
+            echo "Tag $tag does not exist in this repository" >&2
+            exit 1
+          }
+
+          changelog_path="changelog/$tag.md"
+          if [[ ! -f "$changelog_path" ]]; then
+            echo "Missing release notes file: $changelog_path" >&2
+            exit 1
+          fi
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "changelog_path=$changelog_path" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build release assets
+    needs: prepare
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release-build.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+      version: ${{ needs.prepare.outputs.version }}
+      changelog_path: ${{ needs.prepare.outputs.changelog_path }}
+    secrets: inherit
+
+  debian:
+    name: Publish Debian repository
+    needs:
+      - prepare
+      - build
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release-debian.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+      version: ${{ needs.prepare.outputs.version }}
+    secrets: inherit
+
+  fedora:
+    name: Publish Fedora repository
+    needs:
+      - prepare
+      - build
+      - debian
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release-fedora.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+      version: ${{ needs.prepare.outputs.version }}
+    secrets: inherit
+
+  aur:
+    name: Update AUR repository
+    needs:
+      - prepare
+      - build
+    permissions:
+      contents: read
+    uses: ./.github/workflows/release-aur.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+      version: ${{ needs.prepare.outputs.version }}
+      aur_repo_ssh_url: ${{ vars.AUR_REPO_SSH_URL }}
+    secrets: inherit

@@ -1,0 +1,181 @@
+name: Release Debian Repo
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      gh_pages_branch:
+        required: false
+        type: string
+        default: gh-pages
+    secrets:
+      APT_GPG_PRIVATE_KEY:
+        required: true
+      APT_GPG_PASSPHRASE:
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-debian-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish APT metadata
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: refs/tags/${{ inputs.tag }}
+
+      - name: Install Debian repository tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y apt-utils dpkg-dev gnupg rsync
+
+      - name: Download Debian assets from GitHub release
+        shell: bash
+        run: |
+          asset_dir="$RUNNER_TEMP/deb-assets"
+          mkdir -p "$asset_dir"
+          gh release download "${{ inputs.tag }}" --pattern '*.deb' --dir "$asset_dir"
+          if ! compgen -G "$asset_dir/*.deb" > /dev/null; then
+            echo "No Debian assets were found in release ${{ inputs.tag }}" >&2
+            exit 1
+          fi
+
+      - name: Build APT repository metadata
+        shell: bash
+        env:
+          RELEASE_BASE_URL: https://github.com/${{ github.repository }}/releases/download/${{ inputs.tag }}
+        run: |
+          work_root="$RUNNER_TEMP/apt-work"
+          public_root="$RUNNER_TEMP/apt-public"
+          mkdir -p "$work_root/pool/amd64" "$work_root/pool/arm64"
+
+          for deb in "$RUNNER_TEMP/deb-assets"/*.deb; do
+            arch="$(dpkg-deb -f "$deb" Architecture)"
+            case "$arch" in
+              amd64|arm64)
+                cp "$deb" "$work_root/pool/$arch/"
+                ;;
+              *)
+                echo "Skipping unsupported Debian package architecture: $arch"
+                ;;
+            esac
+          done
+
+          mkdir -p "$public_root/dists/stable/main"
+          architectures=()
+
+          for arch in amd64 arm64; do
+            if compgen -G "$work_root/pool/$arch/*.deb" > /dev/null; then
+              output_dir="$public_root/dists/stable/main/binary-$arch"
+              mkdir -p "$output_dir"
+              dpkg-scanpackages --multiversion "$work_root/pool/$arch" /dev/null > "$output_dir/Packages"
+              sed -E "s|^Filename: .*/([^/]+)$|Filename: $RELEASE_BASE_URL/\\1|" -i "$output_dir/Packages"
+              gzip -9c "$output_dir/Packages" > "$output_dir/Packages.gz"
+              architectures+=("$arch")
+            fi
+          done
+
+          if [[ ${#architectures[@]} -eq 0 ]]; then
+            echo "No Debian metadata was generated because no supported packages were found" >&2
+            exit 1
+          fi
+
+          cat > "$work_root/apt-ftparchive.conf" <<EOF
+          APT::FTPArchive::Release::Origin "Hyperion";
+          APT::FTPArchive::Release::Label "Hyperion";
+          APT::FTPArchive::Release::Suite "stable";
+          APT::FTPArchive::Release::Codename "stable";
+          APT::FTPArchive::Release::Architectures "$(IFS=' '; echo "${architectures[*]}")";
+          APT::FTPArchive::Release::Components "main";
+          APT::FTPArchive::Release::Description "Hyperion APT repository";
+          EOF
+
+          (
+            cd "$public_root/dists/stable"
+            apt-ftparchive -c "$work_root/apt-ftparchive.conf" release . > Release
+          )
+
+      - name: Sign APT release metadata
+        shell: bash
+        env:
+          GNUPGHOME: ${{ github.workspace }}/.gnupg
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+          APT_GPG_PASSPHRASE: ${{ secrets.APT_GPG_PASSPHRASE }}
+        run: |
+          mkdir -p "$GNUPGHOME"
+          chmod 700 "$GNUPGHOME"
+          printf '%s' "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
+
+          fingerprint="$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10; exit}')"
+          if [[ -z "$fingerprint" ]]; then
+            echo "No signing key fingerprint was available after importing APT_GPG_PRIVATE_KEY" >&2
+            exit 1
+          fi
+
+          release_file="$RUNNER_TEMP/apt-public/dists/stable/Release"
+          if [[ -n "$APT_GPG_PASSPHRASE" ]]; then
+            passphrase_args=(--pinentry-mode loopback --passphrase "$APT_GPG_PASSPHRASE")
+          else
+            passphrase_args=()
+          fi
+
+          gpg --batch --yes "${passphrase_args[@]}" \
+            --armor --detach-sign \
+            --local-user "$fingerprint" \
+            --output "$RUNNER_TEMP/apt-public/dists/stable/Release.gpg" \
+            "$release_file"
+
+          gpg --batch --yes "${passphrase_args[@]}" \
+            --clearsign \
+            --local-user "$fingerprint" \
+            --output "$RUNNER_TEMP/apt-public/dists/stable/InRelease" \
+            "$release_file"
+
+      - name: Publish APT metadata to GitHub Pages branch
+        shell: bash
+        env:
+          GH_PAGES_BRANCH: ${{ inputs.gh_pages_branch }}
+        run: |
+          pages_dir="$RUNNER_TEMP/gh-pages"
+          git clone "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$pages_dir"
+          cd "$pages_dir"
+
+          if git ls-remote --exit-code --heads origin "$GH_PAGES_BRANCH" >/dev/null 2>&1; then
+            git fetch origin "$GH_PAGES_BRANCH:$GH_PAGES_BRANCH"
+            git switch "$GH_PAGES_BRANCH"
+          else
+            git switch --orphan "$GH_PAGES_BRANCH"
+            find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+          fi
+
+          mkdir -p apt
+          rsync -a --delete "$RUNNER_TEMP/apt-public/" apt/
+          touch .nojekyll
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apt .nojekyll
+
+          if git diff --cached --quiet; then
+            echo "No Debian repository changes to publish."
+            exit 0
+          fi
+
+          git commit -m "Publish Debian repository for ${{ inputs.tag }}"
+          git push origin "$GH_PAGES_BRANCH"

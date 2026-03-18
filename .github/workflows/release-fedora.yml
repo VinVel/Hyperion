@@ -1,0 +1,123 @@
+name: Release Fedora Repo
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      gh_pages_branch:
+        required: false
+        type: string
+        default: gh-pages
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-fedora-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish RPM metadata
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: refs/tags/${{ inputs.tag }}
+
+      - name: Install RPM repository tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y createrepo-c rpm rsync
+
+      - name: Download RPM assets from GitHub release
+        shell: bash
+        run: |
+          asset_dir="$RUNNER_TEMP/rpm-assets"
+          mkdir -p "$asset_dir"
+          gh release download "${{ inputs.tag }}" --pattern '*.rpm' --dir "$asset_dir"
+          if ! compgen -G "$asset_dir/*.rpm" > /dev/null; then
+            echo "No RPM assets were found in release ${{ inputs.tag }}" >&2
+            exit 1
+          fi
+
+      - name: Build RPM repository metadata
+        shell: bash
+        env:
+          RELEASE_BASE_URL: https://github.com/${{ github.repository }}/releases/download/${{ inputs.tag }}/
+        run: |
+          work_root="$RUNNER_TEMP/rpm-work"
+          public_root="$RUNNER_TEMP/rpm-public"
+          mkdir -p "$work_root/x86_64" "$work_root/aarch64"
+
+          for rpm_file in "$RUNNER_TEMP/rpm-assets"/*.rpm; do
+            arch="$(rpm -qp --queryformat '%{ARCH}' "$rpm_file")"
+            case "$arch" in
+              x86_64|aarch64)
+                cp "$rpm_file" "$work_root/$arch/"
+                ;;
+              *)
+                echo "Skipping unsupported RPM architecture: $arch"
+                ;;
+            esac
+          done
+
+          published_arches=0
+          for arch in x86_64 aarch64; do
+            if compgen -G "$work_root/$arch/*.rpm" > /dev/null; then
+              repo_dir="$public_root/stable/$arch"
+              mkdir -p "$repo_dir"
+              cp "$work_root/$arch"/*.rpm "$repo_dir/"
+              createrepo_c --simple-md-filenames --location-prefix "$RELEASE_BASE_URL" "$repo_dir"
+              find "$repo_dir" -maxdepth 1 -type f -name '*.rpm' -delete
+              published_arches=1
+            fi
+          done
+
+          if [[ "$published_arches" -eq 0 ]]; then
+            echo "No RPM metadata was generated because no supported packages were found" >&2
+            exit 1
+          fi
+
+      - name: Publish RPM metadata to GitHub Pages branch
+        shell: bash
+        env:
+          GH_PAGES_BRANCH: ${{ inputs.gh_pages_branch }}
+        run: |
+          pages_dir="$RUNNER_TEMP/gh-pages"
+          git clone "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$pages_dir"
+          cd "$pages_dir"
+
+          if git ls-remote --exit-code --heads origin "$GH_PAGES_BRANCH" >/dev/null 2>&1; then
+            git fetch origin "$GH_PAGES_BRANCH:$GH_PAGES_BRANCH"
+            git switch "$GH_PAGES_BRANCH"
+          else
+            git switch --orphan "$GH_PAGES_BRANCH"
+            find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+          fi
+
+          mkdir -p rpm
+          rsync -a --delete "$RUNNER_TEMP/rpm-public/" rpm/
+          touch .nojekyll
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add rpm .nojekyll
+
+          if git diff --cached --quiet; then
+            echo "No Fedora repository changes to publish."
+            exit 0
+          fi
+
+          git commit -m "Publish Fedora repository for ${{ inputs.tag }}"
+          git push origin "$GH_PAGES_BRANCH"

@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Background -->
+    <linearGradient id="bg" gradientUnits="userSpaceOnUse"
+      x1="0" y1="0" x2="192" y2="0"
+      gradientTransform="rotate(45 96 96)">
+      <stop offset="0%" stop-color="#536DFE"/>
+      <stop offset="100%" stop-color="#6A3DE8"/>
+    </linearGradient>
+
+    <!-- Shadow gradient -->
+    <linearGradient id="shadowGrad" x1="0" y1="0" x2="192" y2="192">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="192" height="192" fill="url(#bg)"/>
+
+  <!-- SHADOW (without scale transform) -->
+  <g transform="translate(2,2)">
+    <path fill="url(#shadowGrad)" fill-rule="evenodd" clip-rule="evenodd"
+      d="M95 44
+         L80 59
+         L59 59
+         L59 80
+         L44 96
+         L59 111
+         L59 132
+         L80 132
+         L96 147
+         L111 132
+         L132 132
+         L132 111
+         L147 95
+         L132 80
+         L132 59
+         L111 59
+         L95 44
+         Z
+
+         M95 74
+         L103 88
+         L118 90
+         L106 100
+         L110 114
+         L96 108
+         L82 115
+         L85 100
+         L73 90
+         L88 88
+         L95 74
+         Z"/>
+  </g>
+
+  <!-- ICON (without scale transform) -->
+  <path fill="#FFFFFF" fill-rule="evenodd" clip-rule="evenodd"
+    d="M95 44
+       L80 59
+       L59 59
+       L59 80
+       L44 96
+       L59 111
+       L59 132
+       L80 132
+       L96 147
+       L111 132
+       L132 132
+       L132 111
+       L147 95
+       L132 80
+       L132 59
+       L111 59
+       L95 44
+       Z
+
+       M95 74
+       L103 88
+       L118 90
+       L106 100
+       L110 114
+       L96 108
+       L82 115
+       L85 100
+       L73 90
+       L88 88
+       L95 74
+       Z"/>
+</svg>   

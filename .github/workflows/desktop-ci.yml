@@ -99,12 +99,4 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build Tauri bundles
-        run: bun run tauri build --debug --target ${{ matrix.target }}
-
-      - name: Upload bundles
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ matrix.artifact }}
-          if-no-files-found: error
-          retention-days: 14
-          path: src-tauri/target/${{ matrix.target }}/debug/bundle/
+        run: bun run tauri build --debug --target ${{ matrix.target }} --no-bundle --verbose

@@ -65,12 +65,4 @@ jobs:
           chmod +x "$HOME/.cargo/bin/cargo-tauri"
 
       - name: Build iOS simulator app
-        run: bun run tauri ios build --ci --debug --target aarch64-sim
-
-      - name: Upload iOS simulator app
-        uses: actions/upload-artifact@v6
-        with:
-          name: hyperion-ios-simulator
-          if-no-files-found: error
-          retention-days: 14
-          path: src-tauri/gen/apple/build/**/*.app
+        run: bun run tauri ios build --ci --debug --target aarch64-sim --verbose

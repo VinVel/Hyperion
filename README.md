@@ -25,26 +25,14 @@
 
 ## Android setup
 
-For a reproducible local setup, use the helper scripts in `scripts/`.
-They generate two ignored files:
-
-- `.cargo/config.toml` with Android linkers and `cc-rs` environment variables
-- `src-tauri/gen/android/local.properties` with `sdk.dir`
-
-### Windows
-
-```powershell
-.\scripts\generate-android-env.ps1
-```
-
-### Linux
-
+For a reproducible local setup set the environment variable `ANDROID_HOME` and it should just work when executing the following command:
 ```bash
-./scripts/generate-android-env.sh
+bun tauri android build
 ```
-
-The scripts use `ANDROID_HOME` when it is already set and otherwise expect an
-installed Android SDK that contains an `ndk/<version>` directory.
+or
+```bash
+bun tauri android dev
+```
 
 ## Linux desktop setup
 

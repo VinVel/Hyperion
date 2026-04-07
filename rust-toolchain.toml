@@ -1,13 +1,3 @@
 [toolchain]
 channel = "1.93.0"
 profile = "default"
-targets = [
-  # Windows
-  "x86_64-pc-windows-msvc",
-
-  # Android
-  "armv7-linux-androideabi",
-  "aarch64-linux-android",
-  "i686-linux-android",
-  "x86_64-linux-android",
-]

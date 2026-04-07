@@ -1,0 +1,17 @@
+ARG CROSS_BASE_IMAGE
+FROM ${CROSS_BASE_IMAGE}
+
+ARG CROSS_DEB_ARCH
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN dpkg --add-architecture ${CROSS_DEB_ARCH} && \
+    apt-get update && apt-get install -y --no-install-recommends \
+    libayatana-appindicator3-dev:${CROSS_DEB_ARCH} \
+    librsvg2-dev:${CROSS_DEB_ARCH} \
+    libssl-dev:${CROSS_DEB_ARCH} \
+    libwebkit2gtk-4.1-dev:${CROSS_DEB_ARCH} \
+    libxdo-dev:${CROSS_DEB_ARCH} \
+    pkg-config \
+    xdg-utils \
+    zlib1g-dev:${CROSS_DEB_ARCH} \
+    && rm -rf /var/lib/apt/lists/*

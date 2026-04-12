@@ -14,6 +14,7 @@
  */
 
 mod account;
+mod mobile_custom_tabs;
 
 use account::{
     AccountManager, AccountSummary, HomeserverDirectory, LoginRequest, RegisterAccountRequest,
@@ -73,10 +74,16 @@ async fn register_account(
     manager.register_account(&app, request).await
 }
 
+#[tauri::command]
+async fn open_android_custom_tab(app: AppHandle, url: String) -> Result<(), String> {
+    mobile_custom_tabs::open_url(&app, &url)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(AccountManager::new())
+        .plugin(mobile_custom_tabs::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             login_account,
@@ -85,7 +92,8 @@ pub fn run() {
             active_account,
             validate_active_account,
             list_registration_homeservers,
-            register_account
+            register_account,
+            open_android_custom_tab
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

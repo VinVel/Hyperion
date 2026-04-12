@@ -489,13 +489,26 @@ export default function RegistrationScreen({
   }
 
   async function fallbackToExternalBrowser(nextWebview: EmbeddedWebviewState) {
-    await openUrl(nextWebview.url);
+    let openedIn = "Android Custom Tabs";
+
+    try {
+      await invoke("open_android_custom_tab", { url: nextWebview.url });
+    } catch {
+      try {
+        await openUrl(nextWebview.url, "inAppBrowser");
+        openedIn = "an in-app browser";
+      } catch {
+        await openUrl(nextWebview.url);
+        openedIn = "your browser";
+      }
+    }
+
     setEmbeddedWebview(null);
 
     if (nextWebview.kind === "registration" && selectedHomeserver) {
       finishInLogin({
         homeserver: selectedHomeserver.homeserver_url ?? undefined,
-        text: `Opened the registration page in your browser because the in-app webview is not available on mobile. Complete registration there, then sign in here.`,
+        text: `Opened the registration page in ${openedIn} because the embedded webview is not available on mobile. Close it when finished, then sign in here.`,
         tone: "info",
       });
       return;
@@ -504,7 +517,7 @@ export default function RegistrationScreen({
     setStage(nextWebview.returnStage);
     setFeedback({
       tone: "info",
-      text: "Opened the page in your browser because the in-app webview is not available on mobile.",
+      text: `Opened the page in ${openedIn} because the embedded webview is not available on mobile.`,
     });
   }
 

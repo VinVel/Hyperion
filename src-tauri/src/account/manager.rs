@@ -22,14 +22,21 @@ use std::{
     time::Duration,
 };
 
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use matrix_sdk::{
-    Client, Error as MatrixError,
+    Client, Error as MatrixError, SqliteStoreConfig,
+    authentication::matrix::MatrixSession,
     ruma::api::client::account::register::v3::{
         Request as MatrixRegistrationRequest, Response as MatrixRegistrationResponse,
     },
 };
+use rand::{RngCore, rngs::OsRng};
 use reqwest::Client as HttpClient;
+use serde::{Deserialize, Serialize};
+use tauri::async_runtime::Mutex as AsyncMutex;
 use tauri::{AppHandle, Manager};
+
+use crate::secure_storage;
 
 use super::types::{
     AccountSummary, HomeserverDirectory, HomeserverDirectoryEntry, LoginRequest,
@@ -37,6 +44,10 @@ use super::types::{
 };
 
 const HOMESERVER_DIRECTORY_URL: &str = "https://servers.joinmatrix.org/servers.json";
+const SESSION_CUSTOM_VALUE_KEY: &[u8] = b"hyperion.account.session.v1";
+const ACCOUNT_METADATA_CUSTOM_VALUE_KEY: &[u8] = b"hyperion.account.metadata.v1";
+const STORE_KEY_PREFIX: &str = "matrix-store-key";
+const STORE_KEY_LENGTH: usize = 32;
 
 struct ManagedAccount {
     // Each logged-in account owns its own Matrix client instance.
@@ -46,12 +57,27 @@ struct ManagedAccount {
     store_dir: PathBuf,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct StoredAccountMetadata {
+    user_id: String,
+    homeserver_url: String,
+    is_active: bool,
+}
+
+struct AccountStorageLocation {
+    store_id: String,
+    store_dir: PathBuf,
+    homeserver_url: String,
+}
+
 #[derive(Clone, Default)]
 pub struct AccountManager {
     // The SDK does not manage multiple logged-in accounts for us, so we keep
     // one client per account and switch which one the UI treats as active.
     accounts: Arc<RwLock<HashMap<String, ManagedAccount>>>,
     active_account_key: Arc<RwLock<Option<String>>>,
+    restore_lock: Arc<AsyncMutex<()>>,
+    restore_completed: Arc<RwLock<bool>>,
 }
 
 impl AccountManager {
@@ -64,27 +90,37 @@ impl AccountManager {
         app: &AppHandle,
         request: LoginRequest,
     ) -> Result<AccountSummary, String> {
-        // Multi-account support requires isolated stores. Every account gets
-        // its own sqlite database directory under the app data folder.
-        let store_dir = self.account_store_dir(app, &request.homeserver_url, &request.username)?;
-        let client = self
-            .login_client_with_recovery(&store_dir, &request)
-            .await?;
-        let user_id = client
-            .user_id()
-            .ok_or_else(|| String::from("Login succeeded, but user id is not available"))?
-            .to_string();
+        self.ensure_loaded(app).await?;
 
-        Ok(self.store_logged_in_account(
+        // Multi-account support requires isolated stores. Every account gets
+        // its own encrypted sqlite database directory under the app data folder.
+        let storage = self.account_storage(app, &request.homeserver_url, &request.username)?;
+        let store_key = Self::load_or_create_store_key(app, &storage.store_id)?;
+        let client = self
+            .login_client_with_recovery(app, &storage, &store_key, &request)
+            .await?;
+        let session = client
+            .matrix_auth()
+            .session()
+            .ok_or_else(|| String::from("Login succeeded, but session data is not available"))?;
+        let user_id = session.meta.user_id.to_string();
+
+        Self::persist_session(&client, &session).await?;
+        let account = self.store_logged_in_account(
             user_id.clone(),
             user_id,
-            request.homeserver_url,
-            store_dir,
+            Self::client_homeserver_url(&client),
+            storage.store_dir,
             client,
-        ))
+        );
+        self.persist_account_store_metadata().await?;
+
+        Ok(account)
     }
 
-    pub async fn list_accounts(&self) -> Vec<AccountSummary> {
+    pub async fn list_accounts(&self, app: &AppHandle) -> Result<Vec<AccountSummary>, String> {
+        self.ensure_loaded(app).await?;
+
         let accounts = self
             .accounts
             .read()
@@ -94,7 +130,7 @@ impl AccountManager {
             .read()
             .expect("account manager active account lock poisoned");
 
-        accounts
+        Ok(accounts
             .iter()
             .map(|(account_key, account)| AccountSummary {
                 account_key: account_key.clone(),
@@ -102,28 +138,41 @@ impl AccountManager {
                 homeserver_url: account.homeserver_url.clone(),
                 is_active: active_account_key.as_deref() == Some(account_key.as_str()),
             })
-            .collect()
+            .collect())
     }
 
-    pub async fn switch_active_account(&self, account_key: &str) -> Result<(), String> {
-        let accounts = self
-            .accounts
-            .read()
-            .expect("account manager accounts lock poisoned");
-        if !accounts.contains_key(account_key) {
-            return Err(format!("Unknown account key: {account_key}"));
-        }
-        drop(accounts);
+    pub async fn switch_active_account(
+        &self,
+        app: &AppHandle,
+        account_key: &str,
+    ) -> Result<(), String> {
+        self.ensure_loaded(app).await?;
 
-        let mut active_account_key = self
-            .active_account_key
-            .write()
-            .expect("account manager active account lock poisoned");
-        *active_account_key = Some(account_key.to_owned());
+        {
+            let accounts = self
+                .accounts
+                .read()
+                .expect("account manager accounts lock poisoned");
+            if !accounts.contains_key(account_key) {
+                return Err(format!("Unknown account key: {account_key}"));
+            }
+        }
+
+        {
+            let mut active_account_key = self
+                .active_account_key
+                .write()
+                .expect("account manager active account lock poisoned");
+            *active_account_key = Some(account_key.to_owned());
+        }
+
+        self.persist_account_store_metadata().await?;
         Ok(())
     }
 
-    pub async fn active_account(&self) -> Option<AccountSummary> {
+    pub async fn active_account(&self, app: &AppHandle) -> Result<Option<AccountSummary>, String> {
+        self.ensure_loaded(app).await?;
+
         let accounts = self
             .accounts
             .read()
@@ -132,18 +181,27 @@ impl AccountManager {
             .active_account_key
             .read()
             .expect("account manager active account lock poisoned");
-        let key = active_account_key.clone()?;
-        let account = accounts.get(&key)?;
+        let Some(key) = active_account_key.clone() else {
+            return Ok(None);
+        };
+        let Some(account) = accounts.get(&key) else {
+            return Ok(None);
+        };
 
-        Some(AccountSummary {
-            account_key: key.clone(),
+        Ok(Some(AccountSummary {
+            account_key: key,
             user_id: account.user_id.clone(),
             homeserver_url: account.homeserver_url.clone(),
             is_active: true,
-        })
+        }))
     }
 
-    pub async fn validate_active_account(&self) -> Result<Option<AccountSummary>, String> {
+    pub async fn validate_active_account(
+        &self,
+        app: &AppHandle,
+    ) -> Result<Option<AccountSummary>, String> {
+        self.ensure_loaded(app).await?;
+
         let Some((account_summary, client, store_dir)) = self.active_account_snapshot() else {
             return Ok(None);
         };
@@ -161,6 +219,7 @@ impl AccountManager {
                     );
                 }
 
+                self.persist_account_store_metadata().await?;
                 Ok(None)
             }
             Err(error) => Err(format!(
@@ -195,6 +254,8 @@ impl AccountManager {
         app: &AppHandle,
         request: RegisterAccountRequest,
     ) -> Result<RegistrationOutcome, String> {
+        self.ensure_loaded(app).await?;
+
         // Resolve the server against a fresh directory response each time the
         // register button is pressed, as requested by the flow design.
         let directory = self.list_registration_homeservers().await?;
@@ -219,53 +280,48 @@ impl AccountManager {
         }
     }
 
-    fn account_store_dir(
+    fn account_storage(
         &self,
         app: &AppHandle,
         homeserver_url: &str,
-        username: &str,
-    ) -> Result<PathBuf, String> {
-        let app_data_dir = app
-            .path()
-            .app_data_dir()
-            .map_err(|err| format!("Failed to resolve app data directory: {err}"))?;
+        account_hint: &str,
+    ) -> Result<AccountStorageLocation, String> {
+        let accounts_root = self.accounts_root_dir(app)?;
 
-        // Homeserver + username makes the on-disk store stable before we know
-        // the final Matrix user id returned by the server. This keeps each
+        // Homeserver + account hint makes the on-disk store stable before we
+        // know the final Matrix user id returned by the server. This keeps each
         // account in its own sqlite database, which is required for
         // multi-account support with the Matrix Rust SDK.
-        let account_folder = format!(
-            "{}_{}",
-            Self::sanitize_for_path(homeserver_url),
-            Self::sanitize_for_path(username)
-        );
-
-        let store_dir = app_data_dir
-            .join("matrix-accounts")
-            .join(account_folder)
-            .join("store");
+        let store_id = Self::account_store_id(homeserver_url, account_hint);
+        let store_dir = accounts_root.join(&store_id).join("store");
 
         fs::create_dir_all(&store_dir)
             .map_err(|err| format!("Failed to create account store directory: {err}"))?;
 
-        Ok(store_dir)
+        Ok(AccountStorageLocation {
+            store_id,
+            store_dir,
+            homeserver_url: homeserver_url.to_owned(),
+        })
     }
 
     async fn login_client_with_recovery(
         &self,
-        store_dir: &Path,
+        _app: &AppHandle,
+        storage: &AccountStorageLocation,
+        store_key: &[u8; STORE_KEY_LENGTH],
         request: &LoginRequest,
     ) -> Result<Client, String> {
-        match Self::build_and_login_client(store_dir, request).await {
+        match Self::build_and_login_client(&storage.store_dir, store_key, request).await {
             Ok(client) => Ok(client),
             Err(error_message) if Self::is_stale_crypto_store_error(&error_message) => {
                 // If the server issued this account a new device ID, the old crypto
                 // store can no longer be reused. Reset just this account's local
                 // store and retry the login once with a clean database.
-                self.release_accounts_for_store_dir(store_dir);
-                Self::reset_store_dir(store_dir)?;
+                self.release_accounts_for_store_dir(&storage.store_dir);
+                Self::reset_store_dir(&storage.store_dir)?;
 
-                Self::build_and_login_client(store_dir, request)
+                Self::build_and_login_client(&storage.store_dir, store_key, request)
                     .await
                     .map_err(|retry_error| {
                         format!(
@@ -286,9 +342,8 @@ impl AccountManager {
 
         let matching_account_keys: Vec<String> = accounts
             .iter()
-            .filter_map(|(account_key, account)| {
-                (account.store_dir == store_dir).then(|| account_key.clone())
-            })
+            .filter(|(_, account)| account.store_dir == store_dir)
+            .map(|(account_key, _)| account_key.clone())
             .collect();
 
         if matching_account_keys.is_empty() {
@@ -350,28 +405,30 @@ impl AccountManager {
             .clone()
             .ok_or_else(|| String::from("The selected homeserver does not expose a client URL"))?;
         let homeserver_target = Self::registration_homeserver_target(&homeserver);
-        let store_dir = self.account_store_dir(app, &homeserver_url, &request.username)?;
-        let client = Self::build_client(&homeserver_target, &store_dir).await?;
-        let response = match Self::perform_registration(&client, &request).await {
-            Ok(response) => response,
+        let storage = self.account_storage(app, &homeserver_url, &request.username)?;
+        let store_key = Self::load_or_create_store_key(app, &storage.store_id)?;
+        let client = Self::build_client(&homeserver_target, &storage.store_dir, &store_key).await?;
+
+        match Self::perform_registration(&client, &request).await {
+            Ok(_) => {}
             Err(error) if error.as_uiaa_response().is_some() => {
                 return self.handle_uiaa_registration_requirement(homeserver, error);
             }
             Err(error) => {
                 return Err(format!("Registration failed: {error}"));
             }
-        };
+        }
 
         let mut notes = Vec::new();
 
         // Matrix registration creates the account first; optional profile data
         // such as the display name is set once the SDK has established a session.
-        if let Some(display_name) = request.display_name.as_deref() {
-            if let Err(error) = client.account().set_display_name(Some(display_name)).await {
-                notes.push(format!(
-                    "The account was created, but setting the display name failed: {error}"
-                ));
-            }
+        if let Some(display_name) = request.display_name.as_deref()
+            && let Err(error) = client.account().set_display_name(Some(display_name)).await
+        {
+            notes.push(format!(
+                "The account was created, but setting the display name failed: {error}"
+            ));
         }
 
         if request.email.is_some() {
@@ -380,14 +437,20 @@ impl AccountManager {
             ));
         }
 
-        let user_id = response.user_id.to_string();
+        let session = client.matrix_auth().session().ok_or_else(|| {
+            String::from("Registration succeeded, but session data is not available")
+        })?;
+        let user_id = session.meta.user_id.to_string();
+
+        Self::persist_session(&client, &session).await?;
         let account = self.store_logged_in_account(
             user_id.clone(),
             user_id,
-            homeserver_url,
-            store_dir,
+            Self::client_homeserver_url(&client),
+            storage.store_dir,
             client,
         );
+        self.persist_account_store_metadata().await?;
 
         Ok(RegistrationOutcome::Registered {
             account,
@@ -433,9 +496,10 @@ impl AccountManager {
 
     async fn build_and_login_client(
         store_dir: &Path,
+        store_key: &[u8; STORE_KEY_LENGTH],
         request: &LoginRequest,
     ) -> Result<Client, String> {
-        let client = Self::build_client(&request.homeserver_url, store_dir).await?;
+        let client = Self::build_client(&request.homeserver_url, store_dir, store_key).await?;
 
         let mut login_builder = client
             .matrix_auth()
@@ -453,10 +517,16 @@ impl AccountManager {
         Ok(client)
     }
 
-    async fn build_client(homeserver_target: &str, store_dir: &Path) -> Result<Client, String> {
+    async fn build_client(
+        homeserver_target: &str,
+        store_dir: &Path,
+        store_key: &[u8; STORE_KEY_LENGTH],
+    ) -> Result<Client, String> {
+        let store_config = SqliteStoreConfig::new(store_dir).key(Some(store_key));
+
         Client::builder()
             .server_name_or_homeserver_url(homeserver_target)
-            .sqlite_store(store_dir, None)
+            .sqlite_store_with_config_and_cache_path(store_config, Option::<&Path>::None)
             .build()
             .await
             .map_err(|err| format!("Failed to build Matrix client: {err}"))
@@ -582,46 +652,356 @@ impl AccountManager {
             || error_message.contains("unknown token")
     }
 
-    fn reset_store_dir(store_dir: &Path) -> Result<(), String> {
+    fn remove_dir_with_retries(path: &Path, failure_context: &str) -> Result<(), String> {
         const RESET_RETRY_ATTEMPTS: usize = 20;
         const RESET_RETRY_DELAY: Duration = Duration::from_millis(100);
 
         for attempt in 0..RESET_RETRY_ATTEMPTS {
-            if store_dir.exists() {
-                match fs::remove_dir_all(store_dir) {
-                    Ok(()) => {}
-                    Err(err)
-                        if err.raw_os_error() == Some(32) && attempt + 1 < RESET_RETRY_ATTEMPTS =>
-                    {
-                        thread::sleep(RESET_RETRY_DELAY);
-                        continue;
-                    }
-                    Err(err) => {
-                        return Err(format!(
-                            "Failed to reset stale account store directory: {err}"
-                        ));
-                    }
-                }
+            if !path.exists() {
+                return Ok(());
             }
 
-            fs::create_dir_all(store_dir)
-                .map_err(|err| format!("Failed to recreate account store directory: {err}"))?;
+            match fs::remove_dir_all(path) {
+                Ok(()) => return Ok(()),
+                Err(err)
+                    if err.raw_os_error() == Some(32) && attempt + 1 < RESET_RETRY_ATTEMPTS =>
+                {
+                    thread::sleep(RESET_RETRY_DELAY);
+                }
+                Err(err) => return Err(format!("{failure_context}: {err}")),
+            }
+        }
 
+        Err(format!("{failure_context} after repeated retries"))
+    }
+
+    fn reset_store_dir(store_dir: &Path) -> Result<(), String> {
+        Self::remove_dir_with_retries(store_dir, "Failed to reset stale account store directory")?;
+        fs::create_dir_all(store_dir)
+            .map_err(|err| format!("Failed to recreate account store directory: {err}"))
+    }
+
+    async fn ensure_loaded(&self, app: &AppHandle) -> Result<(), String> {
+        if *self
+            .restore_completed
+            .read()
+            .expect("account manager restore flag lock poisoned")
+        {
             return Ok(());
         }
 
-        Err(String::from(
-            "Failed to reset stale account store directory after repeated retries",
-        ))
+        let _guard = self.restore_lock.lock().await;
+        if *self
+            .restore_completed
+            .read()
+            .expect("account manager restore flag lock poisoned")
+        {
+            return Ok(());
+        }
+
+        self.restore_accounts_state(app).await?;
+        *self
+            .restore_completed
+            .write()
+            .expect("account manager restore flag lock poisoned") = true;
+
+        Ok(())
     }
 
-    fn sanitize_for_path(input: &str) -> String {
-        input
-            .chars()
-            .map(|c| match c {
-                'a'..='z' | 'A'..='Z' | '0'..='9' | '.' | '-' | '_' => c,
-                _ => '_',
+    async fn restore_accounts_state(&self, app: &AppHandle) -> Result<(), String> {
+        let discovered_stores = self.discover_account_stores(app)?;
+        let mut restored_accounts = HashMap::new();
+        let mut active_account_key = None;
+
+        for storage in discovered_stores {
+            let Some(store_key) = Self::load_store_key(app, &storage.store_id)? else {
+                eprintln!(
+                    "Skipping persisted account store {} because its secure encryption key is missing",
+                    storage.store_id
+                );
+                continue;
+            };
+
+            let client = match Self::build_client(
+                &storage.homeserver_url,
+                &storage.store_dir,
+                &store_key,
+            )
+            .await
+            {
+                Ok(client) => client,
+                Err(error) => {
+                    eprintln!(
+                        "Skipping persisted account store {} because the Matrix client could not be rebuilt: {error}",
+                        storage.store_id
+                    );
+                    continue;
+                }
+            };
+
+            let metadata = match Self::load_account_metadata(&client).await? {
+                Some(metadata) => metadata,
+                None => {
+                    eprintln!(
+                        "Skipping persisted account store {} because its metadata is missing",
+                        storage.store_id
+                    );
+                    continue;
+                }
+            };
+
+            let Some(session) = Self::load_session(&client).await? else {
+                eprintln!(
+                    "Skipping persisted account store {} because its session is missing",
+                    storage.store_id
+                );
+                continue;
+            };
+
+            if let Err(error) = client.restore_session(session).await {
+                eprintln!(
+                    "Skipping persisted account {} because the Matrix session could not be restored: {error}",
+                    metadata.user_id
+                );
+                continue;
+            }
+
+            if metadata.is_active && active_account_key.is_none() {
+                active_account_key = Some(metadata.user_id.clone());
+            }
+
+            restored_accounts.insert(
+                metadata.user_id.clone(),
+                ManagedAccount {
+                    _client: client,
+                    user_id: metadata.user_id,
+                    homeserver_url: metadata.homeserver_url,
+                    store_dir: storage.store_dir,
+                },
+            );
+        }
+
+        if active_account_key.is_none() {
+            active_account_key = restored_accounts.keys().next().cloned();
+        }
+
+        *self
+            .accounts
+            .write()
+            .expect("account manager accounts lock poisoned") = restored_accounts;
+        *self
+            .active_account_key
+            .write()
+            .expect("account manager active account lock poisoned") = active_account_key;
+
+        self.persist_account_store_metadata().await?;
+        Ok(())
+    }
+
+    async fn persist_account_store_metadata(&self) -> Result<(), String> {
+        let active_account_key = self
+            .active_account_key
+            .read()
+            .expect("account manager active account lock poisoned")
+            .clone();
+
+        let snapshots: Vec<(Client, StoredAccountMetadata)> = {
+            let accounts = self
+                .accounts
+                .read()
+                .expect("account manager accounts lock poisoned");
+
+            accounts
+                .iter()
+                .map(|(account_key, account)| {
+                    (
+                        account._client.clone(),
+                        StoredAccountMetadata {
+                            user_id: account.user_id.clone(),
+                            homeserver_url: account.homeserver_url.clone(),
+                            is_active: active_account_key.as_deref() == Some(account_key.as_str()),
+                        },
+                    )
+                })
+                .collect()
+        };
+
+        for (client, metadata) in snapshots {
+            Self::persist_account_metadata(&client, &metadata).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn persist_session(client: &Client, session: &MatrixSession) -> Result<(), String> {
+        let value = serde_json::to_vec(session)
+            .map_err(|error| format!("Failed to serialize persisted Matrix session: {error}"))?;
+
+        client
+            .state_store()
+            .set_custom_value_no_read(SESSION_CUSTOM_VALUE_KEY, value)
+            .await
+            .map_err(|error| {
+                format!("Failed to persist Matrix session in the encrypted store: {error}")
             })
-            .collect()
+    }
+
+    async fn load_session(client: &Client) -> Result<Option<MatrixSession>, String> {
+        let Some(value) = client
+            .state_store()
+            .get_custom_value(SESSION_CUSTOM_VALUE_KEY)
+            .await
+            .map_err(|error| format!("Failed to load persisted Matrix session: {error}"))?
+        else {
+            return Ok(None);
+        };
+
+        serde_json::from_slice(&value)
+            .map(Some)
+            .map_err(|error| format!("Failed to parse persisted Matrix session: {error}"))
+    }
+
+    async fn persist_account_metadata(
+        client: &Client,
+        metadata: &StoredAccountMetadata,
+    ) -> Result<(), String> {
+        let value = serde_json::to_vec(metadata)
+            .map_err(|error| format!("Failed to serialize persisted account metadata: {error}"))?;
+
+        client
+            .state_store()
+            .set_custom_value_no_read(ACCOUNT_METADATA_CUSTOM_VALUE_KEY, value)
+            .await
+            .map_err(|error| {
+                format!("Failed to persist account metadata in the encrypted store: {error}")
+            })
+    }
+
+    async fn load_account_metadata(
+        client: &Client,
+    ) -> Result<Option<StoredAccountMetadata>, String> {
+        let Some(value) = client
+            .state_store()
+            .get_custom_value(ACCOUNT_METADATA_CUSTOM_VALUE_KEY)
+            .await
+            .map_err(|error| format!("Failed to load persisted account metadata: {error}"))?
+        else {
+            return Ok(None);
+        };
+
+        serde_json::from_slice(&value)
+            .map(Some)
+            .map_err(|error| format!("Failed to parse persisted account metadata: {error}"))
+    }
+
+    fn discover_account_stores(
+        &self,
+        app: &AppHandle,
+    ) -> Result<Vec<AccountStorageLocation>, String> {
+        let accounts_root = self.accounts_root_dir(app)?;
+        if !accounts_root.exists() {
+            return Ok(Vec::new());
+        }
+
+        let mut stores = Vec::new();
+        for entry in fs::read_dir(&accounts_root)
+            .map_err(|error| format!("Failed to read the account storage root: {error}"))?
+        {
+            let entry = entry
+                .map_err(|error| format!("Failed to inspect an account storage entry: {error}"))?;
+            let file_type = entry.file_type().map_err(|error| {
+                format!("Failed to inspect an account storage entry type: {error}")
+            })?;
+
+            if !file_type.is_dir() {
+                continue;
+            }
+
+            let store_id = entry.file_name().to_string_lossy().into_owned();
+            let Some(homeserver_url) = Self::decode_homeserver_url_from_store_id(&store_id) else {
+                continue;
+            };
+
+            let store_dir = entry.path().join("store");
+            if !store_dir.is_dir() {
+                continue;
+            }
+
+            stores.push(AccountStorageLocation {
+                store_id,
+                store_dir,
+                homeserver_url,
+            });
+        }
+
+        stores.sort_by(|left, right| left.store_id.cmp(&right.store_id));
+        Ok(stores)
+    }
+
+    fn load_or_create_store_key(
+        app: &AppHandle,
+        store_id: &str,
+    ) -> Result<[u8; STORE_KEY_LENGTH], String> {
+        if let Some(key) = Self::load_store_key(app, store_id)? {
+            return Ok(key);
+        }
+
+        let mut key = [0_u8; STORE_KEY_LENGTH];
+        OsRng.fill_bytes(&mut key);
+        secure_storage::set_secret(app, &Self::store_key_entry_id(store_id), &key)?;
+        Ok(key)
+    }
+
+    fn load_store_key(
+        app: &AppHandle,
+        store_id: &str,
+    ) -> Result<Option<[u8; STORE_KEY_LENGTH]>, String> {
+        let Some(secret) = secure_storage::get_secret(app, &Self::store_key_entry_id(store_id))?
+        else {
+            return Ok(None);
+        };
+
+        let secret_len = secret.len();
+        let key_bytes: [u8; STORE_KEY_LENGTH] = secret.try_into().map_err(|_| {
+            format!(
+                "Secure storage returned an invalid store key length for {store_id}: expected {}, got {secret_len}",
+                STORE_KEY_LENGTH
+            )
+        })?;
+
+        Ok(Some(key_bytes))
+    }
+
+    fn store_key_entry_id(store_id: &str) -> String {
+        format!("{STORE_KEY_PREFIX}::{store_id}")
+    }
+
+    fn account_store_id(homeserver_url: &str, account_hint: &str) -> String {
+        let homeserver = URL_SAFE_NO_PAD.encode(homeserver_url.as_bytes());
+        let account = URL_SAFE_NO_PAD.encode(account_hint.as_bytes());
+        format!("v1__hs_{homeserver}__acct_{account}")
+    }
+
+    fn decode_homeserver_url_from_store_id(store_id: &str) -> Option<String> {
+        let encoded_homeserver = store_id.strip_prefix("v1__hs_")?.split_once("__acct_")?.0;
+
+        let decoded = URL_SAFE_NO_PAD.decode(encoded_homeserver).ok()?;
+        String::from_utf8(decoded).ok()
+    }
+
+    fn accounts_root_dir(&self, app: &AppHandle) -> Result<PathBuf, String> {
+        Ok(app
+            .path()
+            .app_data_dir()
+            .map_err(|err| format!("Failed to resolve app data directory: {err}"))?
+            .join("matrix-accounts"))
+    }
+
+    fn client_homeserver_url(client: &Client) -> String {
+        client
+            .homeserver()
+            .to_string()
+            .trim_end_matches('/')
+            .to_owned()
     }
 }

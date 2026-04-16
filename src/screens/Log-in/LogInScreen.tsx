@@ -19,15 +19,12 @@ import { type SyntheticEvent, useEffect, useState } from "react";
 import {
   Button,
   FeedbackMessage,
-  Panel,
-  ScreenHeader,
   ScreenMain,
   ScreenShell,
   TextField,
   Typography,
 } from "../../components/ui";
 import "./LogInScreen.css";
-import hyperionLogo from "../../../src-tauri/icons/128x128.png";
 
 type FeedbackMessage = {
   tone: "error" | "success" | "info";
@@ -55,7 +52,6 @@ type LogInScreenProps = {
 
 const DEFAULT_HOMESERVER = "https://matrix.org";
 const ACTIVE_SESSION_POLL_INTERVAL_MS = 5000;
-const navigationItems = ["Home", "Info", "Terms", "Contact"];
 
 const defaultFormValues: FormValues = {
   username: "",
@@ -64,13 +60,7 @@ const defaultFormValues: FormValues = {
 };
 
 function sortAccounts(accounts: AccountSummary[]): AccountSummary[] {
-  return [...accounts].sort((left, right) => {
-    if (left.is_active !== right.is_active) {
-      return left.is_active ? -1 : 1;
-    }
-
-    return left.user_id.localeCompare(right.user_id);
-  });
+  return [...accounts].sort((left, right) => left.user_id.localeCompare(right.user_id));
 }
 
 function upsertAccount(
@@ -117,7 +107,6 @@ export default function LogInScreen({
     homeserver: initialHomeserver,
   }));
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
-  const [activeAccount, setActiveAccount] = useState<AccountSummary | null>(null);
   const [feedback, setFeedback] = useState<FeedbackMessage | null>(initialFeedback);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [switchingAccountKey, setSwitchingAccountKey] = useState<string | null>(null);
@@ -139,7 +128,6 @@ export default function LogInScreen({
         : sortAccounts(knownAccounts);
 
       setAccounts(nextAccounts);
-      setActiveAccount(currentAccount);
       return true;
     } catch {
       return false;
@@ -173,7 +161,7 @@ export default function LogInScreen({
 
   const usernameMissing = validationRequested && formValues.username.trim().length === 0;
   const passwordMissing = validationRequested && formValues.password.length === 0;
-  const currentAccount = activeAccount ?? accounts.find((account) => account.is_active) ?? null;
+  const currentAccount = accounts.find((account) => account.is_active) ?? null;
 
   useEffect(() => {
     if (!currentAccount) {
@@ -274,9 +262,6 @@ export default function LogInScreen({
       });
 
       setAccounts((currentAccounts) => upsertAccount(currentAccounts, account));
-      if (account.is_active) {
-        setActiveAccount(account);
-      }
 
       setFormValues((currentValues) => ({
         ...currentValues,
@@ -303,24 +288,15 @@ export default function LogInScreen({
 
   async function handleSwitchAccount(account: AccountSummary) {
     setSwitchingAccountKey(account.account_key);
-    setFeedback(null);
 
     try {
       await invoke("switch_active_account", {
         accountKey: account.account_key,
       });
 
-      const nextActiveAccount = {
-        ...account,
-        is_active: true,
-      };
-
       setAccounts((currentAccounts) =>
         markActiveAccount(currentAccounts, account.account_key),
       );
-      setActiveAccount(nextActiveAccount);
-
-      await syncSessionState();
 
       setFeedback({
         tone: "success",
@@ -338,35 +314,8 @@ export default function LogInScreen({
 
   return (
     <ScreenShell>
-      <ScreenHeader className="login-topbar" wide>
-        <div className="login-brand">
-          <img src={hyperionLogo} alt="Hyperion logo" className="login-brand-logo" />
-          <div className="login-brand-text">
-            <span className="login-brand-name">Hyperion</span>
-            <span className="login-brand-tag">Matrix client</span>
-          </div>
-        </div>
-
-        <nav className="login-nav" aria-label="Project links">
-          {navigationItems.map((item) => (
-            <Button key={item} variant="ghost" className="login-nav-button">
-              {item}
-            </Button>
-          ))}
-        </nav>
-
-        <Button
-          variant="secondary"
-          className="login-signup-button"
-          disabled={!onOpenRegistration}
-          onClick={() => onOpenRegistration?.()}
-        >
-          Sign up
-        </Button>
-      </ScreenHeader>
-
-      <ScreenMain className="login-stage" centered largeBlockPadding wide>
-        <Panel className="login-panel" aria-labelledby="login-panel-title">
+      <ScreenMain className="login-stage" largeBlockPadding wide>
+        <section className="login-panel" aria-labelledby="login-panel-title">
           <div className="login-avatar">
             <User aria-hidden="true" />
           </div>
@@ -376,10 +325,6 @@ export default function LogInScreen({
           </Typography>
           <Typography as="h2" variant="h1" className="login-panel-title" id="login-panel-title">
             Log in
-          </Typography>
-          <Typography variant="body" muted className="login-panel-copy">
-            Username and password are required. Homeserver stays optional and falls
-            back to the standard Matrix endpoint when left blank.
           </Typography>
 
           <form className="login-form" noValidate onSubmit={handleSubmit}>
@@ -450,13 +395,31 @@ export default function LogInScreen({
                 Required fields
               </span>
             </div>
+
+            <div className="login-registration-row">
+              <Typography variant="bodySmall" muted className="login-registration-copy">
+                Need a new account?
+              </Typography>
+
+              <Button
+                variant="secondary"
+                className="login-signup-button"
+                disabled={!onOpenRegistration}
+                onClick={() => onOpenRegistration?.()}
+                type="button"
+              >
+                Sign up
+              </Button>
+            </div>
           </form>
 
-          {feedback ? (
-            <FeedbackMessage tone={feedback.tone} aria-live="polite">
-              {feedback.text}
-            </FeedbackMessage>
-          ) : null}
+          <div className="login-feedback-slot" aria-live="polite">
+            {feedback ? (
+              <FeedbackMessage tone={feedback.tone}>
+                {feedback.text}
+              </FeedbackMessage>
+            ) : null}
+          </div>
 
           <section className="login-session-panel" aria-labelledby="session-panel-title">
             <div className="login-session-head">
@@ -470,18 +433,12 @@ export default function LogInScreen({
               </span>
             </div>
 
-            {currentAccount ? (
-              <div className="login-active-card">
-                <span className="login-active-label">Active now</span>
-                <span className="login-active-user">{currentAccount.user_id}</span>
-                <span className="login-active-home">{currentAccount.homeserver_url}</span>
-              </div>
-            ) : (
+            {accounts.length === 0 ? (
               <p className="login-session-empty">
                 Your first successful login will appear here and can be switched back
                 to later.
               </p>
-            )}
+            ) : null}
 
             {accounts.length > 0 ? (
               <div className="login-account-list">
@@ -515,7 +472,7 @@ export default function LogInScreen({
               </div>
             ) : null}
           </section>
-        </Panel>
+        </section>
       </ScreenMain>
     </ScreenShell>
   );

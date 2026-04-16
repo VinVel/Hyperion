@@ -32,6 +32,7 @@
 html {
   min-height: 100%;
   background: var(--surface);
+  scrollbar-gutter: stable;
 }
 
 body {

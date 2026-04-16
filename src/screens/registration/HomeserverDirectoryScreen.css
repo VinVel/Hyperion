@@ -1,0 +1,123 @@
+/*
+ * Copyright (c) 2026 VinVel
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, version 3 only.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * Project home: hyperion.velcore.net
+ */
+
+.registration-screen--directory {
+  width: 100%;
+}
+
+.registration-toolbar-meta,
+.registration-empty-state {
+  margin-top: var(--spacing-margin-top-large);
+}
+
+.registration-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-gap-section);
+  margin-top: var(--spacing-margin-top-double-extra-large);
+}
+
+.registration-search {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+}
+
+.registration-search-icon {
+  position: absolute;
+  left: var(--spacing-gap-large);
+  display: grid;
+  place-items: center;
+  color: var(--on-surface-variant);
+  z-index: 1;
+}
+
+.registration-search-icon svg {
+  width: var(--sizing-icon-small);
+  height: var(--sizing-icon-small);
+}
+
+.registration-search-control {
+  padding-inline-start: var(--spacing-control-with-icon-padding-inline-start);
+}
+
+.registration-directory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--layout-directory-card-min-width), 1fr));
+  gap: var(--spacing-gap-large);
+  margin-top: var(--spacing-margin-top-large);
+}
+
+.registration-server-card {
+  width: 100%;
+  align-items: stretch;
+  justify-content: flex-start;
+  flex-direction: column;
+  background: var(--surface-container);
+  text-align: left;
+}
+
+.registration-server-card:hover {
+  box-shadow: var(--elevation-server-card-hover);
+}
+
+.registration-server-card-head,
+.registration-server-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-gap-component);
+  flex-wrap: wrap;
+}
+
+.registration-server-card-head {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.registration-server-card-copy {
+  min-width: 0;
+}
+
+.registration-server-title,
+.registration-server-subtitle {
+  display: block;
+}
+
+.registration-server-title {
+  font-weight: var(--typography-font-weight-bold);
+}
+
+.registration-server-subtitle {
+  color: var(--on-surface-variant);
+  font-size: var(--typography-meta-size);
+  margin-top: var(--spacing-margin-top-extra-small);
+  word-break: break-word;
+}
+
+.registration-server-description {
+  margin: var(--spacing-margin-top-medium) 0 var(--spacing-margin-bottom-section);
+}
+
+@media (max-width: 760px) {
+  .registration-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .registration-directory-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -17,6 +17,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Webview } from "@tauri-apps/api/webview";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { LogicalPosition, LogicalSize, getCurrentWindow } from "@tauri-apps/api/window";
+import { ArrowLeft, Search } from "lucide-react";
 import {
   type FormEvent,
   useDeferredValue,
@@ -25,6 +26,18 @@ import {
   useRef,
   useState,
 } from "react";
+import {
+  Button,
+  Card,
+  FeedbackMessage,
+  Panel,
+  Pill,
+  ScreenHeader,
+  ScreenMain,
+  ScreenShell,
+  TextField,
+  Typography,
+} from "../../components/ui";
 import "./RegistrationScreen.css";
 
 type FeedbackMessage = { tone: "error" | "success" | "info"; text: string };
@@ -240,36 +253,6 @@ function handoffWarning(
 
 function isMobileWebviewUnavailableError(error: unknown): boolean {
   return getErrorMessage(error).toLowerCase().includes("webview api not available on mobile");
-}
-
-function BackArrowGlyph() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path
-        d="M19 12H6m5-5-5 5 5 5"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-      />
-    </svg>
-  );
-}
-
-function SearchGlyph() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" strokeWidth="2" />
-      <path
-        d="m16 16 4.5 4.5"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="2"
-      />
-    </svg>
-  );
 }
 
 export default function RegistrationScreen({
@@ -688,30 +671,30 @@ export default function RegistrationScreen({
   const selectedPrivacy = selectedHomeserver ? safeLink(selectedHomeserver.privacy) : null;
 
   return (
-    <div className="registration-shell">
-      <header className="registration-header">
-        <button type="button" className="registration-back-button" onClick={handleBack}>
-          <BackArrowGlyph />
+    <ScreenShell>
+      <ScreenHeader className="registration-header">
+        <Button className="registration-back-button" onClick={handleBack}>
+          <ArrowLeft aria-hidden="true" />
           <span>{backLabel}</span>
-        </button>
-      </header>
+        </Button>
+      </ScreenHeader>
 
-      <main className="registration-main">
+      <ScreenMain className="registration-main">
         {stage === "directory" ? (
-          <section className="registration-screen registration-screen--directory">
-            <h1 className="registration-screen-title">Homeservers with open registration</h1>
-            <p className="registration-screen-copy">
+          <Panel className="registration-screen--directory">
+            <Typography variant="h1">Homeservers with open registration</Typography>
+            <Typography variant="body" muted className="registration-screen-copy">
               Choose a homeserver first. Open the details screen only when you want to
               inspect one more closely.
-            </p>
+            </Typography>
 
             <div className="registration-toolbar">
               <label className="registration-search">
                 <span className="registration-search-icon">
-                  <SearchGlyph />
+                  <Search aria-hidden="true" />
                 </span>
                 <input
-                  className="registration-search-control"
+                  className="ui-field__control registration-search-control"
                   name="homeserver-search"
                   onChange={(event) => setSearchQuery(event.currentTarget.value)}
                   placeholder="Search homeservers, domains, or software"
@@ -721,38 +704,37 @@ export default function RegistrationScreen({
                 />
               </label>
 
-              <button
-                type="button"
-                className="registration-secondary-button"
+              <Button
+                variant="secondary"
                 disabled={isLoadingHomeservers || isRefreshingHomeservers}
                 onClick={() => void loadHomeservers("refresh")}
               >
                 {isRefreshingHomeservers ? "Refreshing..." : "Refresh"}
-              </button>
+              </Button>
             </div>
 
-            <p className="registration-toolbar-meta">
+            <Typography variant="meta" muted className="registration-toolbar-meta">
               {isLoadingHomeservers
                 ? "Loading published registration metadata..."
                 : `${visibleHomeservers.length} ${visibleHomeservers.length === 1 ? "homeserver" : "homeservers"} available`}
-            </p>
+            </Typography>
 
             {feedback ? (
-              <p className={`registration-feedback registration-feedback--${feedback.tone}`}>
+              <FeedbackMessage tone={feedback.tone}>
                 {feedback.text}
-              </p>
+              </FeedbackMessage>
             ) : null}
 
             {isLoadingHomeservers ? (
-              <p className="registration-empty-state">
+              <Typography variant="body" muted className="registration-empty-state">
                 Pulling the latest public homeserver directory from the native layer.
-              </p>
+              </Typography>
             ) : visibleHomeservers.length > 0 ? (
               <div className="registration-directory-grid" role="list">
                 {visibleHomeservers.map((homeserver) => (
-                  <button
+                  <Button
                     key={homeserver.server_id}
-                    type="button"
+                    variant="secondary"
                     className="registration-server-card"
                     onClick={() => openDetails(homeserver)}
                     role="listitem"
@@ -767,9 +749,9 @@ export default function RegistrationScreen({
                         </span>
                       </div>
 
-                      <span className="registration-flow-pill">
+                      <Pill tone="secondary">
                         {flowLabel(homeserver.registration_flow)}
-                      </span>
+                      </Pill>
                     </div>
 
                     <p className="registration-server-description">
@@ -778,78 +760,82 @@ export default function RegistrationScreen({
 
                     <div className="registration-server-meta">
                       {homeserver.is_official ? (
-                        <span className="registration-official-pill">Official</span>
+                        <Pill tone="primary">Official</Pill>
                       ) : null}
                       {homeserver.software ? (
-                        <span className="registration-info-pill">
+                        <Pill>
                           {homeserver.version
                             ? `${homeserver.software} ${homeserver.version}`
                             : homeserver.software}
-                        </span>
+                        </Pill>
                       ) : null}
                       {homeserver.longstanding ? (
-                        <span className="registration-info-pill">Established</span>
+                        <Pill>Established</Pill>
                       ) : null}
                     </div>
-                  </button>
+                  </Button>
                 ))}
               </div>
             ) : (
-              <p className="registration-empty-state">
+              <Typography variant="body" muted className="registration-empty-state">
                 No homeservers matched your search. Try a broader query or refresh the
                 directory.
-              </p>
+              </Typography>
             )}
-          </section>
+          </Panel>
         ) : null}
 
         {stage === "details" && selectedHomeserver ? (
-          <section className="registration-screen registration-screen--narrow">
-            <h1 className="registration-screen-title">
+          <Panel className="registration-screen--narrow" narrow>
+            <Typography variant="h1">
               {homeserverTitle(selectedHomeserver)}
-            </h1>
-            <p className="registration-screen-copy">{homeserverCopy(selectedHomeserver)}</p>
+            </Typography>
+            <Typography variant="body" muted className="registration-screen-copy">
+              {homeserverCopy(selectedHomeserver)}
+            </Typography>
 
             <div className="registration-detail-tags">
               {selectedHomeserver.is_official ? (
-                <span className="registration-official-pill">Official</span>
+                <Pill tone="primary">Official</Pill>
               ) : null}
-              <span className="registration-flow-pill">
+              <Pill tone="secondary">
                 {flowLabel(selectedHomeserver.registration_flow)}
-              </span>
-              <span className="registration-info-pill">
+              </Pill>
+              <Pill>
                 {selectedHomeserver.homeserver_url ?? homeserverHost(selectedHomeserver)}
-              </span>
+              </Pill>
               {selectedHomeserver.reg_method ? (
-                <span className="registration-info-pill">{selectedHomeserver.reg_method}</span>
+                <Pill>{selectedHomeserver.reg_method}</Pill>
               ) : null}
             </div>
 
             {feedback ? (
-              <p className={`registration-feedback registration-feedback--${feedback.tone}`}>
+              <FeedbackMessage tone={feedback.tone}>
                 {feedback.text}
-              </p>
+              </FeedbackMessage>
             ) : null}
 
             {selectedHomeserver.registration_flow !== "matrix_sdk" ? (
-              <p className="registration-warning">
+              <FeedbackMessage tone="warning" className="registration-warning">
                 {handoffWarning(selectedHomeserver, "external_flow")}
-              </p>
+              </FeedbackMessage>
             ) : null}
 
             {captchaWarningText ? (
-              <p className="registration-warning registration-warning--accent">
+              <FeedbackMessage tone="error" className="registration-warning">
                 {captchaWarningText}
-              </p>
+              </FeedbackMessage>
             ) : null}
 
             <div className="registration-detail-grid">
-              <article className="registration-detail-card">
-                <h2 className="registration-detail-title">Links</h2>
+              <Card>
+                <Typography as="h2" variant="h3" className="registration-detail-title">
+                  Links
+                </Typography>
                 <div className="registration-link-list">
                   {selectedHomepage ? (
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
                       className="registration-link-button"
                       onClick={() =>
                         openPublishedLink(
@@ -859,11 +845,11 @@ export default function RegistrationScreen({
                       }
                     >
                       Homepage
-                    </button>
+                    </Button>
                   ) : null}
                   {selectedRules ? (
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
                       className="registration-link-button"
                       onClick={() =>
                         openPublishedLink(
@@ -873,11 +859,11 @@ export default function RegistrationScreen({
                       }
                     >
                       Rules
-                    </button>
+                    </Button>
                   ) : null}
                   {selectedPrivacy ? (
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
                       className="registration-link-button"
                       onClick={() =>
                         openPublishedLink(
@@ -887,18 +873,20 @@ export default function RegistrationScreen({
                       }
                     >
                       Privacy policy
-                    </button>
+                    </Button>
                   ) : null}
                   {!selectedHomepage && !selectedRules && !selectedPrivacy ? (
-                    <p className="registration-detail-copy">
+                    <Typography variant="bodySmall" muted className="registration-detail-copy">
                       No additional links were published for this homeserver.
-                    </p>
+                    </Typography>
                   ) : null}
                 </div>
-              </article>
+              </Card>
 
-              <article className="registration-detail-card">
-                <h2 className="registration-detail-title">Registration</h2>
+              <Card>
+                <Typography as="h2" variant="h3" className="registration-detail-title">
+                  Registration
+                </Typography>
                 <dl className="registration-detail-list">
                   <div>
                     <dt>Flow</dt>
@@ -919,10 +907,12 @@ export default function RegistrationScreen({
                     </dd>
                   </div>
                 </dl>
-              </article>
+              </Card>
 
-              <article className="registration-detail-card">
-                <h2 className="registration-detail-title">Technical details</h2>
+              <Card>
+                <Typography as="h2" variant="h3" className="registration-detail-title">
+                  Technical details
+                </Typography>
                 <dl className="registration-detail-list">
                   <div>
                     <dt>Software</dt>
@@ -947,10 +937,12 @@ export default function RegistrationScreen({
                     <dd>{boolLabel(selectedHomeserver.cloudflare)}</dd>
                   </div>
                 </dl>
-              </article>
+              </Card>
 
-              <article className="registration-detail-card">
-                <h2 className="registration-detail-title">Jurisdiction</h2>
+              <Card>
+                <Typography as="h2" variant="h3" className="registration-detail-title">
+                  Jurisdiction
+                </Typography>
                 <dl className="registration-detail-list">
                   <div>
                     <dt>ISP</dt>
@@ -977,22 +969,23 @@ export default function RegistrationScreen({
                     </dd>
                   </div>
                 </dl>
-              </article>
+              </Card>
             </div>
 
             {selectedHomeserver.reg_note ? (
-              <p className="registration-note">{selectedHomeserver.reg_note}</p>
+              <FeedbackMessage tone="info" className="registration-note">
+                {selectedHomeserver.reg_note}
+              </FeedbackMessage>
             ) : null}
 
             <div className="registration-action-row">
               {selectedHomeserver.registration_flow === "matrix_sdk" ? (
-                <button type="button" className="registration-primary-button" onClick={openForm}>
+                <Button variant="primary" onClick={openForm}>
                   Continue to registration form
-                </button>
+                </Button>
               ) : (
-                <button
-                  type="button"
-                  className="registration-primary-button"
+                <Button
+                  variant="primary"
                   disabled={isSubmitting}
                   onClick={() => void handleNonVanillaAction()}
                 >
@@ -1001,163 +994,138 @@ export default function RegistrationScreen({
                     : selectedHomeserver.registration_flow === "external_link"
                       ? "Open registration in Hyperion"
                       : "Continue with guidance"}
-                </button>
+                </Button>
               )}
             </div>
-          </section>
+          </Panel>
         ) : null}
 
         {stage === "form" && selectedHomeserver ? (
-          <section className="registration-screen registration-screen--form">
-            <h1 className="registration-screen-title">
+          <Panel className="registration-screen--form" narrow>
+            <Typography variant="h1">
               Register on {homeserverTitle(selectedHomeserver)}
-            </h1>
-            <p className="registration-screen-copy">
+            </Typography>
+            <Typography variant="body" muted className="registration-screen-copy">
               Finish the form below to create the account.
-            </p>
+            </Typography>
 
             <div className="registration-detail-tags">
               {selectedHomeserver.is_official ? (
-                <span className="registration-official-pill">Official</span>
+                <Pill tone="primary">Official</Pill>
               ) : null}
-              <span className="registration-info-pill">
+              <Pill>
                 {selectedHomeserver.homeserver_url ?? homeserverHost(selectedHomeserver)}
-              </span>
+              </Pill>
             </div>
 
             {feedback ? (
-              <p className={`registration-feedback registration-feedback--${feedback.tone}`}>
+              <FeedbackMessage tone={feedback.tone}>
                 {feedback.text}
-              </p>
+              </FeedbackMessage>
             ) : null}
 
             {captchaWarningText ? (
-              <p className="registration-warning registration-warning--accent">
+              <FeedbackMessage tone="error" className="registration-warning">
                 {captchaWarningText}
-              </p>
+              </FeedbackMessage>
             ) : null}
 
             {selectedHomeserver.reg_note ? (
-              <p className="registration-note">{selectedHomeserver.reg_note}</p>
+              <FeedbackMessage tone="info" className="registration-note">
+                {selectedHomeserver.reg_note}
+              </FeedbackMessage>
             ) : null}
 
             <form className="registration-form" noValidate onSubmit={handleSubmit}>
-              <label className="registration-field">
-                <span className="registration-field-label">
-                  Username
-                  <span className="registration-field-required" aria-hidden="true">
-                    *
-                  </span>
-                </span>
-                <input
-                  autoCapitalize="none"
-                  autoComplete="username"
-                  className="registration-field-control"
-                  data-invalid={usernameMissing || undefined}
-                  name="username"
-                  onChange={(event) => updateField("username", event.currentTarget.value)}
-                  spellCheck={false}
-                  type="text"
-                  value={formValues.username}
-                />
-              </label>
+              <TextField
+                autoCapitalize="none"
+                autoComplete="username"
+                isInvalid={usernameMissing}
+                isRequiredVisible
+                label="Username"
+                name="username"
+                onChange={(event) => updateField("username", event.currentTarget.value)}
+                spellCheck={false}
+                type="text"
+                value={formValues.username}
+              />
 
               {selectedHomeserver.supports_display_name ? (
-                <label className="registration-field">
-                  <span className="registration-field-label">Display name</span>
-                  <input
-                    autoComplete="nickname"
-                    className="registration-field-control"
-                    name="display-name"
-                    onChange={(event) =>
-                      updateField("displayName", event.currentTarget.value)
-                    }
-                    type="text"
-                    value={formValues.displayName}
-                  />
-                </label>
+                <TextField
+                  autoComplete="nickname"
+                  label="Display name"
+                  name="display-name"
+                  onChange={(event) => updateField("displayName", event.currentTarget.value)}
+                  type="text"
+                  value={formValues.displayName}
+                />
               ) : null}
 
-              <label className="registration-field">
-                <span className="registration-field-label">
-                  Password
-                  <span className="registration-field-required" aria-hidden="true">
-                    *
-                  </span>
-                </span>
-                <input
-                  autoComplete="new-password"
-                  className="registration-field-control"
-                  data-invalid={passwordMissing || undefined}
-                  name="password"
-                  onChange={(event) => updateField("password", event.currentTarget.value)}
-                  type="password"
-                  value={formValues.password}
-                />
-              </label>
+              <TextField
+                autoComplete="new-password"
+                isInvalid={passwordMissing}
+                isRequiredVisible
+                label="Password"
+                name="password"
+                onChange={(event) => updateField("password", event.currentTarget.value)}
+                type="password"
+                value={formValues.password}
+              />
 
-              <label className="registration-field">
-                <span className="registration-field-label">
-                  Email
-                  {emailRequired ? (
-                    <span className="registration-field-required" aria-hidden="true">
-                      *
-                    </span>
-                  ) : null}
-                </span>
-                <input
-                  aria-required={emailRequired}
-                  autoComplete="email"
-                  className="registration-field-control"
-                  data-invalid={emailMissing || undefined}
-                  inputMode="email"
-                  name="email"
-                  onChange={(event) => updateField("email", event.currentTarget.value)}
-                  required={emailRequired}
-                  type="email"
-                  value={formValues.email}
-                />
-              </label>
+              <TextField
+                aria-required={emailRequired}
+                autoComplete="email"
+                inputMode="email"
+                isInvalid={emailMissing}
+                isRequiredVisible={emailRequired}
+                label="Email"
+                name="email"
+                onChange={(event) => updateField("email", event.currentTarget.value)}
+                required={emailRequired}
+                type="email"
+                value={formValues.email}
+              />
 
               <div className="registration-form-foot">
                 <span className="registration-required-copy">
-                  <span className="registration-field-required" aria-hidden="true">
+                  <span className="ui-required-marker" aria-hidden="true">
                     *
                   </span>{" "}
                   Required fields
                 </span>
 
-                <button
+                <Button
                   type="submit"
-                  className="registration-primary-button"
+                  variant="primary"
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? "Creating account..." : "Create account"}
-                </button>
+                </Button>
               </div>
             </form>
-          </section>
+          </Panel>
         ) : null}
 
         {stage === "webview" && embeddedWebview ? (
-          <section className="registration-screen registration-screen--webview">
+          <Panel className="registration-screen--webview">
             <div className="registration-webview-bar">
               <div className="registration-webview-copy">
-                <span className="registration-webview-eyebrow">
+                <Typography as="span" variant="label" className="registration-webview-eyebrow">
                   {embeddedWebview.kind === "registration"
                     ? "Registration page"
                     : "Published homeserver link"}
-                </span>
-                <h1 className="registration-webview-title">{embeddedWebview.title}</h1>
-                <p className="registration-webview-url">
+                </Typography>
+                <Typography variant="h2" className="registration-webview-title">
+                  {embeddedWebview.title}
+                </Typography>
+                <Typography variant="bodySmall" muted className="registration-webview-url">
                   {formatWebviewUrl(embeddedWebview.url)}
-                </p>
+                </Typography>
               </div>
 
               {embeddedWebview.kind === "registration" && selectedHomeserver ? (
-                <button
-                  type="button"
-                  className="registration-secondary-button"
+                <Button
+                  variant="secondary"
                   onClick={() =>
                     finishInLogin({
                       homeserver: selectedHomeserver.homeserver_url ?? undefined,
@@ -1167,14 +1135,14 @@ export default function RegistrationScreen({
                   }
                 >
                   Go to log in
-                </button>
+                </Button>
               ) : null}
             </div>
 
             {embeddedWebview.warning ? (
-              <p className="registration-warning registration-warning--accent">
+              <FeedbackMessage tone="error" className="registration-warning">
                 {embeddedWebview.warning}
-              </p>
+              </FeedbackMessage>
             ) : null}
 
             <div
@@ -1182,9 +1150,9 @@ export default function RegistrationScreen({
               className="registration-webview-host"
               aria-label={`${embeddedWebview.title} webview`}
             />
-          </section>
+          </Panel>
         ) : null}
-      </main>
-    </div>
+      </ScreenMain>
+    </ScreenShell>
   );
 }

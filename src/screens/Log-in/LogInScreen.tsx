@@ -14,7 +14,18 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
+import { ArrowRight, User } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
+import {
+  Button,
+  FeedbackMessage,
+  Panel,
+  ScreenHeader,
+  ScreenMain,
+  ScreenShell,
+  TextField,
+  Typography,
+} from "../../components/ui";
 import "./LogInScreen.css";
 import hyperionLogo from "../../../src-tauri/icons/128x128.png";
 
@@ -94,51 +105,6 @@ function getErrorMessage(error: unknown): string {
   }
 
   return "Something went wrong while contacting the account service.";
-}
-
-function UserGlyph() {
-  return (
-    <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-      <circle
-        cx="32"
-        cy="32"
-        r="22"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3"
-      />
-      <circle
-        cx="32"
-        cy="25"
-        r="7"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3"
-      />
-      <path
-        d="M20 44c3.6-5 8.1-7.5 12-7.5S40.4 39 44 44"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="3"
-      />
-    </svg>
-  );
-}
-
-function ArrowGlyph() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path
-        d="M5 12h12m-5-5 5 5-5 5"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-      />
-    </svg>
-  );
 }
 
 export default function LogInScreen({
@@ -371,8 +337,8 @@ export default function LogInScreen({
   }
 
   return (
-    <div className="login-shell">
-      <header className="login-topbar">
+    <ScreenShell>
+      <ScreenHeader className="login-topbar" wide>
         <div className="login-brand">
           <img src={hyperionLogo} alt="Hyperion logo" className="login-brand-logo" />
           <div className="login-brand-text">
@@ -383,114 +349,102 @@ export default function LogInScreen({
 
         <nav className="login-nav" aria-label="Project links">
           {navigationItems.map((item) => (
-            <button key={item} type="button" className="login-nav-button">
+            <Button key={item} variant="ghost" className="login-nav-button">
               {item}
-            </button>
+            </Button>
           ))}
         </nav>
 
-        <button
-          type="button"
+        <Button
+          variant="secondary"
           className="login-signup-button"
           disabled={!onOpenRegistration}
           onClick={() => onOpenRegistration?.()}
         >
           Sign up
-        </button>
-      </header>
+        </Button>
+      </ScreenHeader>
 
-      <main className="login-stage">
-        <section className="login-panel" aria-labelledby="login-panel-title">
+      <ScreenMain className="login-stage" centered largeBlockPadding wide>
+        <Panel className="login-panel" aria-labelledby="login-panel-title">
           <div className="login-avatar">
-            <UserGlyph />
+            <User aria-hidden="true" />
           </div>
 
-          <p className="login-panel-kicker">Account access</p>
-          <h2 className="login-panel-title" id="login-panel-title">
+          <Typography variant="eyebrow" className="login-panel-kicker">
+            Account access
+          </Typography>
+          <Typography as="h2" variant="h1" className="login-panel-title" id="login-panel-title">
             Log in
-          </h2>
-          <p className="login-panel-copy">
+          </Typography>
+          <Typography variant="body" muted className="login-panel-copy">
             Username and password are required. Homeserver stays optional and falls
             back to the standard Matrix endpoint when left blank.
-          </p>
+          </Typography>
 
           <form className="login-form" noValidate onSubmit={handleSubmit}>
-            <label className="login-field">
-              <span className="login-field-label">
-                Username
-                <span className="login-field-required" aria-hidden="true">
-                  *
-                </span>
-              </span>
-              <input
-                autoCapitalize="none"
-                autoComplete="username"
-                className="login-field-control"
-                data-invalid={usernameMissing || undefined}
-                name="username"
-                onChange={(event) => updateField("username", event.currentTarget.value)}
-                spellCheck={false}
-                type="text"
-                value={formValues.username}
-              />
-            </label>
+            <TextField
+              autoCapitalize="none"
+              autoComplete="username"
+              isInvalid={usernameMissing}
+              isRequiredVisible
+              label="Username"
+              name="username"
+              onChange={(event) => updateField("username", event.currentTarget.value)}
+              spellCheck={false}
+              type="text"
+              value={formValues.username}
+            />
 
-            <label className="login-field">
-              <span className="login-field-label">Homeserver</span>
-              <input
-                autoCapitalize="none"
-                className="login-field-control"
-                inputMode="url"
-                name="homeserver"
-                onChange={(event) => updateField("homeserver", event.currentTarget.value)}
-                placeholder={DEFAULT_HOMESERVER}
-                spellCheck={false}
-                type="text"
-                value={formValues.homeserver}
-              />
-            </label>
+            <TextField
+              autoCapitalize="none"
+              inputMode="url"
+              label="Homeserver"
+              name="homeserver"
+              onChange={(event) => updateField("homeserver", event.currentTarget.value)}
+              placeholder={DEFAULT_HOMESERVER}
+              spellCheck={false}
+              type="text"
+              value={formValues.homeserver}
+            />
 
-            <label className="login-field">
-              <span className="login-field-label">
-                Password
-                <span className="login-field-required" aria-hidden="true">
-                  *
-                </span>
-              </span>
+            <div className="login-password-field">
+              <TextField
+                autoComplete="current-password"
+                enterKeyHint="go"
+                isInvalid={passwordMissing}
+                isRequiredVisible
+                label="Password"
+                name="password"
+                onChange={(event) => updateField("password", event.currentTarget.value)}
+                type="password"
+                value={formValues.password}
+              />
 
               <div className="login-password-row">
-                <input
-                  autoComplete="current-password"
-                  className="login-field-control"
-                  data-invalid={passwordMissing || undefined}
-                  enterKeyHint="go"
-                  name="password"
-                  onChange={(event) => updateField("password", event.currentTarget.value)}
-                  type="password"
-                  value={formValues.password}
-                />
-
-                <button
+                <Button
                   aria-label={isSubmitting ? "Logging in" : "Log in"}
+                  iconOnly
                   className="login-submit-button"
                   disabled={isSubmitting}
                   type="submit"
+                  variant="icon"
                 >
-                  <ArrowGlyph />
+                  <ArrowRight aria-hidden="true" />
                   <span className="login-submit-label">
                     {isSubmitting ? "Connecting..." : "Log in"}
                   </span>
-                </button>
+                </Button>
               </div>
-            </label>
+            </div>
 
             <div className="login-support-row">
-              <button type="button" className="login-text-action">
+              <Button variant="ghost" className="login-text-action">
                 Forgot password?
-              </button>
+              </Button>
 
               <span className="login-required-copy">
-                <span className="login-field-required" aria-hidden="true">
+                <span className="ui-required-marker" aria-hidden="true">
                   *
                 </span>{" "}
                 Required fields
@@ -499,16 +453,16 @@ export default function LogInScreen({
           </form>
 
           {feedback ? (
-            <p className={`login-feedback login-feedback--${feedback.tone}`} aria-live="polite">
+            <FeedbackMessage tone={feedback.tone} aria-live="polite">
               {feedback.text}
-            </p>
+            </FeedbackMessage>
           ) : null}
 
           <section className="login-session-panel" aria-labelledby="session-panel-title">
             <div className="login-session-head">
-              <h3 className="login-section-title" id="session-panel-title">
+              <Typography as="h3" variant="h3" id="session-panel-title">
                 Local sessions
-              </h3>
+              </Typography>
               <span className="login-section-meta">
                 {isBootstrapping
                   ? "Loading..."
@@ -532,8 +486,9 @@ export default function LogInScreen({
             {accounts.length > 0 ? (
               <div className="login-account-list">
                 {accounts.map((account) => (
-                  <button
+                  <Button
                     key={account.account_key}
+                    variant="secondary"
                     className={`login-account-button${
                       account.is_active ? " login-account-button--active" : ""
                     }`}
@@ -543,7 +498,6 @@ export default function LogInScreen({
                       account.is_active
                     }
                     onClick={() => void handleSwitchAccount(account)}
-                    type="button"
                   >
                     <span className="login-account-copy">
                       <span className="login-account-user">{account.user_id}</span>
@@ -556,13 +510,13 @@ export default function LogInScreen({
                           ? "Switching"
                           : "Use"}
                     </span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             ) : null}
           </section>
-        </section>
-      </main>
-    </div>
+        </Panel>
+      </ScreenMain>
+    </ScreenShell>
   );
 }

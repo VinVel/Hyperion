@@ -14,10 +14,10 @@
  */
 
 :root {
-  font-family: "Aptos", "Segoe UI", "Noto Sans", sans-serif;
+  font-family: var(--typography-font-family-base);
   font-size: 16px;
-  line-height: 1.5;
-  font-weight: 400;
+  line-height: var(--typography-line-height-base);
+  font-weight: var(--typography-font-weight-regular);
   touch-action: pan-x pan-y;
   height: 100%;
   color: var(--on-surface);

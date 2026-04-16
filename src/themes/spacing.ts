@@ -1,0 +1,59 @@
+/*
+ * Copyright (c) 2026 VinVel
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, version 3 only.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * Project home: hyperion.velcore.net
+ */
+
+export const spacing = {
+  safeAreaPadding: 'max(1.25rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right)) max(1.25rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left))',
+  screenBlockPadding: 'clamp(2rem, 6vw, 4rem)',
+  screenBlockPaddingLarge: 'clamp(2rem, 6vw, 5rem)',
+  panelPadding: 'clamp(1.2rem, 2.6vw, 1.8rem)',
+  panelPaddingLarge: 'clamp(1.4rem, 3vw, 2rem)',
+  cardPadding: '1rem',
+  controlPaddingBlock: '0.95rem',
+  controlPaddingInline: '1.1rem',
+  controlWithIconPaddingInlineStart: '2.8rem',
+  buttonPaddingBlock: '0.8rem',
+  buttonPaddingInline: '1rem',
+  navigationButtonPaddingBlock: '0.7rem',
+  navigationButtonPaddingInline: '0.95rem',
+  feedbackPaddingBlock: '0.9rem',
+  feedbackPaddingInline: '1rem',
+  pillPaddingBlock: '0.38rem',
+  pillPaddingInline: '0.7rem',
+  activeCardPaddingBlock: '0.95rem',
+  activeCardPaddingInline: '1rem',
+  gapTiny: '0.12rem',
+  gapExtraSmallest: '0.15rem',
+  gapExtraSmall: '0.2rem',
+  gapLabelInline: '0.35rem',
+  gapSmall: '0.45rem',
+  gapComponent: '0.65rem',
+  gapMedium: '0.75rem',
+  gapSection: '0.9rem',
+  gapLarge: '1rem',
+  gapExtraLarge: '1.25rem',
+  gapDoubleExtraLarge: '1.4rem',
+  marginTopExtraSmall: '0.15rem',
+  marginTopSmall: '0.35rem',
+  marginTopMedium: '0.8rem',
+  marginTopSection: '0.9rem',
+  marginTopLarge: '1rem',
+  marginTopExtraLarge: '1.2rem',
+  marginTopDoubleExtraLarge: '1.4rem',
+  marginBottomMedium: '0.8rem',
+  marginBottomSection: '0.9rem',
+  textUnderlineOffset: '0.2rem',
+} as const;
+
+export type SpacingTokens = typeof spacing;

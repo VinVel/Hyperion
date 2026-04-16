@@ -15,7 +15,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { ArrowRight, User } from "lucide-react";
-import { type FormEvent, useEffect, useState } from "react";
+import { type SyntheticEvent, useEffect, useState } from "react";
 import {
   Button,
   FeedbackMessage,
@@ -246,7 +246,7 @@ export default function LogInScreen({
     }));
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SyntheticEvent<HTMLFormElement, SubmitEvent>) {
     event.preventDefault();
     setValidationRequested(true);
 

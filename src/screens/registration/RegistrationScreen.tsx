@@ -19,7 +19,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { LogicalPosition, LogicalSize, getCurrentWindow } from "@tauri-apps/api/window";
 import { ArrowLeft, Search } from "lucide-react";
 import {
-  type FormEvent,
+  type SyntheticEvent,
   useDeferredValue,
   useEffect,
   useLayoutEffect,
@@ -273,7 +273,12 @@ export default function RegistrationScreen({
   const deferredSearchQuery = useDeferredValue(searchQuery.trim().toLowerCase());
 
   async function loadHomeservers(reason: "initial" | "refresh" = "initial") {
-    reason === "refresh" ? setIsRefreshingHomeservers(true) : setIsLoadingHomeservers(true);
+    if (reason === "refresh") {
+      setIsRefreshingHomeservers(true);
+    } else {
+      setIsLoadingHomeservers(true);
+    }
+
     try {
       const directory = await invoke<HomeserverDirectory>("list_registration_homeservers");
       const nextHomeservers = normalizeHomeservers(directory.public_servers)
@@ -614,7 +619,7 @@ export default function RegistrationScreen({
     }
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SyntheticEvent<HTMLFormElement, SubmitEvent>) {
     event.preventDefault();
     if (!selectedHomeserver) return;
     setValidationRequested(true);

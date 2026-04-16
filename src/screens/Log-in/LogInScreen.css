@@ -13,64 +13,17 @@
  * Project home: hyperion.velcore.net
  */
 
-.login-topbar {
-  justify-content: space-between;
-}
-
-.login-brand {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-gap-medium);
-}
-
-.login-brand-logo {
-  width: var(--sizing-brand-logo-size);
-  height: var(--sizing-brand-logo-size);
-  border-radius: var(--shape-radius-medium);
-  object-fit: cover;
-}
-
-.login-brand-text {
-  display: flex;
-  flex-direction: column;
-}
-
-.login-brand-name {
-  font-size: var(--typography-brand-name-size);
-  font-weight: var(--typography-font-weight-bold);
-}
-
-.login-brand-tag {
-  color: var(--on-surface-variant);
-  font-size: var(--typography-label-size);
-}
-
-.login-nav {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--spacing-gap-small);
-}
-
-.login-nav-button {
-  padding: var(--spacing-navigation-button-padding-block) var(--spacing-navigation-button-padding-inline);
-}
-
-.login-signup-button {
-  min-width: var(--sizing-login-sign-up-button-min-width);
-  color: var(--on-surface-variant);
-}
-
 .login-stage {
   min-height: var(--layout-centered-screen-min-height);
 }
 
 .login-panel {
   width: var(--layout-login-panel-width);
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-gap-extra-large);
-  padding: var(--spacing-panel-padding-large);
+  padding: 0;
 }
 
 .login-avatar {
@@ -136,12 +89,28 @@
   font-size: var(--typography-body-small-size);
 }
 
+.login-registration-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--spacing-gap-medium);
+}
+
+.login-signup-button {
+  min-width: var(--sizing-login-sign-up-button-min-width);
+}
+
+.login-feedback-slot {
+  min-height: 4.5rem;
+}
+
 .login-session-panel {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-gap-section);
   border-radius: var(--shape-radius-small);
-  background: var(--surface-container);
+  background: color-mix(in srgb, var(--surface-container-low) 82%, transparent);
   padding: var(--spacing-card-padding);
   box-shadow: var(--elevation-outline-subtle);
 }
@@ -158,41 +127,18 @@
   font-size: var(--typography-meta-size);
 }
 
-.login-active-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-gap-extra-small);
-  border-radius: var(--shape-radius-small);
-  background: var(--primary-container);
-  color: var(--on-primary-container);
-  padding: var(--spacing-active-card-padding-block) var(--spacing-active-card-padding-inline);
-}
-
-.login-active-label,
 .login-account-state {
   letter-spacing: var(--typography-letter-spacing-eyebrow);
   text-transform: uppercase;
 }
 
-.login-active-label {
-  font-size: var(--typography-label-size);
-  opacity: 0.8;
-}
-
-.login-active-user,
 .login-account-user,
 .login-account-home {
   word-break: break-word;
 }
 
-.login-active-user,
 .login-account-user {
   font-weight: var(--typography-font-weight-bold);
-}
-
-.login-active-home {
-  font-size: var(--typography-body-small-size);
-  opacity: 0.88;
 }
 
 .login-session-empty {
@@ -244,19 +190,13 @@
   color: var(--secondary);
   font-size: var(--typography-label-size);
   font-weight: var(--typography-font-weight-bold);
+  min-width: 6.5rem;
+  flex-shrink: 0;
+  text-align: right;
+  white-space: nowrap;
 }
 
 @media (max-width: 960px) {
-  .login-topbar {
-    flex-wrap: wrap;
-  }
-
-  .login-nav {
-    order: 3;
-    width: 100%;
-    justify-content: flex-start;
-  }
-
   .login-stage {
     min-height: auto;
   }
@@ -267,11 +207,8 @@
 }
 
 @media (max-width: 640px) {
-  .login-brand {
-    flex: 1 1 auto;
-  }
-
   .login-signup-button {
+    width: 100%;
     min-width: auto;
   }
 
@@ -292,8 +229,18 @@
     align-items: flex-start;
   }
 
+  .login-registration-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .login-account-button {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .login-account-state {
+    min-width: 0;
+    text-align: left;
   }
 }

@@ -1,0 +1,97 @@
+/*
+ * Copyright (c) 2026 VinVel
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, version 3 only.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * Project home: hyperion.velcore.net
+ */
+
+.registration-detail-tags,
+.registration-action-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-gap-component);
+  flex-wrap: wrap;
+}
+
+.registration-detail-tags {
+  margin-top: var(--spacing-margin-top-large);
+}
+
+.registration-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-gap-large);
+  margin-top: var(--spacing-margin-top-large);
+}
+
+.registration-detail-title {
+  margin-bottom: var(--spacing-margin-bottom-medium);
+}
+
+.registration-link-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-gap-component);
+}
+
+.registration-link-button {
+  color: var(--primary);
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: var(--spacing-text-underline-offset);
+}
+
+.registration-link-button:hover {
+  color: var(--secondary);
+}
+
+.registration-detail-list {
+  display: grid;
+  gap: var(--spacing-gap-medium);
+  margin: 0;
+}
+
+.registration-detail-list div {
+  display: grid;
+  gap: var(--spacing-gap-extra-small);
+}
+
+.registration-detail-list dt {
+  color: var(--on-surface-variant);
+  font-size: var(--typography-eyebrow-size);
+  font-weight: var(--typography-font-weight-medium);
+  letter-spacing: var(--typography-letter-spacing-detail-label);
+  text-transform: uppercase;
+}
+
+.registration-detail-list dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.registration-action-row {
+  margin-top: var(--spacing-margin-top-large);
+  justify-content: flex-end;
+}
+
+@media (max-width: 760px) {
+  .registration-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .registration-action-row {
+    justify-content: stretch;
+  }
+
+  .registration-action-row .ui-button {
+    width: 100%;
+  }
+}

@@ -17,7 +17,6 @@ private final class OverlayWebViewController: UIViewController {
   private let pageTitle: String
   private let pageUrl: URL
   private let userAgent: String?
-  private var webView: WKWebView?
 
   init(title: String, url: URL, userAgent: String?) {
     self.pageTitle = title
@@ -44,7 +43,6 @@ private final class OverlayWebViewController: UIViewController {
     webView.translatesAutoresizingMaskIntoConstraints = false
     webView.customUserAgent = (userAgent?.isEmpty == false ? userAgent : nil) ?? defaultDesktopUserAgent
     webView.allowsBackForwardNavigationGestures = true
-    self.webView = webView
 
     let toolbar = UIView()
     toolbar.translatesAutoresizingMaskIntoConstraints = false

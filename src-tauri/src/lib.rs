@@ -15,6 +15,7 @@
 
 mod account;
 mod mobile_custom_tabs;
+mod mobile_overlay_webview;
 mod secure_storage;
 
 use account::{
@@ -86,11 +87,22 @@ async fn open_android_custom_tab(app: AppHandle, url: String) -> Result<(), Stri
     mobile_custom_tabs::open_url(&app, &url)
 }
 
+#[tauri::command]
+async fn open_mobile_overlay_webview(
+    app: AppHandle,
+    url: String,
+    title: Option<String>,
+    user_agent: Option<String>,
+) -> Result<(), String> {
+    mobile_overlay_webview::open_url(&app, &url, title.as_deref(), user_agent.as_deref())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(AccountManager::new())
         .plugin(mobile_custom_tabs::init())
+        .plugin(mobile_overlay_webview::init())
         .plugin(secure_storage::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
@@ -101,7 +113,8 @@ pub fn run() {
             validate_active_account,
             list_registration_homeservers,
             register_account,
-            open_android_custom_tab
+            open_android_custom_tab,
+            open_mobile_overlay_webview
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

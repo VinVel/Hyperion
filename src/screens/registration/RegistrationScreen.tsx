@@ -280,7 +280,7 @@ export default function RegistrationScreen({
       if (disposed) return;
 
       if (isMobileWebviewUnavailableError(error)) {
-        void fallbackToExternalBrowser(embeddedWebview).catch((fallbackError) => {
+        void fallbackToMobileOverlayOrBrowser(embeddedWebview).catch((fallbackError) => {
           if (disposed) return;
 
           setEmbeddedWebview(null);
@@ -353,7 +353,38 @@ export default function RegistrationScreen({
     onBackToLogin(nextLaunchState ?? null);
   }
 
-  async function fallbackToExternalBrowser(nextWebview: EmbeddedWebviewState) {
+  function handleOpenedMobileOverlay(nextWebview: EmbeddedWebviewState) {
+    setEmbeddedWebview(null);
+
+    if (nextWebview.kind === "registration" && selectedHomeserver) {
+      finishInLogin({
+        homeserver: selectedHomeserver.homeserver_url ?? undefined,
+        text: `Opened the registration page in the in-app browser overlay. Close it when finished, then sign in here.`,
+        tone: "info",
+      });
+      return;
+    }
+
+    setStage(nextWebview.returnStage);
+    setFeedback({
+      tone: "info",
+      text: "Opened the page in the in-app browser overlay.",
+    });
+  }
+
+  async function fallbackToMobileOverlayOrBrowser(nextWebview: EmbeddedWebviewState) {
+    try {
+      await invoke("open_mobile_overlay_webview", {
+        url: nextWebview.url,
+        title: nextWebview.title,
+        userAgent: DESKTOP_WEBVIEW_USER_AGENT,
+      });
+      handleOpenedMobileOverlay(nextWebview);
+      return;
+    } catch {
+      // Fall through to the existing browser-based fallbacks.
+    }
+
     let openedIn = "Android Custom Tabs";
 
     try {

@@ -25,10 +25,9 @@ import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.Plugin
+import java.util.Locale
+import java.util.regex.Pattern
 
-private const val DEFAULT_DESKTOP_USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-    "(KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36 Hyperion/0.1"
 private const val DESKTOP_VIEWPORT_WIDTH = 1280
 private const val DESKTOP_INITIAL_SCALE_PERCENT = 30
 private const val DESKTOP_VIEW_SCRIPT_TEMPLATE =
@@ -57,6 +56,8 @@ private const val DESKTOP_VIEW_SCRIPT_TEMPLATE =
     const desktopUserAgent = "__HYPERION_DESKTOP_UA__";
     const desktopViewportWidth = __HYPERION_DESKTOP_VIEWPORT_WIDTH__;
     const viewportContent = "__HYPERION_VIEWPORT_CONTENT__";
+    const chromeMajorVersion = "__HYPERION_CHROME_MAJOR_VERSION__";
+    const chromeFullVersion = "__HYPERION_CHROME_FULL_VERSION__";
     defineGetter(window.navigator, "userAgent", desktopUserAgent);
     defineGetter(window.navigator, "appVersion", desktopUserAgent);
     defineGetter(window.navigator, "platform", "Win32");
@@ -66,8 +67,8 @@ private const val DESKTOP_VIEW_SCRIPT_TEMPLATE =
     if ("userAgentData" in window.navigator) {
       defineGetter(window.navigator, "userAgentData", {
         brands: [
-          { brand: "Chromium", version: "134" },
-          { brand: "Google Chrome", version: "134" }
+          { brand: "Chromium", version: chromeMajorVersion },
+          { brand: "Google Chrome", version: chromeMajorVersion }
         ],
         mobile: false,
         platform: "Windows",
@@ -78,7 +79,7 @@ private const val DESKTOP_VIEW_SCRIPT_TEMPLATE =
           model: "",
           platform: "Windows",
           platformVersion: "10.0.0",
-          uaFullVersion: "134.0.0.0"
+          uaFullVersion: chromeFullVersion
         }),
         toJSON() {
           return {
@@ -147,8 +148,10 @@ class MobileWebviewOverlayPlugin(private val activity: Activity) : Plugin(activi
       val args = invoke.parseArgs(OpenOverlayWebviewArgs::class.java)
       activity.runOnUiThread {
         closeOverlay()
-        val resolvedUserAgent =
-          args.userAgent?.takeIf { it.isNotBlank() } ?: DEFAULT_DESKTOP_USER_AGENT
+        val resolvedUserAgent = args.userAgent?.takeIf { it.isNotBlank() }
+        requireNotNull(resolvedUserAgent) {
+          "missing desktop user agent"
+        }
 
         val root = activity.findViewById<ViewGroup>(android.R.id.content)
         val overlay =
@@ -304,10 +307,26 @@ class MobileWebviewOverlayPlugin(private val activity: Activity) : Plugin(activi
     DESKTOP_VIEW_SCRIPT_TEMPLATE
       .replace("__HYPERION_DESKTOP_UA__", escapeJavaScriptString(userAgent))
       .replace("__HYPERION_DESKTOP_VIEWPORT_WIDTH__", DESKTOP_VIEWPORT_WIDTH.toString())
+      .replace("__HYPERION_CHROME_MAJOR_VERSION__", extractChromeMajorVersion(userAgent))
+      .replace("__HYPERION_CHROME_FULL_VERSION__", extractChromeFullVersion(userAgent))
       .replace(
         "__HYPERION_VIEWPORT_CONTENT__",
         "width=$DESKTOP_VIEWPORT_WIDTH, initial-scale=0.25",
       )
+
+  private fun extractChromeFullVersion(userAgent: String): String {
+    val matcher = Pattern.compile("Chrome/([0-9.]+)").matcher(userAgent)
+    return if (matcher.find()) {
+      matcher.group(1) ?: "0.0.0.0"
+    } else {
+      "0.0.0.0"
+    }
+  }
+
+  private fun extractChromeMajorVersion(userAgent: String): String =
+    extractChromeFullVersion(userAgent)
+      .substringBefore('.')
+      .ifEmpty { "0" }
 
   private fun escapeJavaScriptString(value: String): String =
     value

@@ -88,7 +88,12 @@ async fn open_mobile_overlay_webview(
     title: Option<String>,
     user_agent: Option<String>,
 ) -> Result<(), String> {
-    mobile_overlay_webview::open_url(&app, &url, title.as_deref(), user_agent.as_deref())
+    let resolved_user_agent = user_agent
+        .as_deref()
+        .filter(|value| !value.is_empty())
+        .unwrap_or(mobile_overlay_webview::default_desktop_user_agent());
+
+    mobile_overlay_webview::open_url(&app, &url, title.as_deref(), Some(resolved_user_agent))
         .map_err(|error| error.to_string())
 }
 

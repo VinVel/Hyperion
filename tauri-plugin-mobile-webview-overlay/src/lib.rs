@@ -20,6 +20,9 @@ use desktop::MobileWebviewOverlay;
 #[cfg(mobile)]
 use mobile::MobileWebviewOverlay;
 
+const DEFAULT_DESKTOP_USER_AGENT_TEXT: &str =
+    include_str!("../../src/config/defaultDesktopUserAgent.txt");
+
 /// Extensions to [`tauri::App`], [`tauri::AppHandle`] and [`tauri::Window`] to access the mobile-webview-overlay APIs.
 pub trait MobileWebviewOverlayExt<R: Runtime> {
     fn mobile_webview_overlay(&self) -> &MobileWebviewOverlay<R>;
@@ -57,4 +60,8 @@ pub fn open_url<R: Runtime>(
             title: title.map(str::to_owned),
             user_agent: user_agent.map(str::to_owned),
         })
+}
+
+pub fn default_desktop_user_agent() -> &'static str {
+    DEFAULT_DESKTOP_USER_AGENT_TEXT.trim()
 }

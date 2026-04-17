@@ -36,6 +36,7 @@ import {
   TextField,
   Typography,
 } from "../../components/ui";
+import { defaultDesktopUserAgent } from "../../config/defaultDesktopUserAgent";
 import { HomeserverDetailsScreen } from "./HomeserverDetailsScreen";
 import { HomeserverDirectoryScreen } from "./HomeserverDirectoryScreen";
 import {
@@ -98,8 +99,6 @@ type EmbeddedWebviewState = {
 
 const DEVICE_DISPLAY_NAME = "Hyperion";
 const EMBEDDED_WEBVIEW_LABEL = "registration-handoff-webview";
-const DESKTOP_WEBVIEW_USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36 Hyperion/0.1";
 const defaultFormValues: RegistrationFormValues = {
   username: "",
   displayName: "",
@@ -245,7 +244,7 @@ export default function RegistrationScreen({
         width: initialWidth,
         height: initialHeight,
         focus: true,
-        userAgent: DESKTOP_WEBVIEW_USER_AGENT,
+        userAgent: defaultDesktopUserAgent,
       });
 
       const creationResult = new Promise<void>((resolve, reject) => {
@@ -377,7 +376,7 @@ export default function RegistrationScreen({
       await invoke("open_mobile_overlay_webview", {
         url: nextWebview.url,
         title: nextWebview.title,
-        userAgent: DESKTOP_WEBVIEW_USER_AGENT,
+        userAgent: defaultDesktopUserAgent,
       });
       handleOpenedMobileOverlay(nextWebview);
       return;

@@ -3,10 +3,6 @@ import Tauri
 import UIKit
 import WebKit
 
-private let defaultDesktopUserAgent =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-  "(KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36 Hyperion/0.1"
-
 private struct OpenOverlayWebviewArgs: Decodable {
   let url: String
   let title: String?
@@ -41,7 +37,7 @@ private final class OverlayWebViewController: UIViewController {
 
     let webView = WKWebView(frame: .zero, configuration: configuration)
     webView.translatesAutoresizingMaskIntoConstraints = false
-    webView.customUserAgent = (userAgent?.isEmpty == false ? userAgent : nil) ?? defaultDesktopUserAgent
+    webView.customUserAgent = userAgent?.isEmpty == false ? userAgent : nil
     webView.allowsBackForwardNavigationGestures = true
 
     let toolbar = UIView()
@@ -101,9 +97,13 @@ class MobileWebviewOverlayPlugin: Plugin {
         invoke.reject("Failed to open mobile overlay webview: invalid URL")
         return
       }
+      guard let userAgent = args.userAgent, !userAgent.isEmpty else {
+        invoke.reject("Failed to open mobile overlay webview: missing desktop user agent")
+        return
+      }
 
       let title = args.title?.isEmpty == false ? args.title! : (url.host ?? args.url)
-      let controller = OverlayWebViewController(title: title, url: url, userAgent: args.userAgent)
+      let controller = OverlayWebViewController(title: title, url: url, userAgent: userAgent)
 
       DispatchQueue.main.async {
         guard let viewController = self.manager.viewController else {

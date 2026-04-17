@@ -20,7 +20,7 @@ use tauri::{
     plugin::{Builder, TauriPlugin},
 };
 
-#[cfg(target_os = "android")]
+#[cfg(mobile)]
 use tauri::Manager;
 
 #[cfg(mobile)]

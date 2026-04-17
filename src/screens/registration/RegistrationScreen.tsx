@@ -385,18 +385,13 @@ export default function RegistrationScreen({
       // Fall through to the existing browser-based fallbacks.
     }
 
-    let openedIn = "Android Custom Tabs";
+    let openedIn = "an in-app browser";
 
     try {
-      await invoke("open_android_custom_tab", { url: nextWebview.url });
+      await openUrl(nextWebview.url, "inAppBrowser");
     } catch {
-      try {
-        await openUrl(nextWebview.url, "inAppBrowser");
-        openedIn = "an in-app browser";
-      } catch {
-        await openUrl(nextWebview.url);
-        openedIn = "your browser";
-      }
+      await openUrl(nextWebview.url);
+      openedIn = "your browser";
     }
 
     setEmbeddedWebview(null);

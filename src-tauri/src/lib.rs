@@ -15,7 +15,6 @@
 
 mod account;
 mod mobile_custom_tabs;
-mod mobile_overlay_webview;
 mod secure_storage;
 
 use account::{
@@ -23,6 +22,7 @@ use account::{
     RegistrationOutcome,
 };
 use tauri::{AppHandle, State};
+use tauri_plugin_mobile_webview_overlay as mobile_overlay_webview;
 
 #[tauri::command]
 async fn login_account(
@@ -95,6 +95,7 @@ async fn open_mobile_overlay_webview(
     user_agent: Option<String>,
 ) -> Result<(), String> {
     mobile_overlay_webview::open_url(&app, &url, title.as_deref(), user_agent.as_deref())
+        .map_err(|error| error.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

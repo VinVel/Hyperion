@@ -1,4 +1,4 @@
-package net.velcore.hyperion
+package net.velcore.hyperion.mobilewebviewoverlay
 
 import android.annotation.SuppressLint
 import android.app.Activity
@@ -16,8 +16,8 @@ import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import app.tauri.annotation.Command
@@ -129,14 +129,14 @@ private const val DESKTOP_VIEW_SCRIPT_TEMPLATE =
   """
 
 @InvokeArg
-class OpenOverlayWebViewArgs {
+class OpenOverlayWebviewArgs {
   lateinit var url: String
   var title: String? = null
   var userAgent: String? = null
 }
 
 @TauriPlugin
-class MobileOverlayWebViewPlugin(private val activity: Activity) : Plugin(activity) {
+class MobileWebviewOverlayPlugin(private val activity: Activity) : Plugin(activity) {
   private var overlayContainer: FrameLayout? = null
   private var overlayWebView: WebView? = null
 
@@ -144,10 +144,11 @@ class MobileOverlayWebViewPlugin(private val activity: Activity) : Plugin(activi
   @Command
   fun open(invoke: Invoke) {
     try {
-      val args = invoke.parseArgs(OpenOverlayWebViewArgs::class.java)
+      val args = invoke.parseArgs(OpenOverlayWebviewArgs::class.java)
       activity.runOnUiThread {
         closeOverlay()
-        val resolvedUserAgent = args.userAgent?.takeIf { it.isNotBlank() } ?: DEFAULT_DESKTOP_USER_AGENT
+        val resolvedUserAgent =
+          args.userAgent?.takeIf { it.isNotBlank() } ?: DEFAULT_DESKTOP_USER_AGENT
 
         val root = activity.findViewById<ViewGroup>(android.R.id.content)
         val overlay =

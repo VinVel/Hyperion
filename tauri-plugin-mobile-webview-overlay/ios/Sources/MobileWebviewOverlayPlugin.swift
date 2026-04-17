@@ -7,7 +7,7 @@ private let defaultDesktopUserAgent =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36 Hyperion/0.1"
 
-private struct OpenOverlayWebViewArgs: Decodable {
+private struct OpenOverlayWebviewArgs: Decodable {
   let url: String
   let title: String?
   let userAgent: String?
@@ -93,10 +93,10 @@ private final class OverlayWebViewController: UIViewController {
   }
 }
 
-class MobileOverlayWebViewPlugin: Plugin {
+class MobileWebviewOverlayPlugin: Plugin {
   @objc public func open(_ invoke: Invoke) throws {
     do {
-      let args = try invoke.parseArgs(OpenOverlayWebViewArgs.self)
+      let args = try invoke.parseArgs(OpenOverlayWebviewArgs.self)
       guard let url = URL(string: args.url) else {
         invoke.reject("Failed to open mobile overlay webview: invalid URL")
         return
@@ -128,7 +128,7 @@ class MobileOverlayWebViewPlugin: Plugin {
   }
 }
 
-@_cdecl("init_plugin_mobile_overlay_webview")
-func initPluginMobileOverlayWebView() -> Plugin {
-  MobileOverlayWebViewPlugin()
+@_cdecl("init_plugin_mobile_webview_overlay")
+func initPlugin() -> Plugin {
+  return MobileWebviewOverlayPlugin()
 }

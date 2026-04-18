@@ -56,3 +56,22 @@ pub fn set_secret<R: Runtime>(app: &AppHandle<R>, key: &str, value: &[u8]) -> Re
             .map_err(|error| format!("Failed to write secure storage entry: {error}"))
     }
 }
+
+pub fn delete_secret<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        return android_secure_storage::delete_secret(app, key).map_err(|error| error.to_string());
+    }
+
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        let entry = keyring::Entry::new(SECRET_SERVICE_NAME, key)
+            .map_err(|error| format!("Failed to open secure storage entry: {error}"))?;
+
+        match entry.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(error) => Err(format!("Failed to delete secure storage entry: {error}")),
+        }
+    }
+}

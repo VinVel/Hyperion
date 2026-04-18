@@ -741,19 +741,15 @@ impl AccountManager {
             let metadata = match Self::load_account_metadata(&client).await? {
                 Some(metadata) => metadata,
                 None => {
-                    eprintln!(
-                        "Skipping persisted account store {} because its metadata is missing",
-                        storage.store_id
-                    );
+                    drop(client);
+                    Self::prune_incomplete_store(app, &storage, "its metadata is missing");
                     continue;
                 }
             };
 
             let Some(session) = Self::load_session(&client).await? else {
-                eprintln!(
-                    "Skipping persisted account store {} because its session is missing",
-                    storage.store_id
-                );
+                drop(client);
+                Self::prune_incomplete_store(app, &storage, "its session is missing");
                 continue;
             };
 
@@ -795,6 +791,51 @@ impl AccountManager {
 
         self.persist_account_store_metadata().await?;
         Ok(())
+    }
+
+    fn prune_incomplete_store(app: &AppHandle, storage: &AccountStorageLocation, reason: &str) {
+        // A discovered store with no persisted metadata or no session cannot be
+        // restored into a valid account. Removing it avoids repeated startup
+        // warnings from abandoned login/registration attempts.
+        eprintln!(
+            "Removing incomplete persisted account store {} because {reason}",
+            storage.store_id
+        );
+
+        if let Err(error) = Self::remove_dir_with_retries(
+            &storage.store_dir,
+            "Failed to remove incomplete account store directory",
+        ) {
+            eprintln!("{error}");
+            return;
+        }
+
+        let store_root_dir = storage
+            .store_dir
+            .parent()
+            .ok_or_else(|| String::from("Incomplete account store path has no parent directory"));
+
+        let store_root_dir = match store_root_dir {
+            Ok(store_root_dir) => store_root_dir,
+            Err(error) => {
+                eprintln!("{error}");
+                return;
+            }
+        };
+
+        if let Err(error) = Self::remove_dir_with_retries(
+            store_root_dir,
+            "Failed to remove incomplete account store root directory",
+        ) {
+            eprintln!("{error}");
+            return;
+        }
+
+        if let Err(error) =
+            secure_storage::delete_secret(app, &Self::store_key_entry_id(&storage.store_id))
+        {
+            eprintln!("Failed to remove orphaned account store key: {error}");
+        }
     }
 
     async fn persist_account_store_metadata(&self) -> Result<(), String> {

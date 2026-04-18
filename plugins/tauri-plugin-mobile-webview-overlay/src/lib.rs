@@ -36,7 +36,7 @@ use desktop::MobileWebviewOverlay;
 use mobile::MobileWebviewOverlay;
 
 const DEFAULT_DESKTOP_USER_AGENT_TEXT: &str =
-    include_str!("../../src/config/defaultDesktopUserAgent.txt");
+    include_str!("../../../src/config/defaultDesktopUserAgent.txt");
 
 /// Extensions to [`tauri::App`], [`tauri::AppHandle`] and [`tauri::Window`] to access the mobile-webview-overlay APIs.
 pub trait MobileWebviewOverlayExt<R: Runtime> {

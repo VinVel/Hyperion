@@ -14,13 +14,13 @@
  */
 
 mod account;
-mod secure_storage;
 
 use account::{
     AccountManager, AccountSummary, HomeserverDirectory, LoginRequest, RegisterAccountRequest,
     RegistrationOutcome,
 };
 use tauri::{AppHandle, State};
+use tauri_plugin_android_secure_storage as android_secure_storage;
 use tauri_plugin_mobile_webview_overlay as mobile_overlay_webview;
 
 #[tauri::command]
@@ -101,8 +101,8 @@ async fn open_mobile_overlay_webview(
 pub fn run() {
     tauri::Builder::default()
         .manage(AccountManager::new())
+        .plugin(android_secure_storage::init())
         .plugin(mobile_overlay_webview::init())
-        .plugin(secure_storage::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             login_account,

@@ -36,8 +36,7 @@ use serde::{Deserialize, Serialize};
 use tauri::async_runtime::Mutex as AsyncMutex;
 use tauri::{AppHandle, Manager};
 
-use crate::secure_storage;
-
+use super::secure_storage;
 use super::types::{
     AccountSummary, HomeserverDirectory, HomeserverDirectoryEntry, LoginRequest,
     RegisterAccountRequest, RegistrationFlow, RegistrationOutcome,

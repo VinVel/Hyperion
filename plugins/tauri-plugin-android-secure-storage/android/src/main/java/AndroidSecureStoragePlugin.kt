@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-package net.velcore.hyperion
+package net.velcore.hyperion.androidsecurestorage
 
 import android.app.Activity
 import android.content.Context
@@ -50,7 +50,7 @@ class SetSecretArgs {
 }
 
 @TauriPlugin
-class SecureStorePlugin(private val activity: Activity) : Plugin(activity) {
+class AndroidSecureStoragePlugin(private val activity: Activity) : Plugin(activity) {
   private val preferences by lazy {
     activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
   }

@@ -1,0 +1,3 @@
+[default]
+description = "Default permissions for the plugin"
+permissions = ["allow-get-secret", "allow-set-secret", "allow-delete-secret"]

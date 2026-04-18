@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "src-tauri", 
+    "plugins/tauri-plugin-mobile-webview-overlay"
+    ]
+resolver = "3"
+
+[workspace.dependencies]
+tauri-plugin-mobile-webview-overlay = { path = "plugins/tauri-plugin-mobile-webview-overlay" }

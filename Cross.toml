@@ -9,4 +9,4 @@ passthrough = [
 ]
 
 [target.riscv64gc-unknown-linux-gnu]
-dockerfile = "../.github/cross/Dockerfile.riscv64-gnu"
+dockerfile = "./.github/cross/Dockerfile.riscv64-gnu"

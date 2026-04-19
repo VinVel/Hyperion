@@ -51,6 +51,54 @@
   min-height: var(--layout-centered-screen-min-height);
 }
 
+.ui-app-rail {
+  width: var(--layout-app-rail-width);
+  min-width: var(--layout-app-rail-width);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-gap-large);
+  padding: var(--spacing-panel-padding);
+  border-radius: var(--shape-radius-small);
+  background: color-mix(in srgb, var(--surface-container-low) 88%, transparent);
+  box-shadow:
+    var(--elevation-panel-raised),
+    var(--elevation-outline-subtle);
+}
+
+.ui-app-rail-button {
+  width: var(--sizing-app-rail-button-size);
+  height: var(--sizing-app-rail-button-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--shape-radius-small);
+  background: transparent;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-base) var(--motion-easing-standard),
+    color var(--motion-duration-base) var(--motion-easing-standard),
+    transform var(--motion-duration-base) var(--motion-easing-standard);
+}
+
+.ui-app-rail-button:hover:not(:disabled) {
+  transform: var(--motion-nudge-up-small);
+  background: color-mix(in srgb, var(--surface-container-high) 86%, transparent);
+  color: var(--on-surface);
+}
+
+.ui-app-rail-button--active {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+}
+
+.ui-app-rail-button svg {
+  width: var(--sizing-icon-large);
+  height: var(--sizing-icon-large);
+}
+
 .ui-panel,
 .ui-card {
   border-radius: var(--shape-radius-small);
@@ -211,6 +259,54 @@
   font-size: var(--typography-meta-size);
 }
 
+.ui-toolbar-field {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-gap-medium);
+  min-height: var(--sizing-icon-button-size);
+  border-radius: var(--shape-radius-small);
+  background: var(--surface-container-high);
+  padding: 0 var(--spacing-control-padding-inline);
+  box-shadow:
+    var(--elevation-outline-strong),
+    var(--elevation-surface-raised);
+}
+
+.ui-toolbar-field:focus-within {
+  box-shadow: var(--elevation-field-focus);
+}
+
+.ui-toolbar-field__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-surface-variant);
+}
+
+.ui-toolbar-field__icon svg {
+  width: var(--sizing-icon-medium);
+  height: var(--sizing-icon-medium);
+}
+
+.ui-toolbar-field__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--on-surface);
+  padding: var(--spacing-control-padding-block) 0;
+}
+
+.ui-toolbar-field__input:focus-visible {
+  outline: none;
+}
+
+.ui-toolbar-field__input::placeholder {
+  color: var(--outline);
+  opacity: 1;
+}
+
 .ui-required-marker {
   color: var(--error);
   font-weight: var(--typography-font-weight-bold);
@@ -318,6 +414,55 @@
   color: var(--on-surface-variant);
 }
 
+.ui-empty-state {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  gap: var(--spacing-gap-extra-large);
+  text-align: center;
+  padding: var(--spacing-panel-padding);
+}
+
+.ui-empty-state__graphic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: color-mix(in srgb, var(--primary) 72%, var(--on-surface-variant));
+}
+
+.ui-empty-state__graphic svg {
+  width: clamp(4.5rem, 12vw, 7rem);
+  height: clamp(4.5rem, 12vw, 7rem);
+}
+
+.ui-empty-state__copy {
+  display: grid;
+  gap: var(--spacing-gap-medium);
+  max-width: 28rem;
+}
+
+.ui-empty-state__title,
+.ui-empty-state__text {
+  margin: 0;
+}
+
+.ui-empty-state__title {
+  font-size: var(--typography-h2-size);
+  line-height: var(--typography-line-height-tight);
+}
+
+.ui-empty-state__text {
+  color: var(--on-surface-variant);
+  font-size: var(--typography-body-size);
+}
+
+.ui-empty-state__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--spacing-gap-medium);
+}
+
 @media (max-width: 640px) {
   .ui-screen-main--centered {
     min-height: auto;
@@ -327,5 +472,12 @@
     width: 100%;
     min-height: var(--sizing-icon-button-compact-min-height);
     aspect-ratio: auto;
+  }
+
+  .ui-app-rail {
+    width: 100%;
+    min-width: 0;
+    flex-direction: row;
+    justify-content: space-between;
   }
 }

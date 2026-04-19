@@ -44,6 +44,7 @@ export const spacing = {
   gapLarge: '1rem',
   gapExtraLarge: '1.25rem',
   gapDoubleExtraLarge: '1.4rem',
+  gapTripleExtraLarge: '1.8rem',
   marginTopExtraSmall: '0.15rem',
   marginTopSmall: '0.35rem',
   marginTopMedium: '0.8rem',
@@ -53,6 +54,7 @@ export const spacing = {
   marginTopDoubleExtraLarge: '1.4rem',
   marginBottomMedium: '0.8rem',
   marginBottomSection: '0.9rem',
+  marginBottomLarge: '1rem',
   textUnderlineOffset: '0.2rem',
 } as const;
 

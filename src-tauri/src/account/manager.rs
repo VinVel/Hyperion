@@ -29,6 +29,7 @@ use matrix_sdk::{
     ruma::api::client::account::register::v3::{
         Request as MatrixRegistrationRequest, Response as MatrixRegistrationResponse,
     },
+    search_index::SearchIndexStoreKind,
 };
 use rand::{RngCore, rngs::OsRng};
 use reqwest::Client as HttpClient;
@@ -66,7 +67,15 @@ struct StoredAccountMetadata {
 struct AccountStorageLocation {
     store_id: String,
     store_dir: PathBuf,
+    cache_dir: PathBuf,
     homeserver_url: String,
+}
+
+#[derive(Clone)]
+pub struct AccountClientSnapshot {
+    pub account_key: String,
+    pub homeserver_url: String,
+    pub client: Client,
 }
 
 #[derive(Clone, Default)]
@@ -227,6 +236,35 @@ impl AccountManager {
         }
     }
 
+    pub async fn active_account_client(
+        &self,
+        app: &AppHandle,
+    ) -> Result<Option<AccountClientSnapshot>, String> {
+        self.ensure_loaded(app).await?;
+
+        let accounts = self
+            .accounts
+            .read()
+            .expect("account manager accounts lock poisoned");
+        let active_account_key = self
+            .active_account_key
+            .read()
+            .expect("account manager active account lock poisoned");
+
+        let Some(account_key) = active_account_key.clone() else {
+            return Ok(None);
+        };
+        let Some(account) = accounts.get(&account_key) else {
+            return Ok(None);
+        };
+
+        Ok(Some(AccountClientSnapshot {
+            account_key,
+            homeserver_url: account.homeserver_url.clone(),
+            client: account._client.clone(),
+        }))
+    }
+
     pub async fn list_registration_homeservers(&self) -> Result<HomeserverDirectory, String> {
         // Fetch the directory on demand so the UI always sees the latest
         // registration metadata published by joinmatrix.org.
@@ -292,14 +330,19 @@ impl AccountManager {
         // account in its own sqlite database, which is required for
         // multi-account support with the Matrix Rust SDK.
         let store_id = Self::account_store_id(homeserver_url, account_hint);
-        let store_dir = accounts_root.join(&store_id).join("store");
+        let account_root = accounts_root.join(&store_id);
+        let store_dir = account_root.join("store");
+        let cache_dir = account_root.join("cache");
 
         fs::create_dir_all(&store_dir)
             .map_err(|err| format!("Failed to create account store directory: {err}"))?;
+        fs::create_dir_all(&cache_dir)
+            .map_err(|err| format!("Failed to create account cache directory: {err}"))?;
 
         Ok(AccountStorageLocation {
             store_id,
             store_dir,
+            cache_dir,
             homeserver_url: homeserver_url.to_owned(),
         })
     }
@@ -311,7 +354,14 @@ impl AccountManager {
         store_key: &[u8; STORE_KEY_LENGTH],
         request: &LoginRequest,
     ) -> Result<Client, String> {
-        match Self::build_and_login_client(&storage.store_dir, store_key, request).await {
+        match Self::build_and_login_client(
+            &storage.store_dir,
+            &storage.cache_dir,
+            store_key,
+            request,
+        )
+        .await
+        {
             Ok(client) => Ok(client),
             Err(error_message) if Self::is_stale_crypto_store_error(&error_message) => {
                 // If the server issued this account a new device ID, the old crypto
@@ -320,14 +370,19 @@ impl AccountManager {
                 self.release_accounts_for_store_dir(&storage.store_dir);
                 Self::reset_store_dir(&storage.store_dir)?;
 
-                Self::build_and_login_client(&storage.store_dir, store_key, request)
-                    .await
-                    .map_err(|retry_error| {
-                        format!(
-                            "Login failed after resetting the stale local crypto store: \
+                Self::build_and_login_client(
+                    &storage.store_dir,
+                    &storage.cache_dir,
+                    store_key,
+                    request,
+                )
+                .await
+                .map_err(|retry_error| {
+                    format!(
+                        "Login failed after resetting the stale local crypto store: \
                              {retry_error}"
-                        )
-                    })
+                    )
+                })
             }
             Err(error_message) => Err(error_message),
         }
@@ -406,8 +461,13 @@ impl AccountManager {
         let homeserver_target = Self::registration_homeserver_target(&homeserver);
         let storage = self.account_storage(app, &homeserver_url, &request.username)?;
         let store_key = Self::load_or_create_store_key(app, &storage.store_id)?;
-        let client = Self::build_client(&homeserver_target, &storage.store_dir, &store_key).await?;
-
+        let client = Self::build_client(
+            &homeserver_target,
+            &storage.store_dir,
+            &storage.cache_dir,
+            &store_key,
+        )
+        .await?;
         match Self::perform_registration(&client, &request).await {
             Ok(_) => {}
             Err(error) if error.as_uiaa_response().is_some() => {
@@ -495,11 +555,12 @@ impl AccountManager {
 
     async fn build_and_login_client(
         store_dir: &Path,
+        cache_dir: &Path,
         store_key: &[u8; STORE_KEY_LENGTH],
         request: &LoginRequest,
     ) -> Result<Client, String> {
-        let client = Self::build_client(&request.homeserver_url, store_dir, store_key).await?;
-
+        let client =
+            Self::build_client(&request.homeserver_url, store_dir, cache_dir, store_key).await?;
         let mut login_builder = client
             .matrix_auth()
             .login_username(&request.username, &request.password);
@@ -519,13 +580,22 @@ impl AccountManager {
     async fn build_client(
         homeserver_target: &str,
         store_dir: &Path,
+        cache_dir: &Path,
         store_key: &[u8; STORE_KEY_LENGTH],
     ) -> Result<Client, String> {
         let store_config = SqliteStoreConfig::new(store_dir).key(Some(store_key));
+        let search_index_dir = store_dir.join("search-index");
+        let search_index_password = URL_SAFE_NO_PAD.encode(store_key);
 
         Client::builder()
             .server_name_or_homeserver_url(homeserver_target)
-            .sqlite_store_with_config_and_cache_path(store_config, Option::<&Path>::None)
+            .sqlite_store_with_config_and_cache_path(store_config, Some(cache_dir))
+            // Encrypted rooms need local plaintext indexing on the device, so keep
+            // the search index per account and encrypt it with the same account-bound key.
+            .search_index_store(SearchIndexStoreKind::EncryptedDirectory(
+                search_index_dir,
+                search_index_password,
+            ))
             .build()
             .await
             .map_err(|err| format!("Failed to build Matrix client: {err}"))
@@ -724,6 +794,7 @@ impl AccountManager {
             let client = match Self::build_client(
                 &storage.homeserver_url,
                 &storage.store_dir,
+                &storage.cache_dir,
                 &store_key,
             )
             .await
@@ -970,6 +1041,7 @@ impl AccountManager {
             stores.push(AccountStorageLocation {
                 store_id,
                 store_dir,
+                cache_dir: entry.path().join("cache"),
                 homeserver_url,
             });
         }

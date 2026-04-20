@@ -105,97 +105,6 @@
   min-height: 4.5rem;
 }
 
-.login-session-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-gap-section);
-  border-radius: var(--shape-radius-small);
-  background: color-mix(in srgb, var(--surface-container-low) 82%, transparent);
-  padding: var(--spacing-card-padding);
-  box-shadow: var(--elevation-outline-subtle);
-}
-
-.login-session-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-gap-large);
-}
-
-.login-section-meta {
-  color: var(--on-surface-variant);
-  font-size: var(--typography-meta-size);
-}
-
-.login-account-state {
-  letter-spacing: var(--typography-letter-spacing-eyebrow);
-  text-transform: uppercase;
-}
-
-.login-account-user,
-.login-account-home {
-  word-break: break-word;
-}
-
-.login-account-user {
-  font-weight: var(--typography-font-weight-bold);
-}
-
-.login-session-empty {
-  margin: 0;
-  color: var(--on-surface-variant);
-}
-
-.login-account-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-gap-component);
-}
-
-.login-account-button {
-  width: 100%;
-  justify-content: space-between;
-  text-align: left;
-}
-
-.login-account-button:hover:not(:disabled) {
-  transform: var(--motion-nudge-inline-small);
-  box-shadow: var(--elevation-interactive-primary-outline);
-}
-
-.login-account-button--active {
-  background: var(--primary-container);
-  color: var(--on-primary-container);
-  box-shadow: var(--elevation-interactive-primary-outline-active);
-}
-
-.login-account-copy {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-gap-tiny);
-  min-width: 0;
-}
-
-.login-account-home {
-  color: var(--on-surface-variant);
-  font-size: var(--typography-meta-size);
-}
-
-.login-account-button--active .login-account-home,
-.login-account-button--active .login-account-state {
-  color: color-mix(in srgb, var(--on-primary-container) 80%, transparent);
-}
-
-.login-account-state {
-  color: var(--secondary);
-  font-size: var(--typography-label-size);
-  font-weight: var(--typography-font-weight-bold);
-  min-width: 6.5rem;
-  flex-shrink: 0;
-  text-align: right;
-  white-space: nowrap;
-}
-
 @media (max-width: 960px) {
   .login-stage {
     min-height: auto;
@@ -232,15 +141,5 @@
   .login-registration-row {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .login-account-button {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .login-account-state {
-    min-width: 0;
-    text-align: left;
   }
 }

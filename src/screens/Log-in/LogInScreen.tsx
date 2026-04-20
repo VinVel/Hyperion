@@ -24,18 +24,12 @@ import {
   TextField,
   Typography,
 } from "../../components/ui";
+import type { AccountSummary } from "../app-shell";
 import "./LogInScreen.css";
 
 type FeedbackMessage = {
   tone: "error" | "success" | "info";
   text: string;
-};
-
-type AccountSummary = {
-  account_key: string;
-  user_id: string;
-  homeserver_url: string;
-  is_active: boolean;
 };
 
 type FormValues = {
@@ -47,43 +41,17 @@ type FormValues = {
 type LogInScreenProps = {
   initialFeedback?: FeedbackMessage | null;
   initialHomeserver?: string;
+  onAuthenticated?: (account: AccountSummary) => void;
   onOpenRegistration?: () => void;
 };
 
 const DEFAULT_HOMESERVER = "https://matrix.org";
-const ACTIVE_SESSION_POLL_INTERVAL_MS = 5000;
 
 const defaultFormValues: FormValues = {
   username: "",
   homeserver: "",
   password: "",
 };
-
-function sortAccounts(accounts: AccountSummary[]): AccountSummary[] {
-  return [...accounts].sort((left, right) => left.user_id.localeCompare(right.user_id));
-}
-
-function upsertAccount(
-  accounts: AccountSummary[],
-  nextAccount: AccountSummary,
-): AccountSummary[] {
-  return sortAccounts([
-    ...accounts.filter((account) => account.account_key !== nextAccount.account_key),
-    nextAccount,
-  ]);
-}
-
-function markActiveAccount(
-  accounts: AccountSummary[],
-  activeAccountKey: string,
-): AccountSummary[] {
-  return sortAccounts(
-    accounts.map((account) => ({
-      ...account,
-      is_active: account.account_key === activeAccountKey,
-    })),
-  );
-}
 
 function getErrorMessage(error: unknown): string {
   if (typeof error === "string" && error.trim().length > 0) {
@@ -100,45 +68,16 @@ function getErrorMessage(error: unknown): string {
 export default function LogInScreen({
   initialFeedback = null,
   initialHomeserver = "",
+  onAuthenticated,
   onOpenRegistration,
 }: LogInScreenProps) {
   const [formValues, setFormValues] = useState<FormValues>(() => ({
     ...defaultFormValues,
     homeserver: initialHomeserver,
   }));
-  const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [feedback, setFeedback] = useState<FeedbackMessage | null>(initialFeedback);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [switchingAccountKey, setSwitchingAccountKey] = useState<string | null>(null);
   const [validationRequested, setValidationRequested] = useState(false);
-  const [isBootstrapping, setIsBootstrapping] = useState(true);
-
-  async function syncSessionState(): Promise<boolean> {
-    try {
-      const [knownAccounts, currentAccount] = await Promise.all([
-        invoke<AccountSummary[]>("list_accounts"),
-        invoke<AccountSummary | null>("active_account"),
-      ]);
-
-      const nextAccounts = currentAccount
-        ? markActiveAccount(
-            upsertAccount(knownAccounts, currentAccount),
-            currentAccount.account_key,
-          )
-        : sortAccounts(knownAccounts);
-
-      setAccounts(nextAccounts);
-      return true;
-    } catch {
-      return false;
-    } finally {
-      setIsBootstrapping(false);
-    }
-  }
-
-  useEffect(() => {
-    void syncSessionState();
-  }, []);
 
   useEffect(() => {
     if (initialFeedback) {
@@ -161,71 +100,6 @@ export default function LogInScreen({
 
   const usernameMissing = validationRequested && formValues.username.trim().length === 0;
   const passwordMissing = validationRequested && formValues.password.length === 0;
-  const currentAccount = accounts.find((account) => account.is_active) ?? null;
-
-  useEffect(() => {
-    if (!currentAccount) {
-      return;
-    }
-
-    const currentAccountUserId = currentAccount.user_id;
-    let cancelled = false;
-
-    async function validateActiveSession() {
-      try {
-        const validatedAccount =
-          await invoke<AccountSummary | null>("validate_active_account");
-
-        if (cancelled) {
-          return;
-        }
-
-        if (validatedAccount) {
-          return;
-        }
-
-        const didSync = await syncSessionState();
-        if (cancelled) {
-          return;
-        }
-
-        setFeedback({
-          tone: didSync ? "info" : "error",
-          text: didSync
-            ? `${currentAccountUserId} was deauthorized and has been logged out locally.`
-            : `The active session for ${currentAccountUserId} is no longer valid.`,
-        });
-      } catch {
-        // Validation failures should not interrupt the current UI flow.
-      }
-    }
-
-    void validateActiveSession();
-
-    const intervalId = window.setInterval(() => {
-      void validateActiveSession();
-    }, ACTIVE_SESSION_POLL_INTERVAL_MS);
-
-    const handleWindowFocus = () => {
-      void validateActiveSession();
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        void validateActiveSession();
-      }
-    };
-
-    window.addEventListener("focus", handleWindowFocus);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-      window.removeEventListener("focus", handleWindowFocus);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [currentAccount?.account_key]);
 
   function updateField(field: keyof FormValues, value: string) {
     setFormValues((currentValues) => ({
@@ -261,21 +135,12 @@ export default function LogInScreen({
         },
       });
 
-      setAccounts((currentAccounts) => upsertAccount(currentAccounts, account));
-
       setFormValues((currentValues) => ({
         ...currentValues,
         password: "",
       }));
       setValidationRequested(false);
-
-      const didSync = await syncSessionState();
-      setFeedback({
-        tone: didSync ? "success" : "info",
-        text: didSync
-          ? `Signed in as ${account.user_id}.`
-          : `Signed in as ${account.user_id}. The local session list will refresh when the native layer responds.`,
-      });
+      onAuthenticated?.(account);
     } catch (error) {
       setFeedback({
         tone: "error",
@@ -283,32 +148,6 @@ export default function LogInScreen({
       });
     } finally {
       setIsSubmitting(false);
-    }
-  }
-
-  async function handleSwitchAccount(account: AccountSummary) {
-    setSwitchingAccountKey(account.account_key);
-
-    try {
-      await invoke("switch_active_account", {
-        accountKey: account.account_key,
-      });
-
-      setAccounts((currentAccounts) =>
-        markActiveAccount(currentAccounts, account.account_key),
-      );
-
-      setFeedback({
-        tone: "success",
-        text: `Switched to ${account.user_id}.`,
-      });
-    } catch (error) {
-      setFeedback({
-        tone: "error",
-        text: getErrorMessage(error),
-      });
-    } finally {
-      setSwitchingAccountKey(null);
     }
   }
 
@@ -420,58 +259,6 @@ export default function LogInScreen({
               </FeedbackMessage>
             ) : null}
           </div>
-
-          <section className="login-session-panel" aria-labelledby="session-panel-title">
-            <div className="login-session-head">
-              <Typography as="h3" variant="h3" id="session-panel-title">
-                Local sessions
-              </Typography>
-              <span className="login-section-meta">
-                {isBootstrapping
-                  ? "Loading..."
-                  : `${accounts.length} ${accounts.length === 1 ? "known account" : "known accounts"}`}
-              </span>
-            </div>
-
-            {accounts.length === 0 ? (
-              <p className="login-session-empty">
-                Your first successful login will appear here and can be switched back
-                to later.
-              </p>
-            ) : null}
-
-            {accounts.length > 0 ? (
-              <div className="login-account-list">
-                {accounts.map((account) => (
-                  <Button
-                    key={account.account_key}
-                    variant="secondary"
-                    className={`login-account-button${
-                      account.is_active ? " login-account-button--active" : ""
-                    }`}
-                    disabled={
-                      isSubmitting ||
-                      switchingAccountKey !== null ||
-                      account.is_active
-                    }
-                    onClick={() => void handleSwitchAccount(account)}
-                  >
-                    <span className="login-account-copy">
-                      <span className="login-account-user">{account.user_id}</span>
-                      <span className="login-account-home">{account.homeserver_url}</span>
-                    </span>
-                    <span className="login-account-state">
-                      {account.is_active
-                        ? "Active"
-                        : switchingAccountKey === account.account_key
-                          ? "Switching"
-                          : "Use"}
-                    </span>
-                  </Button>
-                ))}
-              </div>
-            ) : null}
-          </section>
         </section>
       </ScreenMain>
     </ScreenShell>

@@ -14,26 +14,135 @@
  */
 
 import "./App.css";
-import { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { useEffect, useState } from "react";
+import { ScreenMain, ScreenShell, Typography } from "./components/ui";
+import { AppShell, type AccountSummary } from "./screens/app-shell";
 import { LogInScreen } from "./screens/Log-in";
 import { RegistrationScreen } from "./screens/registration";
 
 type EntryScreen = "login" | "registration";
-
+type AppStage = "loading" | "unauthenticated" | "authenticated";
 type LoginLaunchState = {
   homeserver?: string;
   text: string;
   tone: "error" | "success" | "info";
 };
 
+const ACTIVE_ACCOUNT_CACHE_KEY = "hyperion.activeAccountSummary";
+const APP_BOOTSTRAP_FALLBACK_DELAY_MS = 1200;
+
+function loadCachedActiveAccount(): AccountSummary | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const cachedValue = window.localStorage.getItem(ACTIVE_ACCOUNT_CACHE_KEY);
+  if (!cachedValue) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(cachedValue) as AccountSummary;
+  } catch {
+    window.localStorage.removeItem(ACTIVE_ACCOUNT_CACHE_KEY);
+    return null;
+  }
+}
+
+function persistCachedActiveAccount(nextAccount: AccountSummary | null) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (nextAccount) {
+    window.localStorage.setItem(ACTIVE_ACCOUNT_CACHE_KEY, JSON.stringify(nextAccount));
+    return;
+  }
+
+  window.localStorage.removeItem(ACTIVE_ACCOUNT_CACHE_KEY);
+}
+
 function App() {
+  const [activeAccount, setActiveAccount] = useState<AccountSummary | null>(() =>
+    loadCachedActiveAccount(),
+  );
+  const [appStage, setAppStage] = useState<AppStage>(() =>
+    loadCachedActiveAccount() ? "authenticated" : "loading",
+  );
   const [activeScreen, setActiveScreen] = useState<EntryScreen>("login");
   const [loginLaunchState, setLoginLaunchState] = useState<LoginLaunchState | null>(null);
+
+  useEffect(() => {
+    persistCachedActiveAccount(activeAccount);
+  }, [activeAccount]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fallbackTimer = window.setTimeout(() => {
+      if (!cancelled) {
+        setAppStage((currentStage) =>
+          currentStage === "loading" ? "unauthenticated" : currentStage,
+        );
+      }
+    }, APP_BOOTSTRAP_FALLBACK_DELAY_MS);
+
+    async function bootstrapAuthenticatedState() {
+      try {
+        const currentAccount = await invoke<AccountSummary | null>("active_account");
+        if (cancelled) {
+          return;
+        }
+
+        if (currentAccount) {
+          setActiveAccount(currentAccount);
+          setAppStage("authenticated");
+          return;
+        }
+
+        setActiveAccount(null);
+      } catch {
+        // Fall through to the unauthenticated entry flow when the native layer
+        // cannot restore an active account yet.
+      }
+
+      if (!cancelled) {
+        setAppStage("unauthenticated");
+      }
+    }
+
+    void bootstrapAuthenticatedState();
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(fallbackTimer);
+    };
+  }, []);
+
+  if (appStage === "loading") {
+    return (
+      <ScreenShell>
+        <ScreenMain largeBlockPadding>
+          <Typography variant="body">Loading the application shell...</Typography>
+        </ScreenMain>
+      </ScreenShell>
+    );
+  }
+
+  if (appStage === "authenticated" && activeAccount) {
+    return (
+      <AppShell
+        activeAccount={activeAccount}
+        onActiveAccountChange={setActiveAccount}
+      />
+    );
+  }
 
   if (activeScreen === "registration") {
     return (
       <RegistrationScreen
         onBackToLogin={(nextLaunchState) => {
+          setAppStage("unauthenticated");
           setLoginLaunchState(nextLaunchState ?? null);
           setActiveScreen("login");
         }}
@@ -45,6 +154,10 @@ function App() {
     <LogInScreen
       initialFeedback={loginLaunchState}
       initialHomeserver={loginLaunchState?.homeserver}
+      onAuthenticated={(nextAccount) => {
+        setActiveAccount(nextAccount);
+        setAppStage("authenticated");
+      }}
       onOpenRegistration={() => {
         setLoginLaunchState(null);
         setActiveScreen("registration");

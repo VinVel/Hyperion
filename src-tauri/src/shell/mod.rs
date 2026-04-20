@@ -13,11 +13,13 @@
  * Project home: hyperion.velcore.net
  */
 
-pub mod manager;
-mod secure_storage;
+mod service;
+mod sync;
 pub mod types;
 
-pub use manager::{AccountClientSnapshot, AccountManager};
+pub use service::ShellManager;
 pub use types::{
-    AccountSummary, HomeserverDirectory, LoginRequest, RegisterAccountRequest, RegistrationOutcome,
+    GetRoomEventContextRequest, GetRoomSummaryRequest, GetRoomTimelineRequest, GlobalSearchRequest,
+    GlobalSearchResponse, ListRoomThreadsRequest, ListSpacesRequest, RoomSummary,
+    RoomThreadSummary, RoomTimeline, SendRoomMessageRequest, SendRoomMessageResponse, SpaceSummary,
 };

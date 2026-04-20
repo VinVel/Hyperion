@@ -14,12 +14,20 @@
  */
 
 mod account;
+mod shell;
 
 use account::{
     AccountManager, AccountSummary, HomeserverDirectory, LoginRequest, RegisterAccountRequest,
     RegistrationOutcome,
 };
+use shell::{
+    GetRoomEventContextRequest, GetRoomSummaryRequest, GetRoomTimelineRequest, GlobalSearchRequest,
+    GlobalSearchResponse, ListRoomThreadsRequest, ListSpacesRequest, RoomSummary,
+    RoomThreadSummary, RoomTimeline, SendRoomMessageRequest, SendRoomMessageResponse, ShellManager,
+    SpaceSummary,
+};
 use tauri::{AppHandle, State};
+
 use tauri_plugin_android_secure_storage as android_secure_storage;
 use tauri_plugin_mobile_webview_overlay as mobile_overlay_webview;
 
@@ -82,6 +90,98 @@ async fn register_account(
 }
 
 #[tauri::command]
+async fn list_room_threads(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: Option<ListRoomThreadsRequest>,
+) -> Result<Vec<RoomThreadSummary>, String> {
+    shell_manager
+        .list_room_threads(
+            &app,
+            &account_manager,
+            request.unwrap_or(ListRoomThreadsRequest { search_query: None }),
+        )
+        .await
+}
+
+#[tauri::command]
+async fn get_room_summary(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: GetRoomSummaryRequest,
+) -> Result<RoomSummary, String> {
+    shell_manager
+        .get_room_summary(&app, &account_manager, request)
+        .await
+}
+
+#[tauri::command]
+async fn get_room_timeline(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: GetRoomTimelineRequest,
+) -> Result<RoomTimeline, String> {
+    shell_manager
+        .get_room_timeline(&app, &account_manager, request)
+        .await
+}
+
+#[tauri::command]
+async fn get_room_event_context(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: GetRoomEventContextRequest,
+) -> Result<RoomTimeline, String> {
+    shell_manager
+        .get_room_event_context(&app, &account_manager, request)
+        .await
+}
+
+#[tauri::command]
+async fn send_room_message(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: SendRoomMessageRequest,
+) -> Result<SendRoomMessageResponse, String> {
+    shell_manager
+        .send_room_message(&app, &account_manager, request)
+        .await
+}
+
+#[tauri::command]
+async fn list_spaces(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: Option<ListSpacesRequest>,
+) -> Result<Vec<SpaceSummary>, String> {
+    shell_manager
+        .list_spaces(
+            &app,
+            &account_manager,
+            request.unwrap_or(ListSpacesRequest { search_query: None }),
+        )
+        .await
+}
+
+#[tauri::command]
+async fn global_search(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: GlobalSearchRequest,
+) -> Result<GlobalSearchResponse, String> {
+    shell_manager
+        .global_search(&app, &account_manager, request)
+        .await
+}
+
+#[tauri::command]
 async fn open_mobile_overlay_webview(
     app: AppHandle,
     url: String,
@@ -101,6 +201,7 @@ async fn open_mobile_overlay_webview(
 pub fn run() {
     tauri::Builder::default()
         .manage(AccountManager::new())
+        .manage(ShellManager::new())
         .plugin(android_secure_storage::init())
         .plugin(mobile_overlay_webview::init())
         .plugin(tauri_plugin_opener::init())
@@ -112,6 +213,13 @@ pub fn run() {
             validate_active_account,
             list_registration_homeservers,
             register_account,
+            list_room_threads,
+            get_room_summary,
+            get_room_timeline,
+            get_room_event_context,
+            send_room_message,
+            list_spaces,
+            global_search,
             open_mobile_overlay_webview
         ])
         .run(tauri::generate_context!())

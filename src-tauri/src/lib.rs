@@ -14,11 +14,16 @@
  */
 
 mod account;
+mod settings;
 mod shell;
 
 use account::{
     AccountManager, AccountSummary, HomeserverDirectory, LoginRequest, RegisterAccountRequest,
     RegistrationOutcome,
+};
+use settings::{
+    get_theme_mode as load_theme_mode, get_theme_preset as load_theme_preset,
+    set_theme_mode as save_theme_mode, set_theme_preset as save_theme_preset,
 };
 use shell::{
     GetRoomEventContextRequest, GetRoomSummaryRequest, GetRoomTimelineRequest, GlobalSearchRequest,
@@ -197,6 +202,35 @@ async fn open_mobile_overlay_webview(
         .map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+fn get_theme_preset(
+    app: AppHandle,
+    supported_presets: Vec<String>,
+    default_preset: String,
+) -> Result<String, String> {
+    load_theme_preset(&app, &supported_presets, &default_preset)
+}
+
+#[tauri::command]
+fn set_theme_preset(
+    app: AppHandle,
+    preset: String,
+    supported_presets: Vec<String>,
+    default_preset: String,
+) -> Result<String, String> {
+    save_theme_preset(&app, &preset, &supported_presets, &default_preset)
+}
+
+#[tauri::command]
+fn get_theme_mode(app: AppHandle) -> Result<String, String> {
+    load_theme_mode(&app)
+}
+
+#[tauri::command]
+fn set_theme_mode(app: AppHandle, mode: String) -> Result<String, String> {
+    save_theme_mode(&app, &mode)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -220,7 +254,11 @@ pub fn run() {
             send_room_message,
             list_spaces,
             global_search,
-            open_mobile_overlay_webview
+            open_mobile_overlay_webview,
+            get_theme_mode,
+            get_theme_preset,
+            set_theme_mode,
+            set_theme_preset
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -16,7 +16,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { classNames } from './classNames';
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'icon';
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'icon' | 'destructive';
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;

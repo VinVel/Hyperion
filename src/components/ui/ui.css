@@ -171,6 +171,19 @@
   background: var(--surface-container);
 }
 
+.ui-button--destructive {
+  background: var(--error-container);
+  color: var(--on-error-container);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--error) 26%, transparent),
+    var(--elevation-surface-raised);
+}
+
+.ui-button--destructive:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--error-container) 88%, var(--error));
+  color: var(--on-error-container);
+}
+
 .ui-button--ghost {
   background: transparent;
   color: var(--on-surface-variant);

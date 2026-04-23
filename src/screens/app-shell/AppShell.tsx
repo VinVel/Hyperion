@@ -18,7 +18,6 @@ import type { AccountSummary } from './appShellAdapters';
 import AppShellMessagesView from './AppShellMessagesView';
 import AppShellNavigation from './AppShellNavigation';
 import AppShellSearchOverlay from './AppShellSearchOverlay';
-import AppShellSettingsView from './AppShellSettingsView';
 import AppShellSpacesView from './AppShellSpacesView';
 import { SettingsView } from '../Settings';
 import useAppShellState from './useAppShellState';
@@ -26,12 +25,16 @@ import './AppShell.css';
 
 type AppShellProps = {
   activeAccount: AccountSummary;
+  onAddAccount: () => void;
   onActiveAccountChange: (nextAccount: AccountSummary) => void;
+  onSignedOut: (nextAccount: AccountSummary | null) => void;
 };
 
 export default function AppShell({
   activeAccount,
+  onAddAccount,
   onActiveAccountChange,
+  onSignedOut,
 }: AppShellProps) {
   const shell = useAppShellState({
     activeAccount,
@@ -111,7 +114,10 @@ export default function AppShell({
             ) : null}
 
             {shell.activeView === 'settings' ? (
-              <AppShellSettingsView onBackToMessages={shell.openMessagesView} />
+              <SettingsView
+                onAddAccount={onAddAccount}
+                onSignedOut={onSignedOut}
+              />
             ) : null}
           </div>
         </section>

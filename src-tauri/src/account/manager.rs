@@ -204,6 +204,37 @@ impl AccountManager {
         }))
     }
 
+    pub async fn sign_out_active_account(
+        &self,
+        app: &AppHandle,
+    ) -> Result<Option<AccountSummary>, String> {
+        self.ensure_loaded(app).await?;
+
+        let Some((_, _, store_dir)) = self.active_account_snapshot() else {
+            return Ok(None);
+        };
+
+        let store_root_dir = store_dir.parent().ok_or_else(|| {
+            String::from("Active account store path has no parent directory")
+        })?;
+        let store_id = store_root_dir
+            .file_name()
+            .and_then(|value| value.to_str())
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| String::from("Active account store directory has no valid store id"))?
+            .to_owned();
+
+        self.release_accounts_for_store_dir(&store_dir);
+        Self::remove_dir_with_retries(
+            store_root_dir,
+            "Failed to remove the signed-out account store directory",
+        )?;
+        secure_storage::delete_secret(app, &Self::store_key_entry_id(&store_id))?;
+        self.persist_account_store_metadata().await?;
+
+        self.active_account(app).await
+    }
+
     pub async fn validate_active_account(
         &self,
         app: &AppHandle,

@@ -26,6 +26,11 @@
   padding: 0;
 }
 
+.login-back-row {
+  display: flex;
+  justify-content: flex-start;
+}
+
 .login-avatar {
   width: var(--sizing-login-avatar-size);
   height: var(--sizing-login-avatar-size);

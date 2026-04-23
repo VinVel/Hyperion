@@ -119,6 +119,25 @@ function App() {
     };
   }, []);
 
+  function openAccountEntryFlow() {
+    setAppStage("unauthenticated");
+    setActiveScreen("login");
+    setLoginLaunchState(null);
+  }
+
+  function handleSessionStateChange(nextAccount: AccountSummary | null) {
+    setActiveAccount(nextAccount);
+
+    if (nextAccount) {
+      setAppStage("authenticated");
+      return;
+    }
+
+    setAppStage("unauthenticated");
+    setActiveScreen("login");
+    setLoginLaunchState(null);
+  }
+
   if (appStage === "loading") {
     return (
       <ScreenShell>
@@ -133,7 +152,9 @@ function App() {
     return (
       <AppShell
         activeAccount={activeAccount}
+        onAddAccount={openAccountEntryFlow}
         onActiveAccountChange={setActiveAccount}
+        onSignedOut={handleSessionStateChange}
       />
     );
   }
@@ -158,6 +179,13 @@ function App() {
         setActiveAccount(nextAccount);
         setAppStage("authenticated");
       }}
+      onBackToApp={
+        activeAccount
+          ? () => {
+              setAppStage("authenticated");
+            }
+          : undefined
+      }
       onOpenRegistration={() => {
         setLoginLaunchState(null);
         setActiveScreen("registration");

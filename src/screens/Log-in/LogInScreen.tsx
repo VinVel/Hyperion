@@ -14,7 +14,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
-import { ArrowRight, User } from "lucide-react";
+import { ArrowLeft, ArrowRight, User } from "lucide-react";
 import { type SyntheticEvent, useEffect, useState } from "react";
 import {
   Button,
@@ -42,6 +42,7 @@ type LogInScreenProps = {
   initialFeedback?: FeedbackMessage | null;
   initialHomeserver?: string;
   onAuthenticated?: (account: AccountSummary) => void;
+  onBackToApp?: () => void;
   onOpenRegistration?: () => void;
 };
 
@@ -69,6 +70,7 @@ export default function LogInScreen({
   initialFeedback = null,
   initialHomeserver = "",
   onAuthenticated,
+  onBackToApp,
   onOpenRegistration,
 }: LogInScreenProps) {
   const [formValues, setFormValues] = useState<FormValues>(() => ({
@@ -155,6 +157,15 @@ export default function LogInScreen({
     <ScreenShell>
       <ScreenMain className="login-stage" largeBlockPadding wide>
         <section className="login-panel" aria-labelledby="login-panel-title">
+          {onBackToApp ? (
+            <div className="login-back-row">
+              <Button className="login-back-button" onClick={onBackToApp} variant="secondary">
+                <ArrowLeft aria-hidden="true" />
+                Back to app
+              </Button>
+            </div>
+          ) : null}
+
           <div className="login-avatar">
             <User aria-hidden="true" />
           </div>

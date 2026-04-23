@@ -71,6 +71,14 @@ async fn active_account(
 }
 
 #[tauri::command]
+async fn sign_out_active_account(
+    app: AppHandle,
+    manager: State<'_, AccountManager>,
+) -> Result<Option<AccountSummary>, String> {
+    manager.sign_out_active_account(&app).await
+}
+
+#[tauri::command]
 async fn validate_active_account(
     app: AppHandle,
     manager: State<'_, AccountManager>,
@@ -244,6 +252,7 @@ pub fn run() {
             list_accounts,
             switch_active_account,
             active_account,
+            sign_out_active_account,
             validate_active_account,
             list_registration_homeservers,
             register_account,

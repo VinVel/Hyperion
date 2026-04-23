@@ -20,6 +20,7 @@ import AppShellNavigation from './AppShellNavigation';
 import AppShellSearchOverlay from './AppShellSearchOverlay';
 import AppShellSettingsView from './AppShellSettingsView';
 import AppShellSpacesView from './AppShellSpacesView';
+import { SettingsView } from '../Settings';
 import useAppShellState from './useAppShellState';
 import './AppShell.css';
 

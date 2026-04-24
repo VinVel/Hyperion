@@ -13,9 +13,9 @@
     "@razein97/tauri-plugin-i18n": "^2.0.1",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-opener": "^2.5.3",
-    "lucide-react": "^1.8.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "lucide-react": "^1.9.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
   },
   "devDependencies": {
     "@eslint/js": "9.39.4",
@@ -26,8 +26,8 @@
     "eslint": "9.39.4",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-unused-imports": "^4.4.1",
-    "typescript": "^6.0.2",
-    "typescript-eslint": "^8.58.2",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.0",
     "vite": "^7.3.2"
   }
 }

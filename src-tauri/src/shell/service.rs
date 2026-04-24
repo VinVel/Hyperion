@@ -38,9 +38,10 @@ mod timeline;
 use self::{
     super::engine::ShellTimelineRegistry,
     room::{
-        can_send_messages, current_latest_event_id, homeserver_label, local_room_state_key,
-        participant_label, persisted_read_anchor_event_id, resolve_room, room_is_encrypted,
-        room_title, unread_message_count,
+        can_send_messages, current_latest_event_id, homeserver_label, latest_activity_unix_ms,
+        latest_preview_text, local_room_state_key, participant_label,
+        persisted_read_anchor_event_id, resolve_room, room_is_encrypted, room_title,
+        unread_message_count,
     },
     search::{
         first_visible_grapheme, matches_query, message_search_hit, normalize_query, now_unix_ms,
@@ -48,8 +49,7 @@ use self::{
     },
     timeline::{
         cached_timeline_item_count, cached_timeline_items, count_unread_messages_since,
-        extract_message_body_from_raw, fetch_room_timeline_chunk,
-        timeline_item_from_timeline_event, warm_room_recent_timeline,
+        fetch_room_timeline_chunk, timeline_item_from_timeline_event, warm_room_recent_timeline,
     },
 };
 
@@ -495,17 +495,10 @@ impl ShellManager {
         let title = room_title(room).await?;
         let is_direct = room.is_direct().await.unwrap_or(false);
         let participant_label = participant_label(room, is_direct);
-        let latest_event = room.latest_event();
-        let preview = latest_event
-            .as_ref()
-            .and_then(|event| extract_message_body_from_raw(event.event().raw()))
+        let preview = latest_preview_text(room)
             .or_else(|| room.topic())
             .unwrap_or_default();
-        let last_activity_unix_ms = latest_event
-            .as_ref()
-            .and_then(|event| event.event().timestamp())
-            .map(|timestamp| timestamp.0.into())
-            .unwrap_or_default();
+        let last_activity_unix_ms = latest_activity_unix_ms(room);
         let unread_count = self.unread_message_count(account_key, room).await;
         let message_count = self.best_effort_message_count(room).await;
 

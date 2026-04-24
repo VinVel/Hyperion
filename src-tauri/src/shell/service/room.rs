@@ -15,12 +15,14 @@
 
 use matrix_sdk::{
     Room, RoomState,
+    latest_events::LatestEventValue,
     ruma::{
         RoomId,
         events::{
-            MessageLikeEventType,
+            AnyMessageLikeEventContent, MessageLikeEventType,
             fully_read::FullyReadEventContent,
             receipt::{ReceiptThread, ReceiptType},
+            room::message::MessageType,
         },
     },
 };
@@ -39,6 +41,75 @@ pub(super) fn local_room_state_key(account_key: &str, room_id: &str) -> String {
 pub(super) fn current_latest_event_id(room: &Room) -> Option<String> {
     room.latest_event()
         .and_then(|event| event.event_id().map(|event_id| event_id.to_string()))
+}
+
+pub(super) fn latest_activity_unix_ms(room: &Room) -> u64 {
+    room.new_latest_event()
+        .timestamp()
+        .or_else(|| {
+            room.latest_event()
+                .and_then(|event| event.event().timestamp())
+        })
+        .map(|timestamp| u64::from(timestamp.0))
+        .unwrap_or_default()
+}
+
+pub(super) fn latest_preview_text(room: &Room) -> Option<String> {
+    let latest_event = room.new_latest_event();
+
+    match latest_event {
+        LatestEventValue::Remote(event) => event
+            .raw()
+            .deserialize()
+            .ok()
+            .and_then(message_preview_from_sync_event),
+        LatestEventValue::LocalIsSending(local_event)
+        | LatestEventValue::LocalCannotBeSent(local_event) => {
+            message_preview_from_content(local_event.content.deserialize().ok()?)
+        }
+        LatestEventValue::None => room.latest_event().and_then(|event| {
+            event
+                .event()
+                .raw()
+                .deserialize()
+                .ok()
+                .and_then(message_preview_from_sync_event)
+        }),
+    }
+}
+
+fn message_preview_from_content(content: AnyMessageLikeEventContent) -> Option<String> {
+    match content {
+        AnyMessageLikeEventContent::RoomMessage(message) => match message.msgtype {
+            MessageType::Text(text) => Some(text.body),
+            MessageType::Notice(notice) => Some(notice.body),
+            MessageType::Emote(emote) => Some(emote.body),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn message_preview_from_sync_event(
+    event: matrix_sdk::ruma::events::AnySyncTimelineEvent,
+) -> Option<String> {
+    let matrix_sdk::ruma::events::AnySyncTimelineEvent::MessageLike(message_like) = event else {
+        return None;
+    };
+
+    let matrix_sdk::ruma::events::AnySyncMessageLikeEvent::RoomMessage(message) = message_like
+    else {
+        return None;
+    };
+
+    let original = message.as_original()?;
+
+    match &original.content.msgtype {
+        MessageType::Text(text) => Some(text.body.clone()),
+        MessageType::Notice(notice) => Some(notice.body.clone()),
+        MessageType::Emote(emote) => Some(emote.body.clone()),
+        _ => None,
+    }
 }
 
 pub(super) async fn persisted_read_anchor_event_id(room: &Room) -> Option<String> {

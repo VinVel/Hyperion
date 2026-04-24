@@ -19,6 +19,7 @@ use std::{
     time::Duration,
 };
 
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use matrix_sdk::{
     Room,
     ruma::{
@@ -93,6 +94,13 @@ const RECENT_TIMELINE_WARM_ROOM_COUNT: usize = 6;
 // Rewarm infrequently enough to avoid churn, but often enough that active rooms
 // keep a recent local window available across normal shell navigation.
 const RECENT_TIMELINE_REWARM_INTERVAL_MS: u64 = Duration::from_secs(10 * 60).as_millis() as u64;
+// Timeline-backed pagination uses backend-owned opaque tokens because
+// matrix-sdk-ui tracks pagination state inside the live timeline instance rather
+// than exposing Matrix prev-batch tokens directly.
+const TIMELINE_UI_PAGE_TOKEN_PREFIX: &str = "timeline-ui-page:";
+// Focused timelines need to carry their anchor event inside the opaque token so
+// later pagination requests can reopen the same TimelineFocus::Event view.
+const TIMELINE_UI_EVENT_PAGE_TOKEN_PREFIX: &str = "timeline-ui-event:";
 
 #[derive(Clone)]
 struct SearchableRoom {
@@ -223,8 +231,13 @@ impl ShellManager {
             self.load_live_room_timeline(&account.account_key, &room, limit)
                 .await?
         } else {
-            self.load_paginated_room_timeline(&room, limit, request.before.as_deref())
-                .await?
+            self.load_paginated_room_timeline(
+                &account.account_key,
+                &room,
+                limit,
+                request.before.as_deref(),
+            )
+            .await?
         };
 
         if request.before.is_none()
@@ -263,39 +276,19 @@ impl ShellManager {
         };
         let room = resolve_room(&account.client, &request.room_id)?;
         self.mark_room_focused(&account.account_key, room.room_id().to_string());
-
         let event_id = EventId::parse(&request.event_id)
-            .map_err(|error| format!("Invalid event id: {error}"))?;
-        let context_limit = u32::from(request.context_limit.unwrap_or(DEFAULT_EVENT_CONTEXT_LIMIT));
-        let context = room
-            .event_with_context(&event_id, true, context_limit.into(), None)
-            .await
-            .map_err(|error| format!("Failed to load event context: {error}"))?;
-
-        let mut items = context
-            .events_before
-            .iter()
-            .rev()
-            .filter_map(|event| timeline_item_from_timeline_event(event, room.own_user_id()))
-            .collect::<Vec<_>>();
-
-        if let Some(event) = &context.event
-            && let Some(item) = timeline_item_from_timeline_event(event, room.own_user_id())
-        {
-            items.push(item);
-        }
-
-        items.extend(
-            context
-                .events_after
-                .iter()
-                .filter_map(|event| timeline_item_from_timeline_event(event, room.own_user_id())),
-        );
+            .map_err(|error| format!("Invalid event id: {error}"))?
+            .to_owned();
+        let context_limit = request.context_limit.unwrap_or(DEFAULT_EVENT_CONTEXT_LIMIT);
+        let items = self
+            .timeline_registry
+            .focused_timeline_items(&account.account_key, &room, event_id.clone(), context_limit)
+            .await?;
 
         Ok(RoomTimeline {
             room_id: room.room_id().to_string(),
             items,
-            next_before: context.prev_batch_token,
+            next_before: Some(self.focused_timeline_page_token(event_id.as_ref(), 1)),
             focused_event_id: Some(request.event_id),
         })
     }
@@ -785,20 +778,85 @@ impl ShellManager {
             return self.load_latest_room_timeline(room, limit).await;
         }
 
-        Ok((items, Some(String::from("timeline-ui-live"))))
+        Ok((items, Some(self.timeline_page_token(1))))
     }
 
     async fn load_paginated_room_timeline(
         &self,
+        account_key: &str,
         room: &Room,
         limit: u16,
         before: Option<&str>,
     ) -> Result<(Vec<RoomTimelineItem>, Option<String>), String> {
+        if let Some((event_id, page_index)) = before.and_then(Self::parse_focused_timeline_page_token)
+        {
+            let owned_event_id = EventId::parse(&event_id)
+                .map_err(|error| format!("Invalid focused event id: {error}"))?
+                .to_owned();
+            let (items, hit_start) = self
+                .timeline_registry
+                .paginate_focused_timeline_backwards(
+                    account_key,
+                    room,
+                    owned_event_id,
+                    DEFAULT_EVENT_CONTEXT_LIMIT,
+                    limit,
+                )
+                .await?;
+
+            let next_before = if hit_start {
+                None
+            } else {
+                Some(self.focused_timeline_page_token(&event_id, page_index + 1))
+            };
+
+            return Ok((items, next_before));
+        }
+
+        if let Some(page_index) = before.and_then(Self::parse_timeline_page_token) {
+            let (items, hit_start) = self
+                .timeline_registry
+                .paginate_live_timeline_backwards(account_key, room, limit)
+                .await?;
+
+            let next_before = if hit_start {
+                None
+            } else {
+                Some(self.timeline_page_token(page_index + 1))
+            };
+
+            return Ok((items, next_before));
+        }
+
         fetch_room_timeline_chunk(room, limit, before).await
     }
 
     fn mark_room_focused(&self, account_key: &str, _room_id: String) {
         self.sync_manager.touch_focused_room(account_key, &_room_id);
+    }
+
+    fn timeline_page_token(&self, page_index: usize) -> String {
+        format!("{TIMELINE_UI_PAGE_TOKEN_PREFIX}{page_index}")
+    }
+
+    fn parse_timeline_page_token(token: &str) -> Option<usize> {
+        token.strip_prefix(TIMELINE_UI_PAGE_TOKEN_PREFIX)
+            .and_then(|value| value.parse::<usize>().ok())
+    }
+
+    fn focused_timeline_page_token(&self, event_id: &str, page_index: usize) -> String {
+        let encoded_event_id = URL_SAFE_NO_PAD.encode(event_id.as_bytes());
+        format!("{TIMELINE_UI_EVENT_PAGE_TOKEN_PREFIX}{encoded_event_id}:{page_index}")
+    }
+
+    fn parse_focused_timeline_page_token(token: &str) -> Option<(String, usize)> {
+        let token = token.strip_prefix(TIMELINE_UI_EVENT_PAGE_TOKEN_PREFIX)?;
+        let (encoded_event_id, page_index) = token.rsplit_once(':')?;
+        let event_id = URL_SAFE_NO_PAD.decode(encoded_event_id).ok()?;
+        let event_id = String::from_utf8(event_id).ok()?;
+        let page_index = page_index.parse::<usize>().ok()?;
+
+        Some((event_id, page_index))
     }
 
     fn mark_room_read_locally(&self, account_key: &str, room_id: &str, event_id: &str) {

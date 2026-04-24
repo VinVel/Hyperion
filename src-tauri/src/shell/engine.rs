@@ -17,9 +17,10 @@ use std::{collections::HashMap, sync::Arc};
 
 use matrix_sdk::Room;
 use matrix_sdk::ruma::{
-    api::client::receipt::create_receipt::v3::ReceiptType, events::AnyMessageLikeEventContent,
+    OwnedEventId, api::client::receipt::create_receipt::v3::ReceiptType,
+    events::AnyMessageLikeEventContent,
 };
-use matrix_sdk_ui::timeline::{RoomExt, Timeline, TimelineDetails, TimelineItemKind};
+use matrix_sdk_ui::timeline::{RoomExt, Timeline, TimelineDetails, TimelineFocus, TimelineItemKind};
 use tauri::async_runtime::Mutex as AsyncMutex;
 
 use super::types::RoomTimelineItem;
@@ -30,6 +31,10 @@ pub struct ShellTimelineRegistry {
     // tasks, so cache them per active account+room instead of rebuilding them
     // on every command call during the first migration phase.
     live_timelines: Arc<AsyncMutex<HashMap<String, Arc<Timeline>>>>,
+    // Focused event timelines are cached separately because they keep their own
+    // pagination cursor around a specific anchor event instead of following the
+    // room's normal live edge.
+    focused_timelines: Arc<AsyncMutex<HashMap<String, Arc<Timeline>>>>,
 }
 
 impl ShellTimelineRegistry {
@@ -84,6 +89,119 @@ impl ShellTimelineRegistry {
             .collect())
     }
 
+    pub async fn paginate_live_timeline_backwards(
+        &self,
+        account_key: &str,
+        room: &Room,
+        limit: u16,
+    ) -> Result<(Vec<RoomTimelineItem>, bool), String> {
+        let timeline = self.live_timeline(account_key, room).await?;
+        let before_items = timeline.items().await;
+        let seen_item_ids = before_items
+            .iter()
+            .filter_map(|item| item.as_event().map(|event| event.identifier().to_string()))
+            .collect::<std::collections::HashSet<_>>();
+
+        let hit_start = timeline
+            .paginate_backwards(limit)
+            .await
+            .map_err(|error| format!("Failed to paginate the live room timeline: {error}"))?;
+
+        let after_items = timeline.items().await;
+        let new_items = after_items
+            .iter()
+            .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
+            .filter(|item| !seen_item_ids.contains(item.event_id.as_str()))
+            .collect();
+
+        Ok((new_items, hit_start))
+    }
+
+    pub async fn focused_timeline(
+        &self,
+        account_key: &str,
+        room: &Room,
+        event_id: OwnedEventId,
+        context_limit: u16,
+    ) -> Result<Arc<Timeline>, String> {
+        let cache_key = Self::focused_cache_key(account_key, room.room_id().as_str(), &event_id);
+
+        {
+            let timelines = self.focused_timelines.lock().await;
+            if let Some(timeline) = timelines.get(&cache_key) {
+                return Ok(timeline.clone());
+            }
+        }
+
+        let timeline = room
+            .timeline_builder()
+            .with_focus(TimelineFocus::Event {
+                target: event_id.clone(),
+                num_context_events: context_limit,
+                hide_threaded_events: false,
+            })
+            .build()
+            .await
+            .map(Arc::new)
+            .map_err(|error| format!("Failed to build the focused room timeline: {error}"))?;
+
+        let mut timelines = self.focused_timelines.lock().await;
+        Ok(timelines
+            .entry(cache_key)
+            .or_insert_with(|| timeline.clone())
+            .clone())
+    }
+
+    pub async fn focused_timeline_items(
+        &self,
+        account_key: &str,
+        room: &Room,
+        event_id: OwnedEventId,
+        context_limit: u16,
+    ) -> Result<Vec<RoomTimelineItem>, String> {
+        let timeline = self
+            .focused_timeline(account_key, room, event_id, context_limit)
+            .await?;
+        let items = timeline.items().await;
+
+        Ok(items
+            .iter()
+            .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
+            .collect())
+    }
+
+    pub async fn paginate_focused_timeline_backwards(
+        &self,
+        account_key: &str,
+        room: &Room,
+        event_id: OwnedEventId,
+        context_limit: u16,
+        limit: u16,
+    ) -> Result<(Vec<RoomTimelineItem>, bool), String> {
+        let timeline = self
+            .focused_timeline(account_key, room, event_id, context_limit)
+            .await?;
+        let before_items = timeline.items().await;
+        let seen_item_ids = before_items
+            .iter()
+            .filter_map(|item| item.as_event().map(|event| event.identifier().to_string()))
+            .collect::<std::collections::HashSet<_>>();
+
+        let hit_start = timeline
+            .paginate_backwards(limit)
+            .await
+            .map_err(|error| format!("Failed to paginate the focused room timeline: {error}"))?;
+
+        let after_items = timeline.items().await;
+        let new_items = after_items
+            .iter()
+            .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
+            .filter(|item| !seen_item_ids.contains(item.event_id.as_str()))
+            .collect();
+
+        Ok((new_items, hit_start))
+    }
+
     pub async fn mark_live_timeline_as_read(
         &self,
         account_key: &str,
@@ -119,6 +237,10 @@ impl ShellTimelineRegistry {
 
     fn cache_key(account_key: &str, room_id: &str) -> String {
         format!("{account_key}::{room_id}")
+    }
+
+    fn focused_cache_key(account_key: &str, room_id: &str, event_id: &OwnedEventId) -> String {
+        format!("{account_key}::{room_id}::{event_id}")
     }
 }
 

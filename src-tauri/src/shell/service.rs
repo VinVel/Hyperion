@@ -19,8 +19,6 @@ use std::{
     time::Duration,
 };
 
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use futures_util::{StreamExt, pin_mut};
 use matrix_sdk::{
     Room,
     ruma::{
@@ -29,40 +27,43 @@ use matrix_sdk::{
         events::room::message::RoomMessageEventContent,
     },
 };
-use matrix_sdk_ui::room_list_service::{RoomListService, filters};
 
 use crate::account::AccountManager;
 
+mod paging;
+mod read_state;
 mod room;
+mod room_list;
 mod search;
 mod timeline;
 
 use self::{
-    super::engine::ShellTimelineRegistry,
+    paging::{focused_timeline_page_token, load_live_room_timeline, load_paginated_room_timeline},
+    read_state::{mark_room_read_locally, unread_message_count_for_shell},
     room::{
-        can_send_messages, current_latest_event_id, homeserver_label, latest_activity_unix_ms,
-        latest_preview_text, local_room_state_key, participant_label,
-        persisted_read_anchor_event_id, resolve_room, room_is_encrypted, room_title,
-        unread_message_count,
+        can_send_messages, homeserver_label, latest_activity_unix_ms, latest_preview_text,
+        participant_label, resolve_room, room_is_encrypted, room_title,
     },
+    room_list::snapshot_room_list_for_account,
     search::{
         first_visible_grapheme, matches_query, message_search_hit, normalize_query, now_unix_ms,
         push_message_hits, relative_time_label, server_backed_search_hit,
     },
     timeline::{
-        cached_timeline_item_count, cached_timeline_items, count_unread_messages_since,
-        fetch_room_timeline_chunk, timeline_item_from_timeline_event, warm_room_recent_timeline,
+        cached_timeline_item_count, cached_timeline_items, fetch_room_timeline_chunk,
+        timeline_item_from_timeline_event, warm_room_recent_timeline,
     },
 };
 
 use super::{
+    engine::ShellTimelineRegistry,
     sync::ShellSyncManager,
     types::{
         GetRoomEventContextRequest, GetRoomSummaryRequest, GetRoomTimelineRequest,
         GlobalSearchMessageHit, GlobalSearchRequest, GlobalSearchResponse, GlobalSearchRoomHit,
         GlobalSearchSpaceHit, ListRoomThreadsRequest, ListSpacesRequest, RoomSummary,
-        RoomThreadSummary, RoomTimeline, RoomTimelineItem, SendRoomMessageRequest,
-        SendRoomMessageResponse, SpaceSummary,
+        RoomThreadSummary, RoomTimeline, SendRoomMessageRequest, SendRoomMessageResponse,
+        SpaceSummary,
     },
 };
 
@@ -96,13 +97,6 @@ const RECENT_TIMELINE_WARM_ROOM_COUNT: usize = 6;
 // Rewarm infrequently enough to avoid churn, but often enough that active rooms
 // keep a recent local window available across normal shell navigation.
 const RECENT_TIMELINE_REWARM_INTERVAL_MS: u64 = Duration::from_secs(10 * 60).as_millis() as u64;
-// Timeline-backed pagination uses backend-owned opaque tokens because
-// matrix-sdk-ui tracks pagination state inside the live timeline instance rather
-// than exposing Matrix prev-batch tokens directly.
-const TIMELINE_UI_PAGE_TOKEN_PREFIX: &str = "timeline-ui-page:";
-// Focused timelines need to carry their anchor event inside the opaque token so
-// later pagination requests can reopen the same TimelineFocus::Event view.
-const TIMELINE_UI_EVENT_PAGE_TOKEN_PREFIX: &str = "timeline-ui-event:";
 // Command snapshots need a bounded page size when materializing the room-list
 // stream. Keep it large enough to cover realistic active accounts in one pass.
 const ROOM_LIST_SNAPSHOT_PAGE_SIZE: usize = 10_000;
@@ -237,10 +231,11 @@ impl ShellManager {
 
         let limit = request.limit.unwrap_or(DEFAULT_TIMELINE_LIMIT);
         let (items, next_before) = if request.before.is_none() {
-            self.load_live_room_timeline(&account.account_key, &room, limit)
+            load_live_room_timeline(&self.timeline_registry, &account.account_key, &room, limit)
                 .await?
         } else {
-            self.load_paginated_room_timeline(
+            load_paginated_room_timeline(
+                &self.timeline_registry,
                 &account.account_key,
                 &room,
                 limit,
@@ -255,7 +250,8 @@ impl ShellManager {
             self.timeline_registry
                 .mark_live_timeline_as_read(&account.account_key, &room)
                 .await?;
-            self.mark_room_read_locally(
+            mark_room_read_locally(
+                &self.locally_read_room_state,
                 &account.account_key,
                 room.room_id().as_str(),
                 &latest_item.event_id,
@@ -297,7 +293,7 @@ impl ShellManager {
         Ok(RoomTimeline {
             room_id: room.room_id().to_string(),
             items,
-            next_before: Some(self.focused_timeline_page_token(event_id.as_ref(), 1)),
+            next_before: Some(focused_timeline_page_token(event_id.as_ref(), 1)),
             focused_event_id: Some(request.event_id),
         })
     }
@@ -335,7 +331,12 @@ impl ShellManager {
         self.timeline_registry
             .mark_live_timeline_as_read(&account.account_key, &room)
             .await?;
-        self.mark_room_read_locally(&account.account_key, room.room_id().as_str(), &event_id);
+        mark_room_read_locally(
+            &self.locally_read_room_state,
+            &account.account_key,
+            room.room_id().as_str(),
+            &event_id,
+        );
 
         Ok(SendRoomMessageResponse { event_id })
     }
@@ -518,7 +519,8 @@ impl ShellManager {
             .or_else(|| room.topic())
             .unwrap_or_default();
         let last_activity_unix_ms = latest_activity_unix_ms(room);
-        let unread_count = self.unread_message_count(account_key, room).await;
+        let unread_count =
+            unread_message_count_for_shell(&self.locally_read_room_state, account_key, room).await;
         let message_count = self.best_effort_message_count(room).await;
 
         Ok(RoomThreadSummary {
@@ -572,12 +574,7 @@ impl ShellManager {
         account_key: &str,
         list_kind: ShellRoomListKind,
     ) -> Result<Vec<Room>, String> {
-        let room_list_service = self
-            .sync_manager
-            .room_list_service(account_key)
-            .ok_or_else(|| String::from("The active shell room list service is not available"))?;
-
-        snapshot_room_list(room_list_service, list_kind).await
+        snapshot_room_list_for_account(&self.sync_manager, account_key, list_kind).await
     }
 
     async fn best_effort_message_count(&self, room: &Room) -> u64 {
@@ -756,163 +753,8 @@ impl ShellManager {
         Ok(hits)
     }
 
-    async fn load_live_room_timeline(
-        &self,
-        account_key: &str,
-        room: &Room,
-        limit: u16,
-    ) -> Result<(Vec<RoomTimelineItem>, Option<String>), String> {
-        let (items, hit_start) = self
-            .timeline_registry
-            .ensure_live_timeline_window(
-                account_key,
-                room,
-                limit,
-                limit.max(RECENT_TIMELINE_WARM_LIMIT),
-            )
-            .await?;
-
-        let next_before = if hit_start {
-            None
-        } else {
-            Some(self.timeline_page_token(1))
-        };
-
-        Ok((items, next_before))
-    }
-
-    async fn load_paginated_room_timeline(
-        &self,
-        account_key: &str,
-        room: &Room,
-        limit: u16,
-        before: Option<&str>,
-    ) -> Result<(Vec<RoomTimelineItem>, Option<String>), String> {
-        if let Some((event_id, page_index)) =
-            before.and_then(Self::parse_focused_timeline_page_token)
-        {
-            let owned_event_id = EventId::parse(&event_id)
-                .map_err(|error| format!("Invalid focused event id: {error}"))?
-                .to_owned();
-            let (items, hit_start) = self
-                .timeline_registry
-                .paginate_focused_timeline_backwards(
-                    account_key,
-                    room,
-                    owned_event_id,
-                    DEFAULT_EVENT_CONTEXT_LIMIT,
-                    limit,
-                )
-                .await?;
-
-            let next_before = if hit_start {
-                None
-            } else {
-                Some(self.focused_timeline_page_token(&event_id, page_index + 1))
-            };
-
-            return Ok((items, next_before));
-        }
-
-        if let Some(page_index) = before.and_then(Self::parse_timeline_page_token) {
-            let (items, hit_start) = self
-                .timeline_registry
-                .paginate_live_timeline_backwards(account_key, room, limit)
-                .await?;
-
-            let next_before = if hit_start {
-                None
-            } else {
-                Some(self.timeline_page_token(page_index + 1))
-            };
-
-            return Ok((items, next_before));
-        }
-
-        Err(String::from("Unsupported timeline pagination token"))
-    }
-
     fn mark_room_focused(&self, account_key: &str, _room_id: String) {
         self.sync_manager.touch_focused_room(account_key, &_room_id);
-    }
-
-    fn timeline_page_token(&self, page_index: usize) -> String {
-        format!("{TIMELINE_UI_PAGE_TOKEN_PREFIX}{page_index}")
-    }
-
-    fn parse_timeline_page_token(token: &str) -> Option<usize> {
-        token
-            .strip_prefix(TIMELINE_UI_PAGE_TOKEN_PREFIX)
-            .and_then(|value| value.parse::<usize>().ok())
-    }
-
-    fn focused_timeline_page_token(&self, event_id: &str, page_index: usize) -> String {
-        let encoded_event_id = URL_SAFE_NO_PAD.encode(event_id.as_bytes());
-        format!("{TIMELINE_UI_EVENT_PAGE_TOKEN_PREFIX}{encoded_event_id}:{page_index}")
-    }
-
-    fn parse_focused_timeline_page_token(token: &str) -> Option<(String, usize)> {
-        let token = token.strip_prefix(TIMELINE_UI_EVENT_PAGE_TOKEN_PREFIX)?;
-        let (encoded_event_id, page_index) = token.rsplit_once(':')?;
-        let event_id = URL_SAFE_NO_PAD.decode(encoded_event_id).ok()?;
-        let event_id = String::from_utf8(event_id).ok()?;
-        let page_index = page_index.parse::<usize>().ok()?;
-
-        Some((event_id, page_index))
-    }
-
-    fn mark_room_read_locally(&self, account_key: &str, room_id: &str, event_id: &str) {
-        self.locally_read_room_state
-            .write()
-            .expect("shell manager locally-read-room-state lock poisoned")
-            .insert(
-                local_room_state_key(account_key, room_id),
-                event_id.to_owned(),
-            );
-    }
-
-    async fn unread_message_count(&self, account_key: &str, room: &Room) -> u64 {
-        let Some(read_anchor_event_id) = self.read_anchor_event_id(account_key, room).await else {
-            return unread_message_count(room);
-        };
-
-        let Some(latest_event_id) = current_latest_event_id(room) else {
-            return 0;
-        };
-
-        if latest_event_id == read_anchor_event_id {
-            return 0;
-        }
-
-        if let Some(local_unread_count) =
-            count_unread_messages_since(room, &read_anchor_event_id).await
-        {
-            return local_unread_count.max(1);
-        }
-
-        unread_message_count(room)
-    }
-
-    async fn read_anchor_event_id(&self, account_key: &str, room: &Room) -> Option<String> {
-        let local_anchor_event_id = self
-            .locally_read_room_state
-            .read()
-            .expect("shell manager locally-read-room-state lock poisoned")
-            .get(&local_room_state_key(account_key, room.room_id().as_str()))
-            .cloned();
-        let persisted_anchor_event_id = persisted_read_anchor_event_id(room).await;
-
-        let current_latest_event_id = current_latest_event_id(room);
-        if current_latest_event_id.is_some() && persisted_anchor_event_id == current_latest_event_id
-        {
-            return persisted_anchor_event_id;
-        }
-
-        if current_latest_event_id.is_some() && local_anchor_event_id == current_latest_event_id {
-            return local_anchor_event_id;
-        }
-
-        persisted_anchor_event_id.or(local_anchor_event_id)
     }
 
     async fn server_backed_message_search(
@@ -972,53 +814,4 @@ impl ShellManager {
 
         Ok(hits)
     }
-}
-
-async fn snapshot_room_list(
-    room_list_service: Arc<RoomListService>,
-    list_kind: ShellRoomListKind,
-) -> Result<Vec<Room>, String> {
-    let room_list = room_list_service
-        .all_rooms()
-        .await
-        .map_err(|error| format!("Failed to access the shell room list: {error}"))?;
-    let (entries, entries_controller) =
-        room_list.entries_with_dynamic_adapters(ROOM_LIST_SNAPSHOT_PAGE_SIZE);
-
-    let filter = match list_kind {
-        ShellRoomListKind::Conversations => Box::new(filters::new_filter_all(vec![
-            Box::new(filters::new_filter_joined()),
-            Box::new(filters::new_filter_not(Box::new(
-                filters::new_filter_space(),
-            ))),
-        ])),
-        ShellRoomListKind::Spaces => Box::new(filters::new_filter_all(vec![
-            Box::new(filters::new_filter_joined()),
-            Box::new(filters::new_filter_space()),
-        ])),
-    };
-    let _ = entries_controller.set_filter(filter);
-
-    pin_mut!(entries);
-    let diffs = entries
-        .next()
-        .await
-        .ok_or_else(|| String::from("The shell room list stream ended unexpectedly"))?;
-
-    Ok(diffs
-        .into_iter()
-        .find_map(|diff| match diff {
-            eyeball_im::VectorDiff::Reset { values } => Some(
-                values
-                    .into_iter()
-                    .map(
-                        |room_list_item: matrix_sdk_ui::room_list_service::RoomListItem| {
-                            room_list_item.into_inner()
-                        },
-                    )
-                    .collect::<Vec<_>>(),
-            ),
-            _ => None,
-        })
-        .unwrap_or_default())
 }

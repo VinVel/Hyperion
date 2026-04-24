@@ -13,6 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
+mod engine;
 mod service;
 mod sync;
 pub mod types;

@@ -20,6 +20,7 @@ use std::{
 };
 
 use matrix_sdk::{Client, ruma::RoomId, sync::RoomUpdates};
+use matrix_sdk_ui::room_list_service::RoomListService;
 use matrix_sdk_ui::sync_service::{State as SyncServiceState, SyncService};
 use serde::Serialize;
 use tauri::{Emitter, async_runtime::JoinHandle};
@@ -138,6 +139,14 @@ impl ShellSyncManager {
                     .await;
             });
         }
+    }
+
+    pub fn room_list_service(&self, account_key: &str) -> Option<Arc<RoomListService>> {
+        self.running_accounts
+            .read()
+            .expect("shell sync manager running-accounts lock poisoned")
+            .get(account_key)
+            .map(|running_account| running_account.sync_service.room_list_service())
     }
 
     async fn ensure_started(

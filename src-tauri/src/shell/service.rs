@@ -20,6 +20,7 @@ use std::{
 };
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use futures_util::{StreamExt, pin_mut};
 use matrix_sdk::{
     Room,
     ruma::{
@@ -28,6 +29,7 @@ use matrix_sdk::{
         events::room::message::RoomMessageEventContent,
     },
 };
+use matrix_sdk_ui::room_list_service::{RoomListService, filters};
 
 use crate::account::AccountManager;
 
@@ -101,6 +103,14 @@ const TIMELINE_UI_PAGE_TOKEN_PREFIX: &str = "timeline-ui-page:";
 // Focused timelines need to carry their anchor event inside the opaque token so
 // later pagination requests can reopen the same TimelineFocus::Event view.
 const TIMELINE_UI_EVENT_PAGE_TOKEN_PREFIX: &str = "timeline-ui-event:";
+// Command snapshots need a bounded page size when materializing the room-list
+// stream. Keep it large enough to cover realistic active accounts in one pass.
+const ROOM_LIST_SNAPSHOT_PAGE_SIZE: usize = 10_000;
+
+enum ShellRoomListKind {
+    Conversations,
+    Spaces,
+}
 
 #[derive(Clone)]
 struct SearchableRoom {
@@ -145,11 +155,10 @@ impl ShellManager {
         let mut rooms = Vec::new();
         let mut recent_room_candidates = Vec::new();
 
-        for room in account.client.joined_rooms() {
-            if room.is_space() {
-                continue;
-            }
-
+        for room in self
+            .snapshot_room_list(&account.account_key, ShellRoomListKind::Conversations)
+            .await?
+        {
             let summary = self
                 .build_room_thread_summary(&account.account_key, &room)
                 .await?;
@@ -347,7 +356,10 @@ impl ShellManager {
 
         let query = normalize_query(request.search_query.as_deref());
         let mut spaces = Vec::new();
-        for room in account.client.joined_space_rooms() {
+        for room in self
+            .snapshot_room_list(&account.account_key, ShellRoomListKind::Spaces)
+            .await?
+        {
             let summary = self
                 .build_space_summary(&room, &account.homeserver_url)
                 .await?;
@@ -395,23 +407,30 @@ impl ShellManager {
         let mut messages = Vec::new();
         let mut searchable_rooms = Vec::new();
 
-        for room in account.client.joined_rooms() {
-            if room.is_space() {
-                if spaces.len() < limit {
-                    let summary = self
-                        .build_space_summary(&room, &account.homeserver_url)
-                        .await?;
-                    if matches_query(Some(&query), &[&summary.name, &summary.description]) {
-                        spaces.push(GlobalSearchSpaceHit {
-                            space_id: summary.space_id,
-                            title: summary.name,
-                            description: summary.description,
-                        });
-                    }
-                }
-                continue;
+        for room in self
+            .snapshot_room_list(&account.account_key, ShellRoomListKind::Spaces)
+            .await?
+        {
+            if spaces.len() >= limit {
+                break;
             }
 
+            let summary = self
+                .build_space_summary(&room, &account.homeserver_url)
+                .await?;
+            if matches_query(Some(&query), &[&summary.name, &summary.description]) {
+                spaces.push(GlobalSearchSpaceHit {
+                    space_id: summary.space_id,
+                    title: summary.name,
+                    description: summary.description,
+                });
+            }
+        }
+
+        for room in self
+            .snapshot_room_list(&account.account_key, ShellRoomListKind::Conversations)
+            .await?
+        {
             let summary = self
                 .build_room_thread_summary(&account.account_key, &room)
                 .await?;
@@ -525,11 +544,7 @@ impl ShellManager {
         let name = room_title(room).await?;
         let description = room.topic().unwrap_or_default();
         let member_label = format!("{} members", room.active_members_count());
-        let activity_timestamp = room
-            .latest_event()
-            .and_then(|event| event.event().timestamp())
-            .map(|timestamp| u64::from(timestamp.0))
-            .unwrap_or_default();
+        let activity_timestamp = latest_activity_unix_ms(room);
         let activity_label = if activity_timestamp == 0 {
             String::from("No recent activity")
         } else {
@@ -550,6 +565,19 @@ impl ShellManager {
                     .unwrap_or(false),
             ),
         })
+    }
+
+    async fn snapshot_room_list(
+        &self,
+        account_key: &str,
+        list_kind: ShellRoomListKind,
+    ) -> Result<Vec<Room>, String> {
+        let room_list_service = self
+            .sync_manager
+            .room_list_service(account_key)
+            .ok_or_else(|| String::from("The active shell room list service is not available"))?;
+
+        snapshot_room_list(room_list_service, list_kind).await
     }
 
     async fn best_effort_message_count(&self, room: &Room) -> u64 {
@@ -960,4 +988,53 @@ impl ShellManager {
 
         Ok(hits)
     }
+}
+
+async fn snapshot_room_list(
+    room_list_service: Arc<RoomListService>,
+    list_kind: ShellRoomListKind,
+) -> Result<Vec<Room>, String> {
+    let room_list = room_list_service
+        .all_rooms()
+        .await
+        .map_err(|error| format!("Failed to access the shell room list: {error}"))?;
+    let (entries, entries_controller) =
+        room_list.entries_with_dynamic_adapters(ROOM_LIST_SNAPSHOT_PAGE_SIZE);
+
+    let filter = match list_kind {
+        ShellRoomListKind::Conversations => Box::new(filters::new_filter_all(vec![
+            Box::new(filters::new_filter_joined()),
+            Box::new(filters::new_filter_not(Box::new(
+                filters::new_filter_space(),
+            ))),
+        ])),
+        ShellRoomListKind::Spaces => Box::new(filters::new_filter_all(vec![
+            Box::new(filters::new_filter_joined()),
+            Box::new(filters::new_filter_space()),
+        ])),
+    };
+    let _ = entries_controller.set_filter(filter);
+
+    pin_mut!(entries);
+    let diffs = entries
+        .next()
+        .await
+        .ok_or_else(|| String::from("The shell room list stream ended unexpectedly"))?;
+
+    Ok(diffs
+        .into_iter()
+        .find_map(|diff| match diff {
+            eyeball_im::VectorDiff::Reset { values } => Some(
+                values
+                    .into_iter()
+                    .map(
+                        |room_list_item: matrix_sdk_ui::room_list_service::RoomListItem| {
+                            room_list_item.into_inner()
+                        },
+                    )
+                    .collect::<Vec<_>>(),
+            ),
+            _ => None,
+        })
+        .unwrap_or_default())
 }

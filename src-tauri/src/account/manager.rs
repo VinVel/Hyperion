@@ -214,9 +214,9 @@ impl AccountManager {
             return Ok(None);
         };
 
-        let store_root_dir = store_dir.parent().ok_or_else(|| {
-            String::from("Active account store path has no parent directory")
-        })?;
+        let store_root_dir = store_dir
+            .parent()
+            .ok_or_else(|| String::from("Active account store path has no parent directory"))?;
         let store_id = store_root_dir
             .file_name()
             .and_then(|value| value.to_str())

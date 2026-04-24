@@ -321,17 +321,12 @@ impl ShellManager {
                 &room,
                 RoomMessageEventContent::text_plain(body).into(),
             )
-            .await
-            ?;
+            .await?;
 
         self.timeline_registry
             .mark_live_timeline_as_read(&account.account_key, &room)
             .await?;
-        self.mark_room_read_locally(
-            &account.account_key,
-            room.room_id().as_str(),
-            &event_id,
-        );
+        self.mark_room_read_locally(&account.account_key, room.room_id().as_str(), &event_id);
 
         Ok(SendRoomMessageResponse { event_id })
     }
@@ -788,7 +783,8 @@ impl ShellManager {
         limit: u16,
         before: Option<&str>,
     ) -> Result<(Vec<RoomTimelineItem>, Option<String>), String> {
-        if let Some((event_id, page_index)) = before.and_then(Self::parse_focused_timeline_page_token)
+        if let Some((event_id, page_index)) =
+            before.and_then(Self::parse_focused_timeline_page_token)
         {
             let owned_event_id = EventId::parse(&event_id)
                 .map_err(|error| format!("Invalid focused event id: {error}"))?
@@ -840,7 +836,8 @@ impl ShellManager {
     }
 
     fn parse_timeline_page_token(token: &str) -> Option<usize> {
-        token.strip_prefix(TIMELINE_UI_PAGE_TOKEN_PREFIX)
+        token
+            .strip_prefix(TIMELINE_UI_PAGE_TOKEN_PREFIX)
             .and_then(|value| value.parse::<usize>().ok())
     }
 

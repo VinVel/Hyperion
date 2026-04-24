@@ -1,0 +1,382 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  CARGO_INCREMENTAL: 0
+  TAURI_SKIP_FRONTEND_BUILD_CONFIG: '{"build":{"beforeBuildCommand":""}}'
+
+jobs:
+  prepare-frontend:
+    name: Prepare frontend dist
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install JavaScript dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build frontend dist
+        run: bun run build
+
+      - name: Upload frontend dist
+        uses: actions/upload-artifact@v6
+        with:
+          name: ci-frontend-dist
+          if-no-files-found: error
+          retention-days: 7
+          path: dist/
+
+  build:
+    name: ${{ matrix.name }}
+    needs: prepare-frontend
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 150
+    env:
+      CROSS_CONFIG: ${{ github.workspace }}/Cross.toml
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            runner: windows-latest
+            kind: desktop
+            target: x86_64-pc-windows-msvc
+            rust_targets: x86_64-pc-windows-msvc
+            install_bun: true
+            install_linux_deps: false
+            install_cross: false
+            install_android: false
+            build: tauri-desktop
+
+          - name: Windows arm64
+            runner: windows-11-arm
+            kind: desktop
+            target: aarch64-pc-windows-msvc
+            rust_targets: aarch64-pc-windows-msvc
+            install_bun: true
+            install_linux_deps: false
+            install_cross: false
+            install_android: false
+            build: tauri-desktop
+
+          - name: macOS Intel
+            runner: macos-26-intel
+            kind: desktop
+            target: x86_64-apple-darwin
+            rust_targets: x86_64-apple-darwin
+            install_bun: true
+            install_linux_deps: false
+            install_cross: false
+            install_android: false
+            build: tauri-desktop
+
+          - name: macOS arm64
+            runner: macos-26
+            kind: desktop
+            target: aarch64-apple-darwin
+            rust_targets: aarch64-apple-darwin
+            install_bun: true
+            install_linux_deps: false
+            install_cross: false
+            install_android: false
+            build: tauri-desktop
+
+          - name: Linux x64 GNU
+            runner: ubuntu-24.04
+            kind: linux
+            target: x86_64-unknown-linux-gnu
+            rust_targets: x86_64-unknown-linux-gnu
+            install_bun: true
+            install_linux_deps: true
+            install_cross: false
+            install_android: false
+            build: tauri-desktop
+
+          - name: Linux arm64 GNU
+            runner: ubuntu-24.04-arm
+            kind: linux
+            target: aarch64-unknown-linux-gnu
+            rust_targets: aarch64-unknown-linux-gnu
+            install_bun: true
+            install_linux_deps: true
+            install_cross: false
+            install_android: false
+            build: tauri-desktop
+
+          - name: Linux riscv64 GNU
+            runner: ubuntu-24.04
+            kind: linux
+            target: riscv64gc-unknown-linux-gnu
+            rust_targets: riscv64gc-unknown-linux-gnu
+            install_bun: false
+            install_linux_deps: false
+            install_cross: true
+            install_android: false
+            build: cross
+
+          - name: Android arm64-v8a
+            runner: ubuntu-latest
+            kind: android
+            target: aarch64
+            rust_targets: aarch64-linux-android
+            install_bun: true
+            install_linux_deps: false
+            install_cross: false
+            install_android: true
+            build: android-split
+
+          - name: Android armeabi-v7a
+            runner: ubuntu-latest
+            kind: android
+            target: armv7
+            rust_targets: armv7-linux-androideabi
+            install_bun: true
+            install_linux_deps: false
+            install_cross: false
+            install_android: true
+            build: android-split
+
+          - name: Android x86
+            runner: ubuntu-latest
+            kind: android
+            target: i686
+            rust_targets: i686-linux-android
+            install_bun: true
+            install_linux_deps: false
+            install_cross: false
+            install_android: true
+            build: android-split
+
+          - name: Android x86_64
+            runner: ubuntu-latest
+            kind: android
+            target: x86_64
+            rust_targets: x86_64-linux-android
+            install_bun: true
+            install_linux_deps: false
+            install_cross: false
+            install_android: true
+            build: android-split
+
+          - name: Android universal
+            runner: ubuntu-latest
+            kind: android
+            target: ""
+            rust_targets: |
+              aarch64-linux-android
+              armv7-linux-androideabi
+              i686-linux-android
+              x86_64-linux-android
+            install_bun: true
+            install_linux_deps: false
+            install_cross: false
+            install_android: true
+            build: android-universal
+
+          - name: iOS simulator
+            runner: macos-15
+            kind: ios
+            target: aarch64-sim
+            rust_targets: aarch64-apple-ios-sim
+            install_bun: true
+            install_linux_deps: false
+            install_cross: false
+            install_android: false
+            build: ios-simulator
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Download frontend dist
+        uses: actions/download-artifact@v8
+        with:
+          name: ci-frontend-dist
+          path: dist
+
+      - name: Install Linux native system dependencies
+        if: ${{ matrix.install_linux_deps }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            pkg-config \
+            wget \
+            xdg-utils
+
+      - name: Read Rust toolchain channel
+        id: rust-toolchain
+        shell: bash
+        run: |
+          toolchain="$(sed -nE 's/^channel = "(.*)"$/\1/p' rust-toolchain.toml | head -n1)"
+          if [[ -z "$toolchain" ]]; then
+            echo "Could not read 'channel' from rust-toolchain.toml" >&2
+            exit 1
+          fi
+          echo "toolchain=$toolchain" >> "$GITHUB_OUTPUT"
+
+      - name: Install Rust toolchain and targets
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust-toolchain.outputs.toolchain }}
+          targets: ${{ matrix.rust_targets }}
+
+      - name: Install Bun
+        if: ${{ matrix.install_bun }}
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install JavaScript dependencies
+        if: ${{ matrix.install_bun }}
+        run: bun install --frozen-lockfile
+
+      - name: Set up Java
+        if: ${{ matrix.install_android }}
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        if: ${{ matrix.install_android }}
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android SDK packages
+        if: ${{ matrix.install_android }}
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;27.1.12297006"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.1.12297006" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.1.12297006" >> "$GITHUB_ENV"
+
+      - name: Install cross
+        if: ${{ matrix.install_cross }}
+        shell: bash
+        run: cargo install cross --git https://github.com/cross-rs/cross --locked
+
+      - name: Verify Docker availability
+        if: ${{ matrix.install_cross }}
+        shell: bash
+        run: docker version
+
+      - name: Provide cargo-tauri wrapper for Xcode
+        if: ${{ matrix.build == 'ios-simulator' }}
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.cargo/bin"
+          cat <<'EOF' > "$HOME/.cargo/bin/cargo-tauri"
+          #!/usr/bin/env bash
+          if [[ "${1:-}" == "tauri" ]]; then
+            shift
+          fi
+          exec bun run tauri "$@"
+          EOF
+          chmod +x "$HOME/.cargo/bin/cargo-tauri"
+
+      - name: Build Tauri desktop target
+        if: ${{ matrix.build == 'tauri-desktop' }}
+        shell: bash
+        run: |
+          bun run tauri build \
+            --debug \
+            --target "${{ matrix.target }}" \
+            --no-bundle \
+            --verbose \
+            --config "$TAURI_SKIP_FRONTEND_BUILD_CONFIG"
+
+      - name: Build Linux target natively
+        if: ${{ matrix.build == 'cargo' }}
+        shell: bash
+        run: |
+          cargo build \
+            --manifest-path src-tauri/Cargo.toml \
+            --target "${{ matrix.target }}" \
+            --verbose
+
+      - name: Build Linux target with cross
+        if: ${{ matrix.build == 'cross' }}
+        shell: bash
+        run: |
+          target_env="${{ matrix.target }}"
+          target_env_underscore="${target_env//-/_}"
+
+          echo "Using cross config at: $CROSS_CONFIG"
+          export PKG_CONFIG_ALLOW_CROSS=1
+          export PKG_CONFIG_SYSROOT_DIR=/
+          export TARGET_PKG_CONFIG_ALLOW_CROSS=1
+          export TARGET_PKG_CONFIG_SYSROOT_DIR=/
+          export "PKG_CONFIG_ALLOW_CROSS_${target_env_underscore}=1"
+          export "PKG_CONFIG_SYSROOT_DIR_${target_env_underscore}=/"
+
+          cross build \
+            --manifest-path src-tauri/Cargo.toml \
+            --target "${{ matrix.target }}" \
+            --verbose
+
+      - name: Build ABI-specific Android APK
+        if: ${{ matrix.build == 'android-split' }}
+        shell: bash
+        run: |
+          bun run tauri android build \
+            --ci \
+            --debug \
+            --apk \
+            --split-per-abi \
+            --target "${{ matrix.target }}" \
+            --verbose \
+            --config "$TAURI_SKIP_FRONTEND_BUILD_CONFIG"
+
+      - name: Build universal Android APK
+        if: ${{ matrix.build == 'android-universal' }}
+        shell: bash
+        run: |
+          bun run tauri android build \
+            --ci \
+            --debug \
+            --apk \
+            --verbose \
+            --config "$TAURI_SKIP_FRONTEND_BUILD_CONFIG"
+
+      - name: Build iOS simulator app
+        if: ${{ matrix.build == 'ios-simulator' }}
+        shell: bash
+        run: |
+          bun run tauri ios build \
+            --ci \
+            --debug \
+            --target "${{ matrix.target }}" \
+            --verbose \
+            --config "$TAURI_SKIP_FRONTEND_BUILD_CONFIG"

@@ -1,8 +1,4 @@
-[![Android CI](https://github.com/VinVel/Hyperion/actions/workflows/android-ci.yml/badge.svg)](https://github.com/VinVel/Hyperion/actions/workflows/android-ci.yml)
-
-[![iOS CI](https://github.com/VinVel/Hyperion/actions/workflows/ios-simulator-ci.yml/badge.svg)](https://github.com/VinVel/Hyperion/actions/workflows/ios-simulator-ci.yml)
-
-[![Desktop CI](https://github.com/VinVel/Hyperion/actions/workflows/desktop-ci.yml/badge.svg)](https://github.com/VinVel/Hyperion/actions/workflows/desktop-ci.yml)
+[![CI](https://github.com/VinVel/Hyperion/actions/workflows/ci.yml/badge.svg)](https://github.com/VinVel/Hyperion/actions/workflows/ci.yml)
 
 ## [LICENSE](./LICENSE)
 ```

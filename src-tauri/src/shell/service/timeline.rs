@@ -175,11 +175,3 @@ fn message_fields_from_sync_event(
         _ => None,
     }
 }
-
-pub(super) fn extract_message_body_from_raw(
-    raw_event: &matrix_sdk::ruma::serde::Raw<AnySyncTimelineEvent>,
-) -> Option<String> {
-    let parsed = raw_event.deserialize().ok()?;
-    let (_, _, _, body, _) = message_fields_from_sync_event(&parsed)?;
-    Some(body)
-}

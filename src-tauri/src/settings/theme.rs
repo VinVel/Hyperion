@@ -50,8 +50,7 @@ pub fn set_theme_preset(
     supported_presets: &[String],
     default_preset: &str,
 ) -> Result<String, String> {
-    let normalized_preset =
-        normalize_theme_preset(Some(preset), supported_presets, default_preset);
+    let normalized_preset = normalize_theme_preset(Some(preset), supported_presets, default_preset);
     let settings = ThemeSettingsFile {
         theme_preset: Some(normalized_preset.clone()),
         theme_mode: read_theme_settings(app)?.theme_mode,

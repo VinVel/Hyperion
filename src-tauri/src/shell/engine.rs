@@ -20,7 +20,9 @@ use matrix_sdk::ruma::{
     OwnedEventId, api::client::receipt::create_receipt::v3::ReceiptType,
     events::AnyMessageLikeEventContent,
 };
-use matrix_sdk_ui::timeline::{RoomExt, Timeline, TimelineDetails, TimelineFocus, TimelineItemKind};
+use matrix_sdk_ui::timeline::{
+    RoomExt, Timeline, TimelineDetails, TimelineFocus, TimelineItemKind,
+};
 use tauri::async_runtime::Mutex as AsyncMutex;
 
 use super::types::RoomTimelineItem;
@@ -228,9 +230,9 @@ impl ShellTimelineRegistry {
             .map_err(|error| format!("Failed to send the room message: {error}"))?;
 
         let items = self.live_timeline_items(account_key, room, 1).await?;
-        let latest_item = items
-            .last()
-            .ok_or_else(|| String::from("The timeline send succeeded, but no local echo is available"))?;
+        let latest_item = items.last().ok_or_else(|| {
+            String::from("The timeline send succeeded, but no local echo is available")
+        })?;
 
         Ok(latest_item.event_id.clone())
     }

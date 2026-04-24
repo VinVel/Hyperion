@@ -35,6 +35,7 @@ mod search;
 mod timeline;
 
 use self::{
+    super::engine::ShellTimelineRegistry,
     room::{
         can_send_messages, current_latest_event_id, homeserver_label, local_room_state_key,
         participant_label, persisted_read_anchor_event_id, resolve_room, room_is_encrypted,
@@ -46,7 +47,7 @@ use self::{
     },
     timeline::{
         cached_timeline_item_count, cached_timeline_items, count_unread_messages_since,
-        extract_message_body_from_raw, fetch_room_timeline_chunk, mark_room_as_read,
+        extract_message_body_from_raw, fetch_room_timeline_chunk,
         timeline_item_from_timeline_event, warm_room_recent_timeline,
     },
 };
@@ -103,6 +104,7 @@ struct SearchableRoom {
 #[derive(Clone, Default)]
 pub struct ShellManager {
     sync_manager: ShellSyncManager,
+    timeline_registry: ShellTimelineRegistry,
     recent_timeline_warm_state: Arc<RwLock<HashMap<String, u64>>>,
     locally_read_room_state: Arc<RwLock<HashMap<String, String>>>,
 }
@@ -111,6 +113,7 @@ impl ShellManager {
     pub fn new() -> Self {
         Self {
             sync_manager: ShellSyncManager::new(),
+            timeline_registry: ShellTimelineRegistry::new(),
             recent_timeline_warm_state: Arc::new(RwLock::new(HashMap::new())),
             locally_read_room_state: Arc::new(RwLock::new(HashMap::new())),
         }
@@ -217,7 +220,8 @@ impl ShellManager {
 
         let limit = request.limit.unwrap_or(DEFAULT_TIMELINE_LIMIT);
         let (items, next_before) = if request.before.is_none() {
-            self.load_latest_room_timeline(&room, limit).await?
+            self.load_live_room_timeline(&account.account_key, &room, limit)
+                .await?
         } else {
             self.load_paginated_room_timeline(&room, limit, request.before.as_deref())
                 .await?
@@ -226,7 +230,9 @@ impl ShellManager {
         if request.before.is_none()
             && let Some(latest_item) = items.last()
         {
-            mark_room_as_read(&room, &latest_item.event_id).await?;
+            self.timeline_registry
+                .mark_live_timeline_as_read(&account.account_key, &room)
+                .await?;
             self.mark_room_read_locally(
                 &account.account_key,
                 room.room_id().as_str(),
@@ -315,21 +321,26 @@ impl ShellManager {
         let room = resolve_room(&account.client, &request.room_id)?;
         self.mark_room_focused(&account.account_key, room.room_id().to_string());
 
-        let response = room
-            .send(RoomMessageEventContent::text_plain(body))
+        let event_id = self
+            .timeline_registry
+            .send_live_message(
+                &account.account_key,
+                &room,
+                RoomMessageEventContent::text_plain(body).into(),
+            )
             .await
-            .map_err(|error| format!("Failed to send the room message: {error}"))?;
+            ?;
 
-        mark_room_as_read(&room, response.event_id.as_str()).await?;
+        self.timeline_registry
+            .mark_live_timeline_as_read(&account.account_key, &room)
+            .await?;
         self.mark_room_read_locally(
             &account.account_key,
             room.room_id().as_str(),
-            response.event_id.as_str(),
+            &event_id,
         );
 
-        Ok(SendRoomMessageResponse {
-            event_id: response.event_id.to_string(),
-        })
+        Ok(SendRoomMessageResponse { event_id })
     }
 
     pub async fn list_spaces(
@@ -757,6 +768,24 @@ impl ShellManager {
         }
 
         Ok((items, next_before))
+    }
+
+    async fn load_live_room_timeline(
+        &self,
+        account_key: &str,
+        room: &Room,
+        limit: u16,
+    ) -> Result<(Vec<RoomTimelineItem>, Option<String>), String> {
+        let items = self
+            .timeline_registry
+            .live_timeline_items(account_key, room, limit)
+            .await?;
+
+        if items.is_empty() {
+            return self.load_latest_room_timeline(room, limit).await;
+        }
+
+        Ok((items, Some(String::from("timeline-ui-live"))))
     }
 
     async fn load_paginated_room_timeline(

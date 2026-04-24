@@ -15,9 +15,8 @@
 
 use matrix_sdk::{
     Room,
-    room::{MessagesOptions, Receipts},
+    room::MessagesOptions,
     ruma::{
-        EventId,
         api::client::filter::RoomEventFilter,
         events::{
             AnySyncMessageLikeEvent, AnySyncTimelineEvent,
@@ -42,24 +41,6 @@ pub(super) async fn warm_room_recent_timeline(
     fetch_room_timeline_chunk(&room, target_limit, None)
         .await
         .map_err(|error| format!("Failed to warm the recent room timeline: {error}"))?;
-
-    Ok(())
-}
-
-pub(super) async fn mark_room_as_read(room: &Room, event_id: &str) -> Result<(), String> {
-    let event_id = EventId::parse(event_id)
-        .map_err(|error| format!("Invalid event id for read marker: {error}"))?;
-
-    // Keep the fully-read marker and the visible read receipt aligned so the
-    // client-side unread counters and the room's unread flag clear together.
-    room.send_multiple_receipts(
-        Receipts::new()
-            .fully_read_marker(Some(event_id.to_owned()))
-            .public_read_receipt(Some(event_id.to_owned()))
-            .private_read_receipt(Some(event_id.to_owned())),
-    )
-    .await
-    .map_err(|error| format!("Failed to update the room read marker: {error}"))?;
 
     Ok(())
 }

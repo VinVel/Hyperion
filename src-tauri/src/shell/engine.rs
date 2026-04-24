@@ -91,6 +91,35 @@ impl ShellTimelineRegistry {
             .collect())
     }
 
+    pub async fn ensure_live_timeline_window(
+        &self,
+        account_key: &str,
+        room: &Room,
+        visible_limit: u16,
+        fetch_limit: u16,
+    ) -> Result<(Vec<RoomTimelineItem>, bool), String> {
+        let timeline = self.live_timeline(account_key, room).await?;
+        let mut items = timeline.items().await;
+
+        if items.len() < usize::from(visible_limit) {
+            let _ = timeline
+                .paginate_backwards(fetch_limit)
+                .await
+                .map_err(|error| format!("Failed to bootstrap the live room timeline: {error}"))?;
+            items = timeline.items().await;
+        }
+
+        let shell_items = items
+            .iter()
+            .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
+            .collect::<Vec<_>>();
+        let len = shell_items.len();
+        let visible_limit = usize::from(visible_limit);
+        let start_index = len.saturating_sub(visible_limit);
+
+        Ok((shell_items[start_index..].to_vec(), start_index == 0))
+    }
+
     pub async fn paginate_live_timeline_backwards(
         &self,
         account_key: &str,

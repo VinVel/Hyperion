@@ -103,10 +103,6 @@ const TIMELINE_UI_PAGE_TOKEN_PREFIX: &str = "timeline-ui-page:";
 // Focused timelines need to carry their anchor event inside the opaque token so
 // later pagination requests can reopen the same TimelineFocus::Event view.
 const TIMELINE_UI_EVENT_PAGE_TOKEN_PREFIX: &str = "timeline-ui-event:";
-// The live timeline fallback still uses Matrix back-pagination internally when
-// a cached Timeline has not populated yet, but the frontend should never see
-// raw prev-batch tokens directly.
-const TIMELINE_BOOTSTRAP_PAGE_TOKEN_PREFIX: &str = "timeline-bootstrap:";
 // Command snapshots need a bounded page size when materializing the room-list
 // stream. Keep it large enough to cover realistic active accounts in one pass.
 const ROOM_LIST_SNAPSHOT_PAGE_SIZE: usize = 10_000;
@@ -760,52 +756,29 @@ impl ShellManager {
         Ok(hits)
     }
 
-    async fn load_latest_room_timeline(
-        &self,
-        room: &Room,
-        limit: u16,
-    ) -> Result<(Vec<RoomTimelineItem>, Option<String>), String> {
-        // Prefer the SDK event cache for the visible latest slice. It is the
-        // intended local observer for recent room history and avoids turning
-        // every room open into a network request.
-        let cached_items = cached_timeline_items(room).await?;
-        if cached_items.len() >= usize::from(limit) {
-            let items = cached_items[cached_items.len() - usize::from(limit)..].to_vec();
-            return Ok((
-                items,
-                room.last_prev_batch()
-                    .map(|prev_batch| self.bootstrap_timeline_page_token(&prev_batch)),
-            ));
-        }
-
-        let fetch_limit = limit.max(RECENT_TIMELINE_WARM_LIMIT);
-        let (mut items, next_before) = fetch_room_timeline_chunk(room, fetch_limit, None).await?;
-        if items.len() > usize::from(limit) {
-            items = items.split_off(items.len() - usize::from(limit));
-        }
-
-        Ok((
-            items,
-            next_before.map(|prev_batch| self.bootstrap_timeline_page_token(&prev_batch)),
-        ))
-    }
-
     async fn load_live_room_timeline(
         &self,
         account_key: &str,
         room: &Room,
         limit: u16,
     ) -> Result<(Vec<RoomTimelineItem>, Option<String>), String> {
-        let items = self
+        let (items, hit_start) = self
             .timeline_registry
-            .live_timeline_items(account_key, room, limit)
+            .ensure_live_timeline_window(
+                account_key,
+                room,
+                limit,
+                limit.max(RECENT_TIMELINE_WARM_LIMIT),
+            )
             .await?;
 
-        if items.is_empty() {
-            return self.load_latest_room_timeline(room, limit).await;
-        }
+        let next_before = if hit_start {
+            None
+        } else {
+            Some(self.timeline_page_token(1))
+        };
 
-        Ok((items, Some(self.timeline_page_token(1))))
+        Ok((items, next_before))
     }
 
     async fn load_paginated_room_timeline(
@@ -856,14 +829,6 @@ impl ShellManager {
             return Ok((items, next_before));
         }
 
-        if let Some(from) = before.and_then(Self::parse_bootstrap_timeline_page_token) {
-            let (items, next_before) = fetch_room_timeline_chunk(room, limit, Some(&from)).await?;
-            return Ok((
-                items,
-                next_before.map(|prev_batch| self.bootstrap_timeline_page_token(&prev_batch)),
-            ));
-        }
-
         Err(String::from("Unsupported timeline pagination token"))
     }
 
@@ -886,11 +851,6 @@ impl ShellManager {
         format!("{TIMELINE_UI_EVENT_PAGE_TOKEN_PREFIX}{encoded_event_id}:{page_index}")
     }
 
-    fn bootstrap_timeline_page_token(&self, prev_batch: &str) -> String {
-        let encoded_prev_batch = URL_SAFE_NO_PAD.encode(prev_batch.as_bytes());
-        format!("{TIMELINE_BOOTSTRAP_PAGE_TOKEN_PREFIX}{encoded_prev_batch}")
-    }
-
     fn parse_focused_timeline_page_token(token: &str) -> Option<(String, usize)> {
         let token = token.strip_prefix(TIMELINE_UI_EVENT_PAGE_TOKEN_PREFIX)?;
         let (encoded_event_id, page_index) = token.rsplit_once(':')?;
@@ -899,12 +859,6 @@ impl ShellManager {
         let page_index = page_index.parse::<usize>().ok()?;
 
         Some((event_id, page_index))
-    }
-
-    fn parse_bootstrap_timeline_page_token(token: &str) -> Option<String> {
-        let token = token.strip_prefix(TIMELINE_BOOTSTRAP_PAGE_TOKEN_PREFIX)?;
-        let prev_batch = URL_SAFE_NO_PAD.decode(token).ok()?;
-        String::from_utf8(prev_batch).ok()
     }
 
     fn mark_room_read_locally(&self, account_key: &str, room_id: &str, event_id: &str) {

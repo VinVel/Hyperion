@@ -27,6 +27,7 @@ use matrix_sdk::{
         events::room::message::RoomMessageEventContent,
     },
 };
+use tauri::async_runtime::JoinHandle;
 
 use crate::account::AccountManager;
 
@@ -118,6 +119,7 @@ pub struct ShellManager {
     sync_manager: ShellSyncManager,
     timeline_registry: ShellTimelineRegistry,
     recent_timeline_warm_state: Arc<RwLock<HashMap<String, u64>>>,
+    recent_timeline_warm_handles: Arc<RwLock<HashMap<String, JoinHandle<()>>>>,
     locally_read_room_state: Arc<RwLock<HashMap<String, String>>>,
 }
 
@@ -127,8 +129,31 @@ impl ShellManager {
             sync_manager: ShellSyncManager::new(),
             timeline_registry: ShellTimelineRegistry::new(),
             recent_timeline_warm_state: Arc::new(RwLock::new(HashMap::new())),
+            recent_timeline_warm_handles: Arc::new(RwLock::new(HashMap::new())),
             locally_read_room_state: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    pub async fn ensure_active_account_sync(
+        &self,
+        app: &tauri::AppHandle,
+        account_manager: &AccountManager,
+    ) -> Result<(), String> {
+        self.sync_manager
+            .ensure_started_for_manager(account_manager, app)
+            .await
+    }
+
+    pub async fn stop_account(&self, account_key: &str) {
+        self.stop_recent_timeline_warmups(account_key).await;
+        self.sync_manager.stop_account(account_key).await;
+        self.timeline_registry.clear_account(account_key).await;
+    }
+
+    pub async fn stop_all_accounts(&self) {
+        self.stop_all_recent_timeline_warmups().await;
+        self.sync_manager.stop_all_accounts().await;
+        self.timeline_registry.clear_all().await;
     }
 
     pub async fn list_room_threads(
@@ -231,6 +256,9 @@ impl ShellManager {
 
         let limit = request.limit.unwrap_or(DEFAULT_TIMELINE_LIMIT);
         let (items, next_before) = if request.before.is_none() {
+            self.timeline_registry
+                .subscribe_live_timeline_updates(app.clone(), &account.account_key, &room)
+                .await?;
             load_live_room_timeline(&self.timeline_registry, &account.account_key, &room, limit)
                 .await?
         } else {
@@ -318,6 +346,9 @@ impl ShellManager {
         };
         let room = resolve_room(&account.client, &request.room_id)?;
         self.mark_room_focused(&account.account_key, room.room_id().to_string());
+        self.timeline_registry
+            .subscribe_live_timeline_updates(app.clone(), &account.account_key, &room)
+            .await?;
 
         let event_id = self
             .timeline_registry
@@ -620,13 +651,71 @@ impl ShellManager {
             warm_state.insert(state_key.clone(), now);
         }
 
-        tauri::async_runtime::spawn(async move {
+        let handle = tauri::async_runtime::spawn(async move {
             if let Err(error) =
                 warm_room_recent_timeline(&client, &room_id, RECENT_TIMELINE_WARM_LIMIT).await
             {
                 eprintln!("Failed to warm recent room timeline for {room_id}: {error}");
             }
         });
+
+        self.recent_timeline_warm_handles
+            .write()
+            .expect("shell manager warm-handles lock poisoned")
+            .insert(state_key, handle);
+    }
+
+    async fn stop_recent_timeline_warmups(&self, account_key: &str) {
+        let account_prefix = format!("{account_key}::");
+        let removed_handles = {
+            let mut warm_handles = self
+                .recent_timeline_warm_handles
+                .write()
+                .expect("shell manager warm-handles lock poisoned");
+            let removed_keys = warm_handles
+                .keys()
+                .filter(|state_key| state_key.starts_with(&account_prefix))
+                .cloned()
+                .collect::<Vec<_>>();
+
+            removed_keys
+                .into_iter()
+                .filter_map(|state_key| warm_handles.remove(&state_key))
+                .collect::<Vec<_>>()
+        };
+
+        for handle in removed_handles {
+            handle.abort();
+            let _ = handle.await;
+        }
+
+        self.recent_timeline_warm_state
+            .write()
+            .expect("shell manager warm-state lock poisoned")
+            .retain(|state_key, _| !state_key.starts_with(&account_prefix));
+    }
+
+    async fn stop_all_recent_timeline_warmups(&self) {
+        let removed_handles = {
+            let mut warm_handles = self
+                .recent_timeline_warm_handles
+                .write()
+                .expect("shell manager warm-handles lock poisoned");
+            warm_handles
+                .drain()
+                .map(|(_, handle)| handle)
+                .collect::<Vec<_>>()
+        };
+
+        for handle in removed_handles {
+            handle.abort();
+            let _ = handle.await;
+        }
+
+        self.recent_timeline_warm_state
+            .write()
+            .expect("shell manager warm-state lock poisoned")
+            .clear();
     }
 
     async fn indexed_message_search(

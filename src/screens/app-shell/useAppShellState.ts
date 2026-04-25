@@ -15,7 +15,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   type AccountSummary,
   type AuthenticatedShellView,
@@ -39,8 +39,12 @@ import {
 
 const SHELL_SYNC_UPDATED_EVENT = 'hyperion://shell-sync-updated';
 
-// Debounce shell refresh events so rapid sync bursts do not thrash the UI.
-const shellSyncRefreshDebounceMilliseconds = 250;
+// Room-list sync can arrive in bursts, so collection refreshes need a modest
+// debounce to avoid rebuilding the whole shell too often.
+const shellSyncCollectionRefreshDebounceMilliseconds = 250;
+// Timeline-only updates should feel close to instant because they carry local
+// echoes and active-room messages from matrix-sdk-ui Timeline subscriptions.
+const shellSyncTimelineRefreshDebounceMilliseconds = 30;
 
 type ShellSyncUpdatedPayload = {
   account_key: string;
@@ -57,6 +61,11 @@ type TimelineJumpTarget = {
 type FeedbackMessage = {
   tone: 'success' | 'error' | 'info';
   text: string;
+};
+
+type AccountShellSelection = {
+  threadId: string | null;
+  spaceId: string | null;
 };
 
 type UseAppShellStateOptions = {
@@ -135,6 +144,7 @@ export default function useAppShellState({
   const [spaces, setSpaces] = useState<SpaceSummary[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
+  const [selectionAccountKey, setSelectionAccountKey] = useState(activeAccount.account_key);
   const [selectedRoomSummary, setSelectedRoomSummary] = useState<RoomSummary | null>(null);
   const [selectedTimeline, setSelectedTimeline] = useState<RoomTimeline | null>(null);
   const [timelineJumpTarget, setTimelineJumpTarget] = useState<TimelineJumpTarget | null>(null);
@@ -152,6 +162,8 @@ export default function useAppShellState({
   const [feedbackMessage, setFeedbackMessage] = useState<FeedbackMessage | null>(null);
   const [switchingAccountKey, setSwitchingAccountKey] = useState<string | null>(null);
   const [isLoadingShell, setIsLoadingShell] = useState(true);
+  const activeAccountKeyRef = useRef(activeAccount.account_key);
+  const accountSelectionsRef = useRef<Record<string, AccountShellSelection>>({});
 
   const refreshRoomCollections = useCallback(async () => {
     const [backendThreads, backendSpaces] = await Promise.all([
@@ -208,6 +220,41 @@ export default function useAppShellState({
   );
 
   useEffect(() => {
+    if (
+      activeAccountKeyRef.current !== activeAccount.account_key ||
+      selectionAccountKey !== activeAccount.account_key
+    ) {
+      return;
+    }
+
+    accountSelectionsRef.current[activeAccount.account_key] = {
+      threadId: selectedThreadId,
+      spaceId: selectedSpaceId,
+    };
+  }, [activeAccount.account_key, selectedSpaceId, selectedThreadId, selectionAccountKey]);
+
+  useEffect(() => {
+    if (activeAccountKeyRef.current === activeAccount.account_key) {
+      return;
+    }
+
+    const nextSelection = accountSelectionsRef.current[activeAccount.account_key] ?? {
+      threadId: null,
+      spaceId: null,
+    };
+
+    activeAccountKeyRef.current = activeAccount.account_key;
+    setSelectionAccountKey(activeAccount.account_key);
+    setSelectedThreadId(nextSelection.threadId);
+    setSelectedSpaceId(nextSelection.spaceId);
+    setSelectedRoomSummary(null);
+    setSelectedTimeline(null);
+    setTimelineJumpTarget(null);
+    setComposerValue('');
+    setIsLoadingOlderMessages(false);
+  }, [activeAccount.account_key]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadShellData() {
@@ -244,6 +291,10 @@ export default function useAppShellState({
   }, [activeAccount, refreshShellSnapshot]);
 
   useEffect(() => {
+    if (selectionAccountKey !== activeAccount.account_key) {
+      return;
+    }
+
     if (!selectedThreadId) {
       setSelectedRoomSummary(null);
       setSelectedTimeline(null);
@@ -289,15 +340,20 @@ export default function useAppShellState({
       cancelled = true;
     };
   }, [
+    activeAccount.account_key,
     refreshRoomCollections,
     refreshSelectedRoom,
+    selectionAccountKey,
     selectedThreadId,
     timelineJumpTarget,
   ]);
 
   useEffect(() => {
     let cancelled = false;
-    let refreshTimeoutId: number | null = null;
+    let collectionRefreshTimeoutId: number | null = null;
+    let timelineRefreshTimeoutId: number | null = null;
+    const pendingRoomIds = new Set<string>();
+    let pendingAmbiguousRoomListUpdate = false;
 
     const unlistenPromise = listen<ShellSyncUpdatedPayload>(
       SHELL_SYNC_UPDATED_EVENT,
@@ -306,30 +362,58 @@ export default function useAppShellState({
           return;
         }
 
-        if (refreshTimeoutId !== null) {
-          window.clearTimeout(refreshTimeoutId);
+        for (const roomId of event.payload.changed_room_ids) {
+          pendingRoomIds.add(roomId);
+        }
+        pendingAmbiguousRoomListUpdate =
+          pendingAmbiguousRoomListUpdate ||
+          (event.payload.room_list_may_have_changed &&
+            event.payload.changed_room_ids.length === 0);
+
+        if (event.payload.room_list_may_have_changed) {
+          if (collectionRefreshTimeoutId !== null) {
+            window.clearTimeout(collectionRefreshTimeoutId);
+          }
+
+          collectionRefreshTimeoutId = window.setTimeout(() => {
+            void refreshRoomCollections().catch((error) => {
+              if (!cancelled) {
+                setFeedbackMessage({
+                  tone: 'error',
+                  text: getErrorMessage(error),
+                });
+              }
+            });
+          }, shellSyncCollectionRefreshDebounceMilliseconds);
         }
 
-        refreshTimeoutId = window.setTimeout(() => {
+        if (timelineRefreshTimeoutId !== null) {
+          window.clearTimeout(timelineRefreshTimeoutId);
+        }
+
+        timelineRefreshTimeoutId = window.setTimeout(() => {
           if (cancelled) {
             return;
           }
 
-          const roomIds = new Set(event.payload.changed_room_ids);
+          const selectedRoomMayHaveChanged =
+            selectedThreadId &&
+            (pendingRoomIds.has(selectedThreadId) || pendingAmbiguousRoomListUpdate);
 
-          void (event.payload.room_list_may_have_changed
-            ? refreshRoomCollections()
-            : Promise.resolve())
-            .then(async () => {
-              if (
-                activeView === 'messages' &&
-                selectedThreadId &&
-                timelineJumpTarget === null &&
-                roomIds.has(selectedThreadId)
-              ) {
-                await refreshSelectedRoom(selectedThreadId, null);
-              }
-            })
+          pendingRoomIds.clear();
+          pendingAmbiguousRoomListUpdate = false;
+
+          if (
+            activeView !== 'messages' ||
+            !selectedRoomMayHaveChanged ||
+            timelineJumpTarget !== null ||
+            !selectedThreadId
+          ) {
+            return;
+          }
+
+          void refreshSelectedRoom(selectedThreadId, null)
+            .then(() => refreshRoomCollections())
             .catch((error) => {
               if (!cancelled) {
                 setFeedbackMessage({
@@ -338,14 +422,17 @@ export default function useAppShellState({
                 });
               }
             });
-        }, shellSyncRefreshDebounceMilliseconds);
+        }, shellSyncTimelineRefreshDebounceMilliseconds);
       },
     );
 
     return () => {
       cancelled = true;
-      if (refreshTimeoutId !== null) {
-        window.clearTimeout(refreshTimeoutId);
+      if (collectionRefreshTimeoutId !== null) {
+        window.clearTimeout(collectionRefreshTimeoutId);
+      }
+      if (timelineRefreshTimeoutId !== null) {
+        window.clearTimeout(timelineRefreshTimeoutId);
       }
       void unlistenPromise.then((unlisten) => unlisten());
     };

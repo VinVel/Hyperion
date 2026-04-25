@@ -48,6 +48,9 @@ const SESSION_CUSTOM_VALUE_KEY: &[u8] = b"hyperion.account.session.v1";
 const ACCOUNT_METADATA_CUSTOM_VALUE_KEY: &[u8] = b"hyperion.account.metadata.v1";
 const STORE_KEY_PREFIX: &str = "matrix-store-key";
 const STORE_KEY_LENGTH: usize = 32;
+// Fresh post-sign-out stores need a short random suffix when Windows still
+// holds the old SQLite directory, preventing reuse with a newly generated key.
+const REPLACEMENT_STORE_ID_RANDOM_BYTES: usize = 8;
 
 struct ManagedAccount {
     // Each logged-in account owns its own Matrix client instance.
@@ -224,13 +227,14 @@ impl AccountManager {
             .ok_or_else(|| String::from("Active account store directory has no valid store id"))?
             .to_owned();
 
+        secure_storage::delete_secret(app, &Self::store_key_entry_id(&store_id))?;
         self.release_accounts_for_store_dir(&store_dir);
-        Self::remove_dir_with_retries(
+        self.persist_account_store_metadata().await?;
+
+        let _ = Self::remove_dir_with_retries(
             store_root_dir,
             "Failed to remove the signed-out account store directory",
-        )?;
-        secure_storage::delete_secret(app, &Self::store_key_entry_id(&store_id))?;
-        self.persist_account_store_metadata().await?;
+        );
 
         self.active_account(app).await
     }
@@ -360,8 +364,15 @@ impl AccountManager {
         // know the final Matrix user id returned by the server. This keeps each
         // account in its own sqlite database, which is required for
         // multi-account support with the Matrix Rust SDK.
-        let store_id = Self::account_store_id(homeserver_url, account_hint);
-        let account_root = accounts_root.join(&store_id);
+        let mut store_id = Self::account_store_id(homeserver_url, account_hint);
+        let mut account_root = accounts_root.join(&store_id);
+
+        if account_root.exists() && !self.store_dir_is_managed(&account_root.join("store")) {
+            let _ = secure_storage::delete_secret(app, &Self::store_key_entry_id(&store_id));
+            store_id = Self::replacement_account_store_id(&store_id);
+            account_root = accounts_root.join(&store_id);
+        }
+
         let store_dir = account_root.join("store");
         let cache_dir = account_root.join("cache");
 
@@ -376,6 +387,14 @@ impl AccountManager {
             cache_dir,
             homeserver_url: homeserver_url.to_owned(),
         })
+    }
+
+    fn store_dir_is_managed(&self, store_dir: &Path) -> bool {
+        self.accounts
+            .read()
+            .expect("account manager accounts lock poisoned")
+            .values()
+            .any(|account| account.store_dir == store_dir)
     }
 
     async fn login_client_with_recovery(
@@ -753,7 +772,7 @@ impl AccountManager {
     }
 
     fn remove_dir_with_retries(path: &Path, failure_context: &str) -> Result<(), String> {
-        const RESET_RETRY_ATTEMPTS: usize = 20;
+        const RESET_RETRY_ATTEMPTS: usize = 50;
         const RESET_RETRY_DELAY: Duration = Duration::from_millis(100);
 
         for attempt in 0..RESET_RETRY_ATTEMPTS {
@@ -819,6 +838,7 @@ impl AccountManager {
                     "Skipping persisted account store {} because its secure encryption key is missing",
                     storage.store_id
                 );
+                Self::prune_incomplete_store(app, &storage, "its secure encryption key is missing");
                 continue;
             };
 
@@ -835,6 +855,10 @@ impl AccountManager {
                     eprintln!(
                         "Skipping persisted account store {} because the Matrix client could not be rebuilt: {error}",
                         storage.store_id
+                    );
+                    let _ = secure_storage::delete_secret(
+                        app,
+                        &Self::store_key_entry_id(&storage.store_id),
                     );
                     continue;
                 }
@@ -1123,6 +1147,13 @@ impl AccountManager {
         let homeserver = URL_SAFE_NO_PAD.encode(homeserver_url.as_bytes());
         let account = URL_SAFE_NO_PAD.encode(account_hint.as_bytes());
         format!("v1__hs_{homeserver}__acct_{account}")
+    }
+
+    fn replacement_account_store_id(base_store_id: &str) -> String {
+        let mut random_bytes = [0_u8; REPLACEMENT_STORE_ID_RANDOM_BYTES];
+        OsRng.fill_bytes(&mut random_bytes);
+        let suffix = URL_SAFE_NO_PAD.encode(random_bytes);
+        format!("{base_store_id}__fresh_{suffix}")
     }
 
     fn decode_homeserver_url_from_store_id(store_id: &str) -> Option<String> {

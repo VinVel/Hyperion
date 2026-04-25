@@ -40,9 +40,14 @@ use tauri_plugin_mobile_webview_overlay as mobile_overlay_webview;
 async fn login_account(
     app: AppHandle,
     manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
     request: LoginRequest,
 ) -> Result<AccountSummary, String> {
-    manager.login(&app, request).await
+    let account = manager.login(&app, request).await?;
+    shell_manager
+        .ensure_active_account_sync(&app, &manager)
+        .await?;
+    Ok(account)
 }
 
 #[tauri::command]
@@ -57,9 +62,13 @@ async fn list_accounts(
 async fn switch_active_account(
     app: AppHandle,
     manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
     account_key: String,
 ) -> Result<(), String> {
-    manager.switch_active_account(&app, &account_key).await
+    manager.switch_active_account(&app, &account_key).await?;
+    shell_manager
+        .ensure_active_account_sync(&app, &manager)
+        .await
 }
 
 #[tauri::command]
@@ -74,8 +83,23 @@ async fn active_account(
 async fn sign_out_active_account(
     app: AppHandle,
     manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
 ) -> Result<Option<AccountSummary>, String> {
-    manager.sign_out_active_account(&app).await
+    let active_account = manager.active_account(&app).await?;
+    if let Some(account) = active_account {
+        shell_manager.stop_account(&account.account_key).await;
+    }
+
+    let next_account = manager.sign_out_active_account(&app).await?;
+    if next_account.is_some() {
+        shell_manager
+            .ensure_active_account_sync(&app, &manager)
+            .await?;
+    } else {
+        shell_manager.stop_all_accounts().await;
+    }
+
+    Ok(next_account)
 }
 
 #[tauri::command]

@@ -13,13 +13,21 @@
  * Project home: hyperion.velcore.net
  */
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
-use futures_util::{StreamExt, pin_mut};
-use matrix_sdk::Room;
-use matrix_sdk_ui::room_list_service::{RoomListService, filters};
+use futures_util::{
+    StreamExt,
+    future::{Either, select},
+    pin_mut,
+};
+use matrix_sdk::{Room, sleep::sleep};
+use matrix_sdk_ui::room_list_service::{RoomListLoadingState, RoomListService, filters};
 
 use super::{super::sync::ShellSyncManager, ROOM_LIST_SNAPSHOT_PAGE_SIZE, ShellRoomListKind};
+
+// The first shell load may race SyncService startup. Wait briefly for the SDK
+// room list to report that an initial sync has populated the list metadata.
+const ROOM_LIST_INITIAL_LOAD_TIMEOUT_MS: u64 = 3_000;
 
 pub(super) async fn snapshot_room_list_for_account(
     sync_manager: &ShellSyncManager,
@@ -41,6 +49,9 @@ async fn snapshot_room_list(
         .all_rooms()
         .await
         .map_err(|error| format!("Failed to access the shell room list: {error}"))?;
+
+    wait_for_room_list_initial_load(&room_list).await;
+
     let (entries, entries_controller) =
         room_list.entries_with_dynamic_adapters(ROOM_LIST_SNAPSHOT_PAGE_SIZE);
 
@@ -80,4 +91,24 @@ async fn snapshot_room_list(
             _ => None,
         })
         .unwrap_or_default())
+}
+
+async fn wait_for_room_list_initial_load(room_list: &matrix_sdk_ui::room_list_service::RoomList) {
+    let mut loading_state = room_list.loading_state();
+
+    let wait_for_loaded = async {
+        while let Some(state) = loading_state.next().await {
+            if matches!(state, RoomListLoadingState::Loaded { .. }) {
+                break;
+            }
+        }
+    };
+
+    pin_mut!(wait_for_loaded);
+    let timeout = sleep(Duration::from_millis(ROOM_LIST_INITIAL_LOAD_TIMEOUT_MS));
+    pin_mut!(timeout);
+
+    match select(wait_for_loaded, timeout).await {
+        Either::Left((_, _)) | Either::Right((_, _)) => (),
+    }
 }

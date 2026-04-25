@@ -1,12 +1,13 @@
 // @ts-check
 
 import js from '@eslint/js';
-import { defineConfig } from 'eslint/config';
+import { defineConfig, globalIgnores } from 'eslint/config';
 import tseslint from 'typescript-eslint';
 import reactPlugin from 'eslint-plugin-react';
 import unusedImports from "eslint-plugin-unused-imports";
 
 export default defineConfig([
+  globalIgnores(["**/node_modules/", "**/dist", "**/target"]),
   js.configs.recommended,
   ...tseslint.configs.recommended,
 

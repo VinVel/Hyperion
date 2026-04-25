@@ -88,7 +88,7 @@ fn normalize_theme_preset(
     };
 
     supported_presets
-        .into_iter()
+        .iter()
         .map(String::as_str)
         .find(|preset| *preset == candidate)
         .unwrap_or(resolved_default_preset.as_str())

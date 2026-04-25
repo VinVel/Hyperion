@@ -22,10 +22,10 @@ use matrix_sdk::Room;
 
 use super::{
     room::{
-        current_latest_event_id, local_room_state_key, persisted_read_anchor_event_id,
-        unread_message_count,
+        current_latest_event_id, current_latest_event_is_own, local_room_state_key,
+        persisted_read_anchor_event_id, unread_message_count,
     },
-    timeline::count_unread_messages_since,
+    timeline::count_recent_unread_messages_since,
 };
 
 pub(super) fn mark_room_read_locally(
@@ -48,6 +48,10 @@ pub(super) async fn unread_message_count_for_shell(
     account_key: &str,
     room: &Room,
 ) -> u64 {
+    if current_latest_event_is_own(room) {
+        return 0;
+    }
+
     let Some(read_anchor_event_id) =
         read_anchor_event_id(locally_read_room_state, account_key, room).await
     else {
@@ -62,7 +66,8 @@ pub(super) async fn unread_message_count_for_shell(
         return 0;
     }
 
-    if let Some(local_unread_count) = count_unread_messages_since(room, &read_anchor_event_id).await
+    if let Some(local_unread_count) =
+        count_recent_unread_messages_since(room, &read_anchor_event_id).await
     {
         return local_unread_count.max(1);
     }

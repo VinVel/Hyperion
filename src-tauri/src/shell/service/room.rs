@@ -43,6 +43,25 @@ pub(super) fn current_latest_event_id(room: &Room) -> Option<String> {
         .and_then(|event| event.event_id().map(|event_id| event_id.to_string()))
 }
 
+pub(super) fn current_latest_event_is_own(room: &Room) -> bool {
+    let Some(latest_event) = room.latest_event() else {
+        return false;
+    };
+
+    let Ok(event) = latest_event.event().raw().deserialize() else {
+        return false;
+    };
+
+    match event {
+        matrix_sdk::ruma::events::AnySyncTimelineEvent::MessageLike(message_like) => {
+            message_like.sender() == room.own_user_id()
+        }
+        matrix_sdk::ruma::events::AnySyncTimelineEvent::State(state) => {
+            state.sender() == room.own_user_id()
+        }
+    }
+}
+
 pub(super) fn latest_activity_unix_ms(room: &Room) -> u64 {
     room.new_latest_event()
         .timestamp()

@@ -27,6 +27,13 @@ use matrix_sdk::{
 
 use super::{super::types::RoomTimelineItem, room::resolve_room};
 
+// Unread badges need a recent history fallback when the room list has updated
+// but the local event cache for an unfocused room is still too cold to count.
+const UNREAD_COUNT_BACKFILL_LIMIT: u16 = 80;
+// Keep unread backfill bounded; if the read anchor is older than this window,
+// fall back to the SDK aggregate instead of scanning deep history in room lists.
+const UNREAD_COUNT_BACKFILL_MAX_PAGES: usize = 2;
+
 pub(super) async fn warm_room_recent_timeline(
     client: &matrix_sdk::Client,
     room_id: &str,
@@ -56,6 +63,38 @@ pub(super) async fn count_unread_messages_since(room: &Room, event_id: &str) -> 
             .filter(|item| !item.is_own_message)
             .count() as u64,
     )
+}
+
+pub(super) async fn count_recent_unread_messages_since(room: &Room, event_id: &str) -> Option<u64> {
+    if let Some(cached_count) = count_unread_messages_since(room, event_id).await {
+        return Some(cached_count);
+    }
+
+    let mut from = None;
+    let mut unread_count = 0_u64;
+
+    for _ in 0..UNREAD_COUNT_BACKFILL_MAX_PAGES {
+        let (items, next_from) =
+            fetch_room_timeline_chunk(room, UNREAD_COUNT_BACKFILL_LIMIT, from.as_deref())
+                .await
+                .ok()?;
+
+        if let Some(read_event_index) = items.iter().position(|item| item.event_id == event_id) {
+            unread_count += items
+                .iter()
+                .skip(read_event_index + 1)
+                .filter(|item| !item.is_own_message)
+                .count() as u64;
+            return Some(unread_count);
+        }
+
+        unread_count += items.iter().filter(|item| !item.is_own_message).count() as u64;
+
+        let next_from = next_from?;
+        from = Some(next_from);
+    }
+
+    None
 }
 
 pub(super) async fn cached_timeline_item_count(room: &Room) -> Option<usize> {

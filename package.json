@@ -14,7 +14,7 @@
     "@razein97/tauri-plugin-i18n": "^2.0.1",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-opener": "^2.5.3",
-    "lucide-react": "^1.9.0",
+    "lucide-react": "^1.11.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },

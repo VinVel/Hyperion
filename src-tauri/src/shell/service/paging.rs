@@ -63,7 +63,7 @@ pub(super) async fn load_paginated_room_timeline(
     if let Some((event_id, page_index)) = before.and_then(parse_focused_timeline_page_token) {
         let owned_event_id = EventId::parse(&event_id)
             .map_err(|error| format!("Invalid focused event id: {error}"))?
-            .to_owned();
+            .clone();
         let (items, hit_start) = timeline_registry
             .paginate_focused_timeline_backwards(
                 account_key,

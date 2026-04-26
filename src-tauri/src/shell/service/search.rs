@@ -108,10 +108,13 @@ pub(super) fn first_visible_grapheme(value: &str) -> Option<String> {
 // Shell timestamps only need a coarse "now" anchor for relative labels and
 // warmup throttling, so a simple system-clock read is sufficient here.
 pub(super) fn now_unix_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
+    u64::try_from(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis(),
+    )
+    .unwrap_or(u64::MAX)
 }
 
 pub(super) fn relative_time_label(timestamp_unix_ms: u64) -> String {

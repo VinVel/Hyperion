@@ -16,7 +16,6 @@
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, RwLock},
-    time::Duration,
 };
 
 use matrix_sdk::{
@@ -97,7 +96,7 @@ const RECENT_TIMELINE_WARM_LIMIT: u16 = 80;
 const RECENT_TIMELINE_WARM_ROOM_COUNT: usize = 6;
 // Rewarm infrequently enough to avoid churn, but often enough that active rooms
 // keep a recent local window available across normal shell navigation.
-const RECENT_TIMELINE_REWARM_INTERVAL_MS: u64 = Duration::from_secs(10 * 60).as_millis() as u64;
+const RECENT_TIMELINE_REWARM_INTERVAL_MS: u64 = 10 * 60 * 1_000;
 // Command snapshots need a bounded page size when materializing the room-list
 // stream. Keep it large enough to cover realistic active accounts in one pass.
 const ROOM_LIST_SNAPSHOT_PAGE_SIZE: usize = 10_000;
@@ -213,7 +212,7 @@ impl ShellManager {
             return Err(String::from("No active account is available"));
         };
         let room = resolve_room(&account.client, &request.room_id)?;
-        self.mark_room_focused(&account.account_key, room.room_id().to_string());
+        self.mark_room_focused(&account.account_key, room.room_id().as_str());
 
         let title = room_title(&room).await?;
         let is_direct = room.is_direct().await.unwrap_or(false);
@@ -247,10 +246,10 @@ impl ShellManager {
             return Err(String::from("No active account is available"));
         };
         let room = resolve_room(&account.client, &request.room_id)?;
-        self.mark_room_focused(&account.account_key, room.room_id().to_string());
+        self.mark_room_focused(&account.account_key, room.room_id().as_str());
         self.schedule_room_timeline_warmup(
             account.client.clone(),
-            account.account_key.clone(),
+            &account.account_key,
             room.room_id().to_string(),
         );
 
@@ -308,10 +307,10 @@ impl ShellManager {
             return Err(String::from("No active account is available"));
         };
         let room = resolve_room(&account.client, &request.room_id)?;
-        self.mark_room_focused(&account.account_key, room.room_id().to_string());
+        self.mark_room_focused(&account.account_key, room.room_id().as_str());
         let event_id = EventId::parse(&request.event_id)
             .map_err(|error| format!("Invalid event id: {error}"))?
-            .to_owned();
+            .clone();
         let context_limit = request.context_limit.unwrap_or(DEFAULT_EVENT_CONTEXT_LIMIT);
         let items = self
             .timeline_registry
@@ -345,7 +344,7 @@ impl ShellManager {
             return Err(String::from("No active account is available"));
         };
         let room = resolve_room(&account.client, &request.room_id)?;
-        self.mark_room_focused(&account.account_key, room.room_id().to_string());
+        self.mark_room_focused(&account.account_key, room.room_id().as_str());
         self.timeline_registry
             .subscribe_live_timeline_updates(app.clone(), &account.account_key, &room)
             .await?;
@@ -403,6 +402,7 @@ impl ShellManager {
         Ok(spaces)
     }
 
+    #[allow(clippy::too_many_lines)]
     pub async fn global_search(
         &self,
         app: &tauri::AppHandle,
@@ -592,10 +592,9 @@ impl ShellManager {
             activity_label,
             accent_label: first_visible_grapheme(&name),
             is_official: Some(
-                room.room_id()
-                    .server_name()
-                    .map(|server_name| fallback_homeserver_url.contains(server_name.as_str()))
-                    .unwrap_or(false),
+                room.room_id().server_name().is_some_and(|server_name| {
+                    fallback_homeserver_url.contains(server_name.as_str())
+                }),
             ),
         })
     }
@@ -624,14 +623,14 @@ impl ShellManager {
             .into_iter()
             .take(RECENT_TIMELINE_WARM_ROOM_COUNT)
         {
-            self.schedule_room_timeline_warmup(client.clone(), account_key.to_owned(), room_id);
+            self.schedule_room_timeline_warmup(client.clone(), account_key, room_id);
         }
     }
 
     fn schedule_room_timeline_warmup(
         &self,
         client: matrix_sdk::Client,
-        account_key: String,
+        account_key: &str,
         room_id: String,
     ) {
         let now = now_unix_ms();
@@ -842,8 +841,8 @@ impl ShellManager {
         Ok(hits)
     }
 
-    fn mark_room_focused(&self, account_key: &str, _room_id: String) {
-        self.sync_manager.touch_focused_room(account_key, &_room_id);
+    fn mark_room_focused(&self, account_key: &str, room_id: &str) {
+        self.sync_manager.touch_focused_room(account_key, room_id);
     }
 
     async fn server_backed_message_search(

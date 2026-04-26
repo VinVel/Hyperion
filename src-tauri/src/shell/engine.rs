@@ -407,8 +407,7 @@ fn timeline_item_to_shell_item(
     };
     let event_id = event
         .event_id()
-        .map(ToString::to_string)
-        .unwrap_or_else(|| event.identifier().to_string());
+        .map_or_else(|| event.identifier().to_string(), ToString::to_string);
 
     Some(RoomTimelineItem {
         event_id,

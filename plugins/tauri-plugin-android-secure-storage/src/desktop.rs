@@ -19,8 +19,8 @@ use tauri::{AppHandle, Runtime, plugin::PluginApi};
 pub fn init<R: Runtime, C: DeserializeOwned>(
     app: &AppHandle<R>,
     _api: PluginApi<R, C>,
-) -> crate::Result<AndroidSecureStorage<R>> {
-    Ok(AndroidSecureStorage(app.clone()))
+) -> AndroidSecureStorage<R> {
+    AndroidSecureStorage(app.clone())
 }
 
 /// Access to the android-secure-storage APIs.
@@ -28,14 +28,17 @@ pub struct AndroidSecureStorage<R: Runtime>(AppHandle<R>);
 
 impl<R: Runtime> AndroidSecureStorage<R> {
     pub fn get_secret(&self, _key: &str) -> crate::Result<Option<Vec<u8>>> {
+        let _ = &self.0;
         Err(crate::Error::UnsupportedPlatform)
     }
 
     pub fn set_secret(&self, _key: &str, _value: &[u8]) -> crate::Result<()> {
+        let _ = &self.0;
         Err(crate::Error::UnsupportedPlatform)
     }
 
     pub fn delete_secret(&self, _key: &str) -> crate::Result<()> {
+        let _ = &self.0;
         Err(crate::Error::UnsupportedPlatform)
     }
 }

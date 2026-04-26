@@ -188,8 +188,7 @@ pub(super) async fn room_title(room: &Room) -> Result<String, String> {
 
     Ok(room
         .canonical_alias()
-        .map(|alias| alias.to_string())
-        .unwrap_or_else(|| room.room_id().to_string()))
+        .map_or_else(|| room.room_id().to_string(), |alias| alias.to_string()))
 }
 
 pub(super) fn participant_label(room: &Room, is_direct: bool) -> String {
@@ -221,16 +220,16 @@ pub(super) fn unread_message_count(room: &Room) -> u64 {
 }
 
 pub(super) fn homeserver_label(room: &Room, fallback_homeserver_url: &str) -> String {
-    room.room_id()
-        .server_name()
-        .map(|server_name| server_name.to_string())
-        .unwrap_or_else(|| {
+    room.room_id().server_name().map_or_else(
+        || {
             fallback_homeserver_url
                 .trim_start_matches("https://")
                 .trim_start_matches("http://")
                 .trim_end_matches('/')
                 .to_owned()
-        })
+        },
+        ToString::to_string,
+    )
 }
 
 pub(super) async fn can_send_messages(room: &Room) -> bool {

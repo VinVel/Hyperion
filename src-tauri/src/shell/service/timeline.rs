@@ -175,8 +175,7 @@ pub(super) fn timeline_item_from_timeline_event(
         body,
         timestamp_unix_ms: event
             .timestamp()
-            .map(|timestamp| u64::from(timestamp.0))
-            .unwrap_or(0),
+            .map_or(0, |timestamp| u64::from(timestamp.0)),
         is_edited: Some(is_edited),
         is_own_message: sender_id == own_user_id.as_str(),
     })
@@ -204,7 +203,7 @@ fn message_fields_from_sync_event(
                     .content
                     .relates_to
                     .as_ref()
-                    .and_then(|relation| relation.rel_type())
+                    .and_then(matrix_sdk::ruma::events::room::message::Relation::rel_type)
                     .is_some_and(|relation_type| {
                         relation_type
                             == matrix_sdk::ruma::events::relation::RelationType::Replacement

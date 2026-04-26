@@ -12,6 +12,7 @@
  *
  * Project home: hyperion.velcore.net
  */
+#![warn(clippy::pedantic)]
 
 mod account;
 mod settings;
@@ -235,6 +236,7 @@ async fn open_mobile_overlay_webview(
 }
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 fn get_theme_preset(
     app: AppHandle,
     supported_presets: Vec<String>,
@@ -244,6 +246,7 @@ fn get_theme_preset(
 }
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 fn set_theme_preset(
     app: AppHandle,
     preset: String,
@@ -254,16 +257,24 @@ fn set_theme_preset(
 }
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 fn get_theme_mode(app: AppHandle) -> Result<String, String> {
     load_theme_mode(&app)
 }
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 fn set_theme_mode(app: AppHandle, mode: String) -> Result<String, String> {
     save_theme_mode(&app, &mode)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// Runs the Tauri application.
+///
+/// # Panics
+///
+/// Panics if Tauri fails to initialize or the application runtime exits with an
+/// unrecoverable error.
 pub fn run() {
     tauri::Builder::default()
         .manage(AccountManager::new())

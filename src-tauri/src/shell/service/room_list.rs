@@ -109,6 +109,6 @@ async fn wait_for_room_list_initial_load(room_list: &matrix_sdk_ui::room_list_se
     pin_mut!(timeout);
 
     match select(wait_for_loaded, timeout).await {
-        Either::Left((_, _)) | Either::Right((_, _)) => (),
+        Either::Left(((), _)) | Either::Right(((), _)) => (),
     }
 }

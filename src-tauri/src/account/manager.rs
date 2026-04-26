@@ -54,7 +54,7 @@ const REPLACEMENT_STORE_ID_RANDOM_BYTES: usize = 8;
 
 struct ManagedAccount {
     // Each logged-in account owns its own Matrix client instance.
-    _client: Client,
+    client: Client,
     user_id: String,
     homeserver_url: String,
     store_dir: PathBuf,
@@ -296,7 +296,7 @@ impl AccountManager {
         Ok(Some(AccountClientSnapshot {
             account_key,
             homeserver_url: account.homeserver_url.clone(),
-            client: account._client.clone(),
+            client: account.client.clone(),
         }))
     }
 
@@ -342,7 +342,7 @@ impl AccountManager {
                 self.register_with_matrix_sdk(app, homeserver, request)
                     .await
             }
-            RegistrationFlow::ExternalLink => self.open_external_registration(homeserver),
+            RegistrationFlow::ExternalLink => Self::open_external_registration(homeserver),
             RegistrationFlow::InfoOnly => Ok(RegistrationOutcome::InformationOnly {
                 homeserver,
                 message: String::from(
@@ -358,23 +358,23 @@ impl AccountManager {
         homeserver_url: &str,
         account_hint: &str,
     ) -> Result<AccountStorageLocation, String> {
-        let accounts_root = self.accounts_root_dir(app)?;
+        let storage_parent_dir = Self::accounts_root_dir(app)?;
 
         // Homeserver + account hint makes the on-disk store stable before we
         // know the final Matrix user id returned by the server. This keeps each
         // account in its own sqlite database, which is required for
         // multi-account support with the Matrix Rust SDK.
         let mut store_id = Self::account_store_id(homeserver_url, account_hint);
-        let mut account_root = accounts_root.join(&store_id);
+        let mut store_root_dir = storage_parent_dir.join(&store_id);
 
-        if account_root.exists() && !self.store_dir_is_managed(&account_root.join("store")) {
+        if store_root_dir.exists() && !self.store_dir_is_managed(&store_root_dir.join("store")) {
             let _ = secure_storage::delete_secret(app, &Self::store_key_entry_id(&store_id));
             store_id = Self::replacement_account_store_id(&store_id);
-            account_root = accounts_root.join(&store_id);
+            store_root_dir = storage_parent_dir.join(&store_id);
         }
 
-        let store_dir = account_root.join("store");
-        let cache_dir = account_root.join("cache");
+        let store_dir = store_root_dir.join("store");
+        let cache_dir = store_root_dir.join("cache");
 
         fs::create_dir_all(&store_dir)
             .map_err(|err| format!("Failed to create account store directory: {err}"))?;
@@ -493,7 +493,7 @@ impl AccountManager {
                 homeserver_url: account.homeserver_url.clone(),
                 is_active: true,
             },
-            account._client.clone(),
+            account.client.clone(),
             account.store_dir.clone(),
         ))
     }
@@ -521,7 +521,7 @@ impl AccountManager {
         match Self::perform_registration(&client, &request).await {
             Ok(_) => {}
             Err(error) if error.as_uiaa_response().is_some() => {
-                return self.handle_uiaa_registration_requirement(homeserver, error);
+                return Self::handle_uiaa_registration_requirement(homeserver, &error);
             }
             Err(error) => {
                 return Err(format!("Registration failed: {error}"));
@@ -571,7 +571,6 @@ impl AccountManager {
     }
 
     fn open_external_registration(
-        &self,
         homeserver: HomeserverDirectoryEntry,
     ) -> Result<RegistrationOutcome, String> {
         let reg_link = homeserver.reg_link.clone().ok_or_else(|| {
@@ -585,12 +584,11 @@ impl AccountManager {
     }
 
     fn handle_uiaa_registration_requirement(
-        &self,
         homeserver: HomeserverDirectoryEntry,
-        error: MatrixError,
+        error: &MatrixError,
     ) -> Result<RegistrationOutcome, String> {
         if homeserver.reg_link.is_some() {
-            return self.open_external_registration(homeserver);
+            return Self::open_external_registration(homeserver);
         }
 
         Ok(RegistrationOutcome::InformationOnly {
@@ -681,7 +679,7 @@ impl AccountManager {
         accounts.insert(
             account_key.clone(),
             ManagedAccount {
-                _client: client,
+                client,
                 user_id: user_id.clone(),
                 homeserver_url: homeserver_url.clone(),
                 store_dir,
@@ -695,12 +693,13 @@ impl AccountManager {
         if active_account.is_none() {
             *active_account = Some(account_key.clone());
         }
+        let is_active = active_account.as_deref() == Some(account_key.as_str());
 
         AccountSummary {
-            account_key: account_key.clone(),
+            account_key,
             user_id,
             homeserver_url,
-            is_active: active_account.as_deref() == Some(account_key.as_str()),
+            is_active,
         }
     }
 
@@ -744,7 +743,7 @@ impl AccountManager {
             && homeserver.reg_link.is_some()
             && matches!(
                 homeserver.reg_method.as_deref(),
-                Some("SSO") | Some("In-house Element") | Some("Application Form")
+                Some("SSO" | "In-house Element" | "Application Form")
             )
         {
             RegistrationFlow::ExternalLink
@@ -828,7 +827,7 @@ impl AccountManager {
     }
 
     async fn restore_accounts_state(&self, app: &AppHandle) -> Result<(), String> {
-        let discovered_stores = self.discover_account_stores(app)?;
+        let discovered_stores = Self::discover_account_stores(app)?;
         let mut restored_accounts = HashMap::new();
         let mut active_account_key = None;
 
@@ -864,13 +863,10 @@ impl AccountManager {
                 }
             };
 
-            let metadata = match Self::load_account_metadata(&client).await? {
-                Some(metadata) => metadata,
-                None => {
-                    drop(client);
-                    Self::prune_incomplete_store(app, &storage, "its metadata is missing");
-                    continue;
-                }
+            let Some(metadata) = Self::load_account_metadata(&client).await? else {
+                drop(client);
+                Self::prune_incomplete_store(app, &storage, "its metadata is missing");
+                continue;
             };
 
             let Some(session) = Self::load_session(&client).await? else {
@@ -894,7 +890,7 @@ impl AccountManager {
             restored_accounts.insert(
                 metadata.user_id.clone(),
                 ManagedAccount {
-                    _client: client,
+                    client,
                     user_id: metadata.user_id,
                     homeserver_url: metadata.homeserver_url,
                     store_dir: storage.store_dir,
@@ -981,7 +977,7 @@ impl AccountManager {
                 .iter()
                 .map(|(account_key, account)| {
                     (
-                        account._client.clone(),
+                        account.client.clone(),
                         StoredAccountMetadata {
                             user_id: account.user_id.clone(),
                             homeserver_url: account.homeserver_url.clone(),
@@ -1060,11 +1056,8 @@ impl AccountManager {
             .map_err(|error| format!("Failed to parse persisted account metadata: {error}"))
     }
 
-    fn discover_account_stores(
-        &self,
-        app: &AppHandle,
-    ) -> Result<Vec<AccountStorageLocation>, String> {
-        let accounts_root = self.accounts_root_dir(app)?;
+    fn discover_account_stores(app: &AppHandle) -> Result<Vec<AccountStorageLocation>, String> {
+        let accounts_root = Self::accounts_root_dir(app)?;
         if !accounts_root.exists() {
             return Ok(Vec::new());
         }
@@ -1131,8 +1124,7 @@ impl AccountManager {
         let secret_len = secret.len();
         let key_bytes: [u8; STORE_KEY_LENGTH] = secret.try_into().map_err(|_| {
             format!(
-                "Secure storage returned an invalid store key length for {store_id}: expected {}, got {secret_len}",
-                STORE_KEY_LENGTH
+                "Secure storage returned an invalid store key length for {store_id}: expected {STORE_KEY_LENGTH}, got {secret_len}",
             )
         })?;
 
@@ -1163,7 +1155,7 @@ impl AccountManager {
         String::from_utf8(decoded).ok()
     }
 
-    fn accounts_root_dir(&self, app: &AppHandle) -> Result<PathBuf, String> {
+    fn accounts_root_dir(app: &AppHandle) -> Result<PathBuf, String> {
         Ok(app
             .path()
             .app_data_dir()

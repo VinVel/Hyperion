@@ -17,5 +17,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    hyperion_lib::run()
+    hyperion_lib::run();
 }

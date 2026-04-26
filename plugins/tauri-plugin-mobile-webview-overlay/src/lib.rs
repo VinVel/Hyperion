@@ -50,19 +50,26 @@ impl<R: Runtime, T: Manager<R>> crate::MobileWebviewOverlayExt<R> for T {
 }
 
 /// Initializes the plugin.
+#[must_use]
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("mobile-webview-overlay")
         .setup(|app, api| {
             #[cfg(mobile)]
             let mobile_webview_overlay = mobile::init(app, api)?;
             #[cfg(desktop)]
-            let mobile_webview_overlay = desktop::init(app, api)?;
+            let mobile_webview_overlay = desktop::init(app, api);
             app.manage(mobile_webview_overlay);
             Ok(())
         })
         .build()
 }
 
+/// Opens a URL in the platform overlay webview.
+///
+/// # Errors
+///
+/// Returns an error if the platform overlay cannot be opened or the current
+/// platform does not support this plugin.
 pub fn open_url<R: Runtime>(
     app: &AppHandle<R>,
     url: &str,
@@ -77,6 +84,8 @@ pub fn open_url<R: Runtime>(
         })
 }
 
+/// Returns the default desktop user agent used for fallback overlay requests.
+#[must_use]
 pub fn default_desktop_user_agent() -> &'static str {
     DEFAULT_DESKTOP_USER_AGENT_TEXT.trim()
 }

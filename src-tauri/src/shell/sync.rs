@@ -16,7 +16,7 @@
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use futures_util::{StreamExt, pin_mut};
@@ -34,6 +34,7 @@ pub const SHELL_SYNC_STATUS_EVENT: &str = "hyperion://shell-sync-status";
 // Focus subscriptions are additive, so keep a short debounce window to avoid
 // repeatedly issuing the same room subscription while a user is already there.
 const FOCUSED_ROOM_TTL_SECONDS: u64 = 90;
+const FOCUSED_ROOM_TTL_MS: u64 = FOCUSED_ROOM_TTL_SECONDS * 1_000;
 // The active account keeps a broad room-list observer alive so SyncService has
 // a visible range immediately after login instead of waiting for a UI command.
 const ACTIVE_ROOM_LIST_OBSERVER_PAGE_SIZE: usize = 10_000;
@@ -102,8 +103,7 @@ impl ShellSyncManager {
 
             let should_subscribe = focused_rooms.get(account_key).is_none_or(|focused_room| {
                 focused_room.room_id != room_id
-                    || now.saturating_sub(focused_room.last_touched_unix_ms)
-                        >= Duration::from_secs(FOCUSED_ROOM_TTL_SECONDS).as_millis() as u64
+                    || now.saturating_sub(focused_room.last_touched_unix_ms) >= FOCUSED_ROOM_TTL_MS
             });
 
             focused_rooms.insert(
@@ -130,7 +130,7 @@ impl ShellSyncManager {
 
         if let Some(sync_service) = sync_service {
             let owned_room_id = match RoomId::parse(room_id) {
-                Ok(room_id) => room_id.to_owned(),
+                Ok(room_id) => room_id.clone(),
                 Err(error) => {
                     eprintln!("Failed to parse focused room id {room_id}: {error}");
                     return;
@@ -190,17 +190,17 @@ impl ShellSyncManager {
                 })?,
         );
 
-        let state_listener_handle = self.spawn_state_listener_task(
+        let state_listener_handle = Self::spawn_state_listener_task(
             app.clone(),
             account.account_key.clone(),
             sync_service.clone(),
         );
-        let room_update_listener_handle = self.spawn_room_update_listener_task(
+        let room_update_listener_handle = Self::spawn_room_update_listener_task(
             app.clone(),
             account.account_key.clone(),
             account.client.clone(),
         );
-        let room_list_observer_handle = self.spawn_room_list_observer_task(
+        let room_list_observer_handle = Self::spawn_room_list_observer_task(
             app.clone(),
             account.account_key.clone(),
             sync_service.clone(),
@@ -209,7 +209,7 @@ impl ShellSyncManager {
         sync_service.start().await;
 
         if let Some(focused_room_id) = self.focused_room_id(&account.account_key) {
-            self.subscribe_to_focused_room(sync_service.clone(), &focused_room_id);
+            Self::subscribe_to_focused_room(sync_service.clone(), &focused_room_id);
         }
 
         self.running_accounts
@@ -229,7 +229,6 @@ impl ShellSyncManager {
     }
 
     fn spawn_state_listener_task(
-        &self,
         app: tauri::AppHandle,
         account_key: String,
         sync_service: Arc<SyncService>,
@@ -245,7 +244,6 @@ impl ShellSyncManager {
     }
 
     fn spawn_room_update_listener_task(
-        &self,
         app: tauri::AppHandle,
         account_key: String,
         client: Client,
@@ -268,7 +266,6 @@ impl ShellSyncManager {
     }
 
     fn spawn_room_list_observer_task(
-        &self,
         app: tauri::AppHandle,
         account_key: String,
         sync_service: Arc<SyncService>,
@@ -307,9 +304,9 @@ impl ShellSyncManager {
             .map(|focused_room| focused_room.room_id.clone())
     }
 
-    fn subscribe_to_focused_room(&self, sync_service: Arc<SyncService>, room_id: &str) {
+    fn subscribe_to_focused_room(sync_service: Arc<SyncService>, room_id: &str) {
         let owned_room_id = match RoomId::parse(room_id) {
-            Ok(room_id) => room_id.to_owned(),
+            Ok(room_id) => room_id.clone(),
             Err(error) => {
                 eprintln!("Failed to parse focused room id {room_id}: {error}");
                 return;
@@ -494,7 +491,7 @@ fn emit_shell_sync_updated(app: &tauri::AppHandle, account_key: &str, updates: &
         account_key: account_key.to_owned(),
         changed_room_ids: updates
             .iter_all_room_ids()
-            .map(|room_id| room_id.to_string())
+            .map(ToString::to_string)
             .collect(),
         room_list_may_have_changed: !updates.is_empty(),
         updated_at_unix_ms: now_unix_ms(),
@@ -508,6 +505,6 @@ fn emit_shell_sync_updated(app: &tauri::AppHandle, account_key: &str, updates: &
 fn now_unix_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_millis() as u64)
+        .map(|duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX))
         .unwrap_or_default()
 }

@@ -47,27 +47,46 @@ impl<R: Runtime, T: Manager<R>> crate::AndroidSecureStorageExt<R> for T {
 }
 
 /// Initializes the plugin.
+#[must_use]
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("android-secure-storage")
         .setup(|app, api| {
             #[cfg(target_os = "android")]
             let android_secure_storage = mobile::init(app, api)?;
             #[cfg(not(target_os = "android"))]
-            let android_secure_storage = desktop::init(app, api)?;
+            let android_secure_storage = desktop::init(app, api);
             app.manage(android_secure_storage);
             Ok(())
         })
         .build()
 }
 
+/// Returns the secret bytes stored for `key`.
+///
+/// # Errors
+///
+/// Returns an error if the platform storage backend cannot be reached or the
+/// current platform does not support this plugin.
 pub fn get_secret<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<Option<Vec<u8>>> {
     app.android_secure_storage().get_secret(key)
 }
 
+/// Stores `value` under `key`.
+///
+/// # Errors
+///
+/// Returns an error if the platform storage backend cannot be reached or the
+/// current platform does not support this plugin.
 pub fn set_secret<R: Runtime>(app: &AppHandle<R>, key: &str, value: &[u8]) -> Result<()> {
     app.android_secure_storage().set_secret(key, value)
 }
 
+/// Removes the secret stored for `key`.
+///
+/// # Errors
+///
+/// Returns an error if the platform storage backend cannot be reached or the
+/// current platform does not support this plugin.
 pub fn delete_secret<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<()> {
     app.android_secure_storage().delete_secret(key)
 }

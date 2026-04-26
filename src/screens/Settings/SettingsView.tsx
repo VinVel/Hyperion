@@ -14,9 +14,9 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Button, Card, Typography } from '../../components/ui';
+import { BackButton, Card, Typography } from '../../components/ui';
 import Account from './Account';
 import Appearance from './Appearance';
 import Calls from './Calls';
@@ -147,19 +147,14 @@ export default function SettingsView({
       >
         <div className="settings-view-mobile-detail">
           <header className="settings-view-mobile-detail-head">
-            <Button onClick={() => setMobileOpenedSectionId(null)} variant="secondary">
-              <ChevronLeft aria-hidden="true" />
-              All settings
-            </Button>
-          </header>
-
-          <div className="settings-view-title">
-            <Typography variant="eyebrow">Settings</Typography>
-            <Typography variant="h2">{mobileSection.label}</Typography>
+            <div className="settings-view-heading-row">
+              <BackButton onClick={() => setMobileOpenedSectionId(null)} />
+              <Typography variant="h2">{mobileSection.label}</Typography>
+            </div>
             <Typography muted variant="body">
               {sectionDescriptions[mobileSection.id]}
             </Typography>
-          </div>
+          </header>
 
           <SettingsSectionContent
             onAddAccount={onAddAccount}

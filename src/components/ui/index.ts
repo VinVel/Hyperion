@@ -16,6 +16,7 @@
 import './ui.css';
 
 export { AppRail, AppRailButton } from './AppRail';
+export { BackButton } from './BackButton';
 export { Button } from './Button';
 export { EmptyState } from './EmptyState';
 export { FeedbackMessage, type FeedbackTone } from './FeedbackMessage';

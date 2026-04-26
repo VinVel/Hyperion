@@ -14,10 +14,11 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
-import { ArrowLeft, ArrowRight, User } from "lucide-react";
+import { LogIn, User } from "lucide-react";
 import { type SyntheticEvent, useEffect, useState } from "react";
 import {
   Button,
+  BackButton,
   FeedbackMessage,
   ScreenMain,
   ScreenShell,
@@ -155,16 +156,9 @@ export default function LogInScreen({
 
   return (
     <ScreenShell>
-      <ScreenMain className="login-stage" largeBlockPadding wide>
+      <ScreenMain className="login-stage" centered wide>
         <section className="login-panel" aria-labelledby="login-panel-title">
-          {onBackToApp ? (
-            <div className="login-back-row">
-              <Button className="login-back-button" onClick={onBackToApp} variant="secondary">
-                <ArrowLeft aria-hidden="true" />
-                Back to app
-              </Button>
-            </div>
-          ) : null}
+          {onBackToApp ? <BackButton overlay onClick={onBackToApp} /> : null}
 
           <div className="login-avatar">
             <User aria-hidden="true" />
@@ -225,7 +219,7 @@ export default function LogInScreen({
                   type="submit"
                   variant="icon"
                 >
-                  <ArrowRight aria-hidden="true" />
+                  <LogIn aria-hidden="true" />
                   <span className="login-submit-label">
                     {isSubmitting ? "Connecting..." : "Log in"}
                   </span>

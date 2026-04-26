@@ -17,7 +17,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { Webview } from "@tauri-apps/api/webview";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { LogicalPosition, LogicalSize, getCurrentWindow } from "@tauri-apps/api/window";
-import { ArrowLeft } from "lucide-react";
 import {
   type SyntheticEvent,
   useDeferredValue,
@@ -27,6 +26,7 @@ import {
   useState,
 } from "react";
 import {
+  BackButton,
   Button,
   FeedbackMessage,
   Panel,
@@ -561,17 +561,6 @@ export default function RegistrationScreen({
     }
   }
 
-  const backLabel =
-    stage === "directory"
-      ? "Back to log in"
-      : stage === "webview"
-        ? "Return to app"
-        : stage === "details"
-          ? "Back to homeservers"
-          : selectedHomeserver && shouldSkipDetails(selectedHomeserver)
-            ? "Back to homeservers"
-            : "Back to details";
-
   const captchaWarningText = selectedHomeserver ? captchaWarning(selectedHomeserver) : "";
   const selectedHomepage = selectedHomeserver ? safeLink(selectedHomeserver.homepage) : null;
   const selectedRules = selectedHomeserver ? safeLink(selectedHomeserver.rules) : null;
@@ -580,13 +569,6 @@ export default function RegistrationScreen({
   return (
     <ScreenShell>
       <ScreenMain className="registration-main">
-        <div className="registration-back-row">
-          <Button className="registration-back-button" onClick={handleBack}>
-            <ArrowLeft aria-hidden="true" />
-            <span>{backLabel}</span>
-          </Button>
-        </div>
-
         {stage === "directory" ? (
           <HomeserverDirectoryScreen
             feedback={feedback}
@@ -594,6 +576,7 @@ export default function RegistrationScreen({
             isRefreshingHomeservers={isRefreshingHomeservers}
             searchQuery={searchQuery}
             visibleHomeservers={visibleHomeservers}
+            onBack={handleBack}
             onOpenHomeserver={openDetails}
             onRefreshHomeservers={() => void loadHomeservers("refresh")}
             onSearchQueryChange={setSearchQuery}
@@ -609,6 +592,7 @@ export default function RegistrationScreen({
             homepageUrl={selectedHomepage}
             rulesUrl={selectedRules}
             privacyUrl={selectedPrivacy}
+            onBack={handleBack}
             onOpenPublishedLink={openPublishedLink}
             onOpenRegistrationForm={openForm}
             onContinueHomeserverFlow={() => void handleNonVanillaAction()}
@@ -620,9 +604,12 @@ export default function RegistrationScreen({
             className="registration-screen--narrow registration-screen--form"
             aria-labelledby="registration-form-title"
           >
-            <Typography variant="h1" id="registration-form-title">
-              Register on {homeserverTitle(selectedHomeserver)}
-            </Typography>
+            <div className="registration-heading-row">
+              <BackButton onClick={handleBack} />
+              <Typography variant="h1" id="registration-form-title">
+                Register on {homeserverTitle(selectedHomeserver)}
+              </Typography>
+            </div>
             <Typography variant="body" muted className="registration-screen-copy">
               Finish the form below to create the account.
             </Typography>
@@ -727,6 +714,7 @@ export default function RegistrationScreen({
         {stage === "webview" && embeddedWebview ? (
           <Panel className="registration-screen--webview">
             <div className="registration-webview-bar">
+              <BackButton onClick={handleBack} />
               <div className="registration-webview-copy">
                 <Typography as="span" variant="label" className="registration-webview-eyebrow">
                   {embeddedWebview.kind === "registration"

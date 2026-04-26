@@ -32,7 +32,8 @@
 .settings-view-theme-preset,
 .settings-view-theme-preset-copy,
 .settings-view-mobile-detail,
-.settings-view-mobile-detail-head {
+.settings-view-mobile-detail-head,
+.settings-view-heading-row {
   display: flex;
   flex-direction: column;
 }
@@ -235,9 +236,12 @@
 
 .settings-view-mobile-detail-head {
   flex: 0 0 auto;
+  gap: var(--spacing-gap-medium);
+}
+
+.settings-view-heading-row {
   flex-direction: row;
   align-items: center;
-  justify-content: space-between;
   gap: var(--spacing-gap-medium);
 }
 
@@ -261,8 +265,4 @@
     padding: var(--spacing-panel-padding);
   }
 
-  .settings-view-mobile-detail-head {
-    flex-direction: column;
-    align-items: flex-start;
-  }
 }

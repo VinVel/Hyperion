@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-import { Button, Card, FeedbackMessage, Pill, Typography } from "../../components/ui";
+import { BackButton, Button, Card, FeedbackMessage, Pill, Typography } from "../../components/ui";
 import type { FeedbackMessage as RegistrationFeedbackMessage, HomeserverDirectoryEntry } from "./registrationShared";
 import {
   boolLabel,
@@ -33,6 +33,7 @@ type HomeserverDetailsScreenProps = {
   homepageUrl: string | null;
   rulesUrl: string | null;
   privacyUrl: string | null;
+  onBack: () => void;
   onOpenPublishedLink: (url: string, title: string) => void;
   onOpenRegistrationForm: () => void;
   onContinueHomeserverFlow: () => void;
@@ -46,6 +47,7 @@ export function HomeserverDetailsScreen({
   homepageUrl,
   rulesUrl,
   privacyUrl,
+  onBack,
   onOpenPublishedLink,
   onOpenRegistrationForm,
   onContinueHomeserverFlow,
@@ -55,9 +57,12 @@ export function HomeserverDetailsScreen({
       className="registration-screen--narrow registration-screen--details"
       aria-labelledby="registration-details-title"
     >
-      <Typography variant="h1" id="registration-details-title">
-        {homeserverTitle(homeserver)}
-      </Typography>
+      <div className="registration-heading-row">
+        <BackButton onClick={onBack} />
+        <Typography variant="h1" id="registration-details-title">
+          {homeserverTitle(homeserver)}
+        </Typography>
+      </div>
       <Typography variant="body" muted className="registration-screen-copy">
         {homeserverCopy(homeserver)}
       </Typography>

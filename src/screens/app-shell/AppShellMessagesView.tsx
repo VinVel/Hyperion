@@ -17,13 +17,12 @@ import {
   ArrowDownUp,
   Check,
   ChevronDown,
-  ChevronLeft,
   MessageCircleMore,
   Plus,
   Search,
   SendHorizontal,
 } from 'lucide-react';
-import { Button, EmptyState, Pill, ToolbarField, Typography } from '../../components/ui';
+import { BackButton, Button, EmptyState, Pill, ToolbarField, Typography } from '../../components/ui';
 import {
   type RoomSummary,
   type RoomThreadSort,
@@ -178,14 +177,7 @@ export default function AppShellMessagesView({
           <div className="app-shell-room">
             <header className="app-shell-room-head">
               <div className="app-shell-room-title-row">
-                <Button
-                  className="app-shell-mobile-back-button"
-                  iconOnly
-                  onClick={onCloseThread}
-                  variant="ghost"
-                >
-                  <ChevronLeft aria-hidden="true" />
-                </Button>
+                <BackButton className="app-shell-mobile-back-button" onClick={onCloseThread} />
 
                 <Typography as="h2" variant="h2">
                   {selectedRoomSummary?.title ?? selectedThread.title}

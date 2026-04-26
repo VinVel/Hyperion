@@ -56,6 +56,11 @@ type CryptoIdentityResetOutcome =
 
 const elementEncryptionHelpUrl = 'https://element.io/de/help#encryption5';
 
+type RecoveryConfirmation = {
+  expectedKey: string;
+  action: 'create' | 'rotate';
+};
+
 function messageFromError(error: unknown): string {
   if (typeof error === 'string' && error.trim().length > 0) {
     return error;
@@ -72,10 +77,15 @@ function statusLabel(value: string | null): string {
   return value ?? 'Unknown';
 }
 
+function normalizeRecoveryKeyForComparison(value: string): string {
+  return value.replace(/\s+/g, '');
+}
+
 export default function Encryption() {
   const [overview, setOverview] = useState<EncryptionOverview | null>(null);
   const [recoveryKey, setRecoveryKey] = useState('');
   const [generatedRecoveryKey, setGeneratedRecoveryKey] = useState<string | null>(null);
+  const [recoveryConfirmation, setRecoveryConfirmation] = useState<RecoveryConfirmation | null>(null);
   const [exportPassphrase, setExportPassphrase] = useState('');
   const [importPassphrase, setImportPassphrase] = useState('');
   const [pendingAction, setPendingAction] = useState<string | null>(null);
@@ -134,6 +144,8 @@ export default function Encryption() {
 
   const isBusy = pendingAction !== null;
   const isServerKeyStorageEnabled = !overview.server_key_storage_opted_out;
+  const recoveryConfirmationPending = recoveryConfirmation !== null;
+  const recoveryKeyInputIsEmpty = recoveryKey.trim().length === 0;
 
   return (
     <div className="settings-view-section-body settings-view-section-body--encryption">
@@ -215,26 +227,35 @@ export default function Encryption() {
             Recovery key: <span className="settings-view-key-value">{generatedRecoveryKey}</span>
           </FeedbackMessage>
         ) : null}
+        {recoveryConfirmationPending ? (
+          <FeedbackMessage tone="info">
+            Paste the newly generated recovery key below to confirm that it was saved.
+          </FeedbackMessage>
+        ) : null}
 
         <div className="settings-view-action-row">
-          <Button disabled={isBusy} onClick={() => void runAction('create-recovery', async () => {
+          <Button disabled={isBusy || recoveryConfirmationPending} onClick={() => void runAction('create-recovery', async () => {
             const result = await invoke<GeneratedRecoveryKey>('create_recovery_key');
             setGeneratedRecoveryKey(result.recovery_key);
+            setRecoveryConfirmation({ expectedKey: result.recovery_key, action: 'create' });
+            setRecoveryKey('');
             setMessage({ tone: 'info', text: 'Save this recovery key now. It is shown only once.' });
           })} variant="primary">
             <KeyRound aria-hidden="true" />
             Create key
           </Button>
-          <Button disabled={isBusy} onClick={() => void runAction('rotate-recovery', async () => {
+          <Button disabled={isBusy || recoveryConfirmationPending} onClick={() => void runAction('rotate-recovery', async () => {
             const result = await invoke<GeneratedRecoveryKey>('rotate_recovery_key');
             setGeneratedRecoveryKey(result.recovery_key);
+            setRecoveryConfirmation({ expectedKey: result.recovery_key, action: 'rotate' });
+            setRecoveryKey('');
             setMessage({ tone: 'info', text: 'Save the new recovery key now.' });
           })} variant="secondary">
             <RefreshCw aria-hidden="true" />
             Rotate
           </Button>
           <Button
-            disabled={isBusy}
+            disabled={isBusy || recoveryConfirmationPending}
             onClick={() => setConfirmDeleteRecovery((current) => !current)}
             variant="destructive"
           >
@@ -252,6 +273,7 @@ export default function Encryption() {
             <Button disabled={isBusy} onClick={() => void runAction('delete-recovery', async () => {
               await invoke('delete_recovery');
               setGeneratedRecoveryKey(null);
+              setRecoveryConfirmation(null);
               setConfirmDeleteRecovery(false);
               setMessage({ tone: 'warning', text: 'Recovery was deleted.' });
             })} variant="destructive">
@@ -267,12 +289,31 @@ export default function Encryption() {
             type="password"
             value={recoveryKey}
           />
-          <Button disabled={isBusy || recoveryKey.trim().length === 0} onClick={() => void runAction('recover', async () => {
+          <Button disabled={isBusy || recoveryKeyInputIsEmpty} onClick={() => void runAction(recoveryConfirmationPending ? 'confirm-recovery-key' : 'recover', async () => {
+            if (recoveryConfirmation) {
+              const expectedKey = normalizeRecoveryKeyForComparison(recoveryConfirmation.expectedKey);
+              const enteredKey = normalizeRecoveryKeyForComparison(recoveryKey);
+              if (enteredKey !== expectedKey) {
+                throw new Error('The recovery key does not match the newly generated key.');
+              }
+
+              const actionLabel = recoveryConfirmation.action === 'rotate' ? 'rotated' : 'created';
+              setGeneratedRecoveryKey(null);
+              setRecoveryConfirmation(null);
+              setRecoveryKey('');
+              setMessage({ tone: 'success', text: `Recovery key was ${actionLabel} and confirmed.` });
+              return;
+            }
+
+            if (overview.recovery_state === 'Disabled') {
+              throw new Error('Recovery is disabled for this account. Create a new recovery key first.');
+            }
+
             await invoke('recover_with_recovery_key', { request: { recovery_key: recoveryKey } });
             setRecoveryKey('');
             setMessage({ tone: 'success', text: 'Encryption secrets were recovered.' });
           })} variant="secondary">
-            Recover
+            {recoveryConfirmationPending ? 'Confirm' : 'Recover'}
           </Button>
         </div>
       </Card>

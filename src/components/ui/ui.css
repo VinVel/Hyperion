@@ -211,6 +211,27 @@
   width: 100%;
 }
 
+.ui-back-button {
+  width: var(--sizing-icon-button-size);
+  height: var(--sizing-icon-button-size);
+  min-height: var(--sizing-icon-button-size);
+  flex: 0 0 var(--sizing-icon-button-size);
+  aspect-ratio: 1;
+  border-radius: var(--shape-radius-small);
+}
+
+.ui-back-button--overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+.ui-back-button svg {
+  width: var(--sizing-icon-small);
+  height: var(--sizing-icon-small);
+}
+
 .ui-button svg {
   width: var(--sizing-icon-medium);
   height: var(--sizing-icon-medium);
@@ -485,6 +506,15 @@
     width: 100%;
     min-height: var(--sizing-icon-button-compact-min-height);
     aspect-ratio: auto;
+  }
+
+  .ui-back-button {
+    width: var(--sizing-icon-button-size);
+    height: var(--sizing-icon-button-size);
+    min-height: var(--sizing-icon-button-size);
+    flex: 0 0 var(--sizing-icon-button-size);
+    aspect-ratio: 1;
+    padding: 0;
   }
 
   .ui-app-rail {

@@ -14,7 +14,7 @@
  */
 
 import { Search } from "lucide-react";
-import { Button, FeedbackMessage, Pill, Typography } from "../../components/ui";
+import { BackButton, Button, FeedbackMessage, Pill, Typography } from "../../components/ui";
 import type { FeedbackMessage as RegistrationFeedbackMessage, HomeserverDirectoryEntry } from "./registrationShared";
 import { flowLabel, homeserverCopy, homeserverHost, homeserverTitle } from "./registrationShared";
 import "./HomeserverDirectoryScreen.css";
@@ -25,6 +25,7 @@ type HomeserverDirectoryScreenProps = {
   isRefreshingHomeservers: boolean;
   searchQuery: string;
   visibleHomeservers: HomeserverDirectoryEntry[];
+  onBack: () => void;
   onOpenHomeserver: (homeserver: HomeserverDirectoryEntry) => void;
   onRefreshHomeservers: () => void;
   onSearchQueryChange: (query: string) => void;
@@ -36,15 +37,19 @@ export function HomeserverDirectoryScreen({
   isRefreshingHomeservers,
   searchQuery,
   visibleHomeservers,
+  onBack,
   onOpenHomeserver,
   onRefreshHomeservers,
   onSearchQueryChange,
 }: HomeserverDirectoryScreenProps) {
   return (
     <section className="registration-screen--directory" aria-labelledby="registration-directory-title">
-      <Typography variant="h1" id="registration-directory-title">
-        Homeservers with open registration
-      </Typography>
+      <div className="registration-heading-row">
+        <BackButton onClick={onBack} />
+        <Typography variant="h1" id="registration-directory-title">
+          Homeservers with open registration
+        </Typography>
+      </div>
       <Typography variant="body" muted className="registration-screen-copy">
         Choose a homeserver first. Open the details screen only when you want to
         inspect one more closely.

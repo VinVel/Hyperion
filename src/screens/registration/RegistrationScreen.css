@@ -13,17 +13,15 @@
  * Project home: hyperion.velcore.net
  */
 
-.registration-back-button svg {
-  width: var(--sizing-icon-small);
-  height: var(--sizing-icon-small);
-}
-
 .registration-main {
   display: block;
+  padding-top: var(--spacing-gap-large);
 }
 
-.registration-back-row {
-  margin-bottom: var(--spacing-margin-top-large);
+.registration-heading-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-gap-medium);
 }
 
 .registration-screen--narrow {
@@ -103,5 +101,9 @@
 
   .registration-form-foot .ui-button {
     width: 100%;
+  }
+
+  .registration-webview-bar .ui-back-button {
+    align-self: flex-start;
   }
 }

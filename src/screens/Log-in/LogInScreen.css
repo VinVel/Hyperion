@@ -18,17 +18,13 @@
 }
 
 .login-panel {
+  position: relative;
   width: var(--layout-login-panel-width);
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-gap-extra-large);
   padding: 0;
-}
-
-.login-back-row {
-  display: flex;
-  justify-content: flex-start;
 }
 
 .login-avatar {

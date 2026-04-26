@@ -31,6 +31,7 @@ use matrix_sdk::{
     },
     search_index::SearchIndexStoreKind,
 };
+use matrix_sdk_base::crypto::CollectStrategy;
 use rand::{RngCore, rngs::OsRng};
 use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
@@ -46,6 +47,9 @@ use super::types::{
 const HOMESERVER_DIRECTORY_URL: &str = "https://servers.joinmatrix.org/servers.json";
 const SESSION_CUSTOM_VALUE_KEY: &[u8] = b"hyperion.account.session.v1";
 const ACCOUNT_METADATA_CUSTOM_VALUE_KEY: &[u8] = b"hyperion.account.metadata.v1";
+// Account-scoped encryption UI preferences live beside the Matrix session in the encrypted store.
+pub const ENCRYPTION_PREFERENCES_CUSTOM_VALUE_KEY: &[u8] =
+    b"hyperion.account.encryption-preferences.v1";
 const STORE_KEY_PREFIX: &str = "matrix-store-key";
 const STORE_KEY_LENGTH: usize = 32;
 // Fresh post-sign-out stores need a short random suffix when Windows still
@@ -65,6 +69,14 @@ struct StoredAccountMetadata {
     user_id: String,
     homeserver_url: String,
     is_active: bool,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct EncryptionPreferences {
+    #[serde(default)]
+    pub server_key_storage_opted_out: bool,
+    #[serde(default)]
+    pub verified_devices_only: bool,
 }
 
 struct AccountStorageLocation {
@@ -298,6 +310,64 @@ impl AccountManager {
             homeserver_url: account.homeserver_url.clone(),
             client: account.client.clone(),
         }))
+    }
+
+    pub async fn rebuild_active_client(&self, app: &AppHandle) -> Result<bool, String> {
+        self.ensure_loaded(app).await?;
+
+        let Some((account_summary, current_client, store_dir)) = self.active_account_snapshot()
+        else {
+            return Ok(false);
+        };
+
+        let preferences = Self::load_encryption_preferences(&current_client).await?;
+        let Some(session) = Self::load_session(&current_client).await? else {
+            return Err(String::from("The active account session is not available"));
+        };
+        drop(current_client);
+
+        let store_root_dir = store_dir
+            .parent()
+            .ok_or_else(|| String::from("Active account store path has no parent directory"))?;
+        let store_id = store_root_dir
+            .file_name()
+            .and_then(|value| value.to_str())
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| String::from("Active account store directory has no valid store id"))?
+            .to_owned();
+        let store_key = Self::load_store_key(app, &store_id)?
+            .ok_or_else(|| String::from("The active account store key is not available"))?;
+        let cache_dir = store_root_dir.join("cache");
+        let replacement_client = Self::build_client_with_preferences(
+            &account_summary.homeserver_url,
+            &store_dir,
+            &cache_dir,
+            &store_key,
+            &preferences,
+        )
+        .await?;
+
+        replacement_client
+            .restore_session(session)
+            .await
+            .map_err(|error| format!("Failed to restore rebuilt Matrix client session: {error}"))?;
+
+        {
+            let mut accounts = self
+                .accounts
+                .write()
+                .expect("account manager accounts lock poisoned");
+            let account = accounts
+                .get_mut(&account_summary.account_key)
+                .ok_or_else(|| {
+                    String::from(
+                        "The active account disappeared while rebuilding its Matrix client",
+                    )
+                })?;
+            account.client = replacement_client.clone();
+        }
+
+        Ok(true)
     }
 
     pub async fn list_registration_homeservers(&self) -> Result<HomeserverDirectory, String> {
@@ -631,13 +701,36 @@ impl AccountManager {
         cache_dir: &Path,
         store_key: &[u8; STORE_KEY_LENGTH],
     ) -> Result<Client, String> {
+        Self::build_client_with_preferences(
+            homeserver_target,
+            store_dir,
+            cache_dir,
+            store_key,
+            &EncryptionPreferences::default(),
+        )
+        .await
+    }
+
+    async fn build_client_with_preferences(
+        homeserver_target: &str,
+        store_dir: &Path,
+        cache_dir: &Path,
+        store_key: &[u8; STORE_KEY_LENGTH],
+        preferences: &EncryptionPreferences,
+    ) -> Result<Client, String> {
         let store_config = SqliteStoreConfig::new(store_dir).key(Some(store_key));
         let search_index_dir = store_dir.join("search-index");
         let search_index_password = URL_SAFE_NO_PAD.encode(store_key);
+        let room_key_recipient_strategy = if preferences.verified_devices_only {
+            CollectStrategy::OnlyTrustedDevices
+        } else {
+            CollectStrategy::AllDevices
+        };
 
         Client::builder()
             .server_name_or_homeserver_url(homeserver_target)
             .sqlite_store_with_config_and_cache_path(store_config, Some(cache_dir))
+            .with_room_key_recipient_strategy(room_key_recipient_strategy)
             // Encrypted rooms need local plaintext indexing on the device, so keep
             // the search index per account and encrypt it with the same account-bound key.
             .search_index_store(SearchIndexStoreKind::EncryptedDirectory(
@@ -875,13 +968,35 @@ impl AccountManager {
                 continue;
             };
 
-            if let Err(error) = client.restore_session(session).await {
+            if let Err(error) = client.restore_session(session.clone()).await {
                 eprintln!(
                     "Skipping persisted account {} because the Matrix session could not be restored: {error}",
                     metadata.user_id
                 );
                 continue;
             }
+
+            let preferences = Self::load_encryption_preferences(&client).await?;
+            let client = if preferences.verified_devices_only {
+                drop(client);
+                let rebuilt_client = Self::build_client_with_preferences(
+                    &storage.homeserver_url,
+                    &storage.store_dir,
+                    &storage.cache_dir,
+                    &store_key,
+                    &preferences,
+                )
+                .await?;
+                rebuilt_client
+                    .restore_session(session)
+                    .await
+                    .map_err(|error| {
+                        format!("Failed to restore trusted-device-only Matrix client: {error}")
+                    })?;
+                rebuilt_client
+            } else {
+                client
+            };
 
             if metadata.is_active && active_account_key.is_none() {
                 active_account_key = Some(metadata.user_id.clone());
@@ -1054,6 +1169,36 @@ impl AccountManager {
         serde_json::from_slice(&value)
             .map(Some)
             .map_err(|error| format!("Failed to parse persisted account metadata: {error}"))
+    }
+
+    pub async fn load_encryption_preferences(
+        client: &Client,
+    ) -> Result<EncryptionPreferences, String> {
+        let Some(value) = client
+            .state_store()
+            .get_custom_value(ENCRYPTION_PREFERENCES_CUSTOM_VALUE_KEY)
+            .await
+            .map_err(|error| format!("Failed to load encryption preferences: {error}"))?
+        else {
+            return Ok(EncryptionPreferences::default());
+        };
+
+        serde_json::from_slice(&value)
+            .map_err(|error| format!("Failed to parse encryption preferences: {error}"))
+    }
+
+    pub async fn persist_encryption_preferences(
+        client: &Client,
+        preferences: &EncryptionPreferences,
+    ) -> Result<(), String> {
+        let value = serde_json::to_vec(preferences)
+            .map_err(|error| format!("Failed to serialize encryption preferences: {error}"))?;
+
+        client
+            .state_store()
+            .set_custom_value_no_read(ENCRYPTION_PREFERENCES_CUSTOM_VALUE_KEY, value)
+            .await
+            .map_err(|error| format!("Failed to persist encryption preferences: {error}"))
     }
 
     fn discover_account_stores(app: &AppHandle) -> Result<Vec<AccountStorageLocation>, String> {

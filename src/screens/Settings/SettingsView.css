@@ -165,6 +165,10 @@
   flex-shrink: 0;
 }
 
+.settings-view-card-head--inactive svg {
+  color: var(--on-surface-variant);
+}
+
 .settings-view-card-copy {
   gap: var(--spacing-gap-extra-small);
 }
@@ -173,6 +177,86 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacing-gap-medium);
+}
+
+.settings-view-detail-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: var(--spacing-gap-medium);
+  margin: 0;
+}
+
+.settings-view-detail-list div {
+  display: grid;
+  gap: var(--spacing-gap-extra-small);
+  min-width: 0;
+}
+
+.settings-view-detail-list dt {
+  color: var(--on-surface-variant);
+  font-size: var(--typography-label-size);
+  font-weight: var(--typography-font-weight-medium);
+  text-transform: uppercase;
+}
+
+.settings-view-detail-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-view-detail-list--keys {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.settings-view-inline-form,
+.settings-view-toggle-row,
+.settings-view-confirmation {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--spacing-gap-medium);
+}
+
+.settings-view-inline-form .ui-field {
+  flex: 1 1 16rem;
+}
+
+.settings-view-toggle-row {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-view-confirmation {
+  align-items: center;
+  flex-wrap: wrap;
+  border-radius: var(--shape-radius-small);
+  background: color-mix(in srgb, var(--error-container) 48%, var(--surface-container));
+  padding: var(--spacing-card-padding);
+}
+
+.settings-view-confirmation svg {
+  width: var(--sizing-icon-medium);
+  height: var(--sizing-icon-medium);
+  color: var(--error);
+}
+
+.settings-view-key-value {
+  overflow-wrap: anywhere;
+  font-weight: var(--typography-font-weight-bold);
+}
+
+.settings-view-link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--shape-radius-small);
+  color: var(--on-surface-variant);
+  padding: var(--spacing-button-padding-block) var(--spacing-button-padding-inline);
+  text-decoration: none;
+}
+
+.settings-view-link-button:hover {
+  background: color-mix(in srgb, var(--surface-container-high) 70%, transparent);
+  color: var(--on-surface);
 }
 
 .settings-view-preset-grid {
@@ -265,4 +349,13 @@
     padding: var(--spacing-panel-padding);
   }
 
+  .settings-view-inline-form,
+  .settings-view-toggle-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-view-inline-form .ui-field {
+    flex-basis: auto;
+  }
 }

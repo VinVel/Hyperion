@@ -23,8 +23,16 @@ use account::{
     RegistrationOutcome,
 };
 use settings::{
-    get_theme_mode as load_theme_mode, get_theme_preset as load_theme_preset,
-    set_theme_mode as save_theme_mode, set_theme_preset as save_theme_preset,
+    encryption::{
+        create_recovery_key, delete_recovery, disable_server_key_storage,
+        enable_server_key_storage, export_room_keys, get_encryption_overview, import_room_keys,
+        recover_with_recovery_key, reset_crypto_identity, rotate_recovery_key,
+        set_verified_devices_only,
+    },
+    theme::{
+        get_theme_mode as load_theme_mode, get_theme_preset as load_theme_preset,
+        set_theme_mode as save_theme_mode, set_theme_preset as save_theme_preset,
+    },
 };
 use shell::{
     GetRoomEventContextRequest, GetRoomSummaryRequest, GetRoomTimelineRequest, GlobalSearchRequest,
@@ -35,6 +43,7 @@ use shell::{
 use tauri::{AppHandle, State};
 
 use tauri_plugin_android_secure_storage as android_secure_storage;
+use tauri_plugin_dialog as dialog;
 use tauri_plugin_mobile_webview_overlay as mobile_overlay_webview;
 
 #[tauri::command]
@@ -280,6 +289,7 @@ pub fn run() {
         .manage(AccountManager::new())
         .manage(ShellManager::new())
         .plugin(android_secure_storage::init())
+        .plugin(dialog::init())
         .plugin(mobile_overlay_webview::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
@@ -299,6 +309,17 @@ pub fn run() {
             list_spaces,
             global_search,
             open_mobile_overlay_webview,
+            get_encryption_overview,
+            enable_server_key_storage,
+            disable_server_key_storage,
+            create_recovery_key,
+            rotate_recovery_key,
+            delete_recovery,
+            recover_with_recovery_key,
+            export_room_keys,
+            import_room_keys,
+            reset_crypto_identity,
+            set_verified_devices_only,
             get_theme_mode,
             get_theme_preset,
             set_theme_mode,

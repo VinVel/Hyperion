@@ -13,7 +13,12 @@
  * Project home: hyperion.velcore.net
  */
 
-use matrix_sdk::encryption::CrossSigningResetAuthType;
+use matrix_sdk::{
+    Client,
+    encryption::CrossSigningResetAuthType,
+    ruma::{events::GlobalAccountDataEventType, serde::Raw},
+};
+use serde_json::json;
 use tauri::AppHandle;
 use tauri_plugin_dialog::{DialogExt, FilePath};
 
@@ -23,6 +28,11 @@ pub use super::types::{
     CryptoIdentityResetOutcome, EncryptionOverview, GeneratedRecoveryKey, RecoveryKeyRequest,
     RoomKeyFileRequest, RoomKeyImportSummary,
 };
+
+// Matrix has no account-data DELETE endpoint, so disabling recovery is represented by an empty default-key event.
+const SECRET_STORAGE_DEFAULT_KEY_EVENT_TYPE: &str = "m.secret_storage.default_key";
+// Matrix Rust SDK uses this custom marker to prevent automatic backup re-creation after recovery deletion.
+const BACKUP_DISABLED_EVENT_TYPE: &str = "m.org.matrix.custom.backup_disabled";
 
 #[tauri::command]
 pub async fn get_encryption_overview(
@@ -147,14 +157,7 @@ pub async fn create_recovery_key(
         return Err(String::from("No active account is available"));
     };
 
-    let recovery_key = account
-        .client
-        .encryption()
-        .recovery()
-        .enable()
-        .wait_for_backups_to_upload()
-        .await
-        .map_err(|error| format!("Failed to create recovery: {error}"))?;
+    let recovery_key = enable_recovery_with_clean_backup(&account.client).await?;
 
     Ok(GeneratedRecoveryKey {
         recovery_key: recovery_key.clone(),
@@ -192,13 +195,23 @@ pub async fn delete_recovery(
         return Err(String::from("No active account is available"));
     };
 
+    let recovery_result = account.client.encryption().recovery().disable().await;
     account
         .client
         .encryption()
-        .recovery()
-        .disable()
+        .backups()
+        .disable_and_delete()
         .await
-        .map_err(|error| format!("Failed to delete recovery: {error}"))
+        .map_err(|error| format!("Failed to delete the server key backup: {error}"))?;
+
+    if let Err(error) = recovery_result {
+        mark_recovery_account_data_disabled(&account.client).await?;
+        if !is_backup_not_enabled_error(&error.to_string()) {
+            return Err(format!("Failed to delete recovery: {error}"));
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -214,6 +227,18 @@ pub async fn recover_with_recovery_key(
     if recovery_key.is_empty() {
         return Err(String::from("Recovery key must not be empty"));
     }
+    let recovery_is_configured = account
+        .client
+        .encryption()
+        .secret_storage()
+        .is_enabled()
+        .await
+        .map_err(|error| format!("Failed to read recovery state: {error}"))?;
+    if !recovery_is_configured {
+        return Err(String::from(
+            "Recovery is disabled for this account. Create a new recovery key before recovering secrets.",
+        ));
+    }
 
     account
         .client
@@ -221,7 +246,7 @@ pub async fn recover_with_recovery_key(
         .recovery()
         .recover(recovery_key)
         .await
-        .map_err(|error| format!("Failed to recover encryption secrets: {error}"))
+        .map_err(recover_error_message)
 }
 
 #[tauri::command]
@@ -360,6 +385,82 @@ fn file_path_into_path(file_path: FilePath) -> Result<std::path::PathBuf, String
     file_path
         .into_path()
         .map_err(|path| format!("Selected file is not a local filesystem path: {path}"))
+}
+
+async fn enable_recovery_with_clean_backup(client: &Client) -> Result<String, String> {
+    match client
+        .encryption()
+        .recovery()
+        .enable()
+        .wait_for_backups_to_upload()
+        .await
+    {
+        Ok(recovery_key) => Ok(recovery_key),
+        Err(error) if is_backup_already_exists_error(&error.to_string()) => {
+            client
+                .encryption()
+                .backups()
+                .disable_and_delete()
+                .await
+                .map_err(|delete_error| {
+                    format!("Failed to remove the existing server key backup: {delete_error}")
+                })?;
+            client
+                .encryption()
+                .recovery()
+                .enable()
+                .wait_for_backups_to_upload()
+                .await
+                .map_err(|enable_error| format!("Failed to create recovery: {enable_error}"))
+        }
+        Err(error) => Err(format!("Failed to create recovery: {error}")),
+    }
+}
+
+fn is_backup_already_exists_error(message: &str) -> bool {
+    let message = message.to_ascii_lowercase();
+    message.contains("backup") && message.contains("exists")
+}
+
+fn is_backup_not_enabled_error(message: &str) -> bool {
+    let message = message.to_ascii_lowercase();
+    message.contains("backup") && message.contains("not enabled")
+}
+
+async fn mark_recovery_account_data_disabled(client: &Client) -> Result<(), String> {
+    client
+        .account()
+        .set_account_data_raw(
+            GlobalAccountDataEventType::from(SECRET_STORAGE_DEFAULT_KEY_EVENT_TYPE),
+            Raw::new(&json!({}))
+                .map_err(|error| format!("Failed to serialize disabled recovery state: {error}"))?
+                .cast_unchecked(),
+        )
+        .await
+        .map_err(|error| format!("Failed to mark recovery as disabled: {error}"))?;
+    client
+        .account()
+        .set_account_data_raw(
+            GlobalAccountDataEventType::from(BACKUP_DISABLED_EVENT_TYPE),
+            Raw::new(&json!({ "disabled": true }))
+                .map_err(|error| format!("Failed to serialize disabled backup marker: {error}"))?
+                .cast_unchecked(),
+        )
+        .await
+        .map_err(|error| format!("Failed to mark server key backup as disabled: {error}"))?;
+
+    Ok(())
+}
+
+fn recover_error_message(error: impl std::fmt::Display) -> String {
+    let message = error.to_string();
+    if message.contains("missing field `key`") {
+        String::from(
+            "Recovery is not configured correctly on this account. Create a new recovery key before recovering secrets.",
+        )
+    } else {
+        format!("Failed to recover encryption secrets: {message}")
+    }
 }
 
 fn backup_state_label(server_backup_enabled: bool, server_backup_exists: Option<bool>) -> String {

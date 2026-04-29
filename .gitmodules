@@ -1,0 +1,3 @@
+[submodule "plugins/tauri-plugin-app-events"]
+	path = plugins/tauri-plugin-app-events
+	url = https://github.com/VinVel/tauri-plugin-app-events.git

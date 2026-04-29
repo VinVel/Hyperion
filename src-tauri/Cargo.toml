@@ -23,6 +23,7 @@ tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-mobile-webview-overlay = { workspace = true }
 tauri-plugin-android-secure-storage = { workspace = true }
+tauri-plugin-app-events = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.22"

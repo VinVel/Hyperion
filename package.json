@@ -16,7 +16,8 @@
     "@tauri-apps/plugin-opener": "^2.5.3",
     "lucide-react": "^1.11.0",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5"
+    "react-dom": "^19.2.5",
+    "tauri-plugin-app-events-api": "./plugins/tauri-plugin-app-events"
   },
   "devDependencies": {
     "@eslint/js": "9.39.4",

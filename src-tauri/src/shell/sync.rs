@@ -121,12 +121,14 @@ impl ShellSyncManager {
             return;
         }
 
-        let sync_service = self
+        let running_accounts = self
             .running_accounts
             .read()
-            .expect("shell sync manager running-accounts lock poisoned")
+            .expect("shell sync manager running-accounts lock poisoned");
+        let sync_service = running_accounts
             .get(account_key)
             .map(|running_account| running_account.sync_service.clone());
+        drop(running_accounts);
 
         if let Some(sync_service) = sync_service {
             let owned_room_id = match RoomId::parse(room_id) {
@@ -138,8 +140,8 @@ impl ShellSyncManager {
             };
 
             tauri::async_runtime::spawn(async move {
-                sync_service
-                    .room_list_service()
+                let room_list_service = sync_service.room_list_service();
+                room_list_service
                     .subscribe_to_rooms(&[owned_room_id.as_ref()])
                     .await;
             });
@@ -147,9 +149,12 @@ impl ShellSyncManager {
     }
 
     pub fn room_list_service(&self, account_key: &str) -> Option<Arc<RoomListService>> {
-        self.running_accounts
+        let running_accounts = self
+            .running_accounts
             .read()
-            .expect("shell sync manager running-accounts lock poisoned")
+            .expect("shell sync manager running-accounts lock poisoned");
+
+        running_accounts
             .get(account_key)
             .map(|running_account| running_account.sync_service.room_list_service())
     }
@@ -159,12 +164,15 @@ impl ShellSyncManager {
         app: &tauri::AppHandle,
         account: AccountClientSnapshot,
     ) -> Result<(), String> {
-        let existing_sync_service = self
-            .running_accounts
-            .read()
-            .expect("shell sync manager running-accounts lock poisoned")
-            .get(&account.account_key)
-            .map(|running_sync| running_sync.sync_service.clone());
+        let existing_sync_service = {
+            let running_accounts = self
+                .running_accounts
+                .read()
+                .expect("shell sync manager running-accounts lock poisoned");
+            running_accounts
+                .get(&account.account_key)
+                .map(|running_sync| running_sync.sync_service.clone())
+        };
 
         if let Some(sync_service) = existing_sync_service {
             sync_service.start().await;
@@ -173,22 +181,8 @@ impl ShellSyncManager {
 
         emit_shell_sync_status(app, &account.account_key, "starting", None);
 
-        let sync_service = Arc::new(
-            SyncService::builder(account.client.clone())
-                .with_offline_mode()
-                .build()
-                .await
-                .map_err(|error| {
-                    let detail = error.to_string();
-                    let state = if is_unsupported_sync_error(&detail) {
-                        "unsupported"
-                    } else {
-                        "error"
-                    };
-                    emit_shell_sync_status(app, &account.account_key, state, Some(detail.clone()));
-                    format!("Failed to build shell sync service: {detail}")
-                })?,
-        );
+        let sync_service = build_shell_sync_service(app, &account).await?;
+        let sync_service = Arc::new(sync_service);
 
         let state_listener_handle = Self::spawn_state_listener_task(
             app.clone(),
@@ -212,18 +206,19 @@ impl ShellSyncManager {
             Self::subscribe_to_focused_room(sync_service.clone(), &focused_room_id);
         }
 
-        self.running_accounts
+        let mut running_accounts = self
+            .running_accounts
             .write()
-            .expect("shell sync manager running-accounts lock poisoned")
-            .insert(
-                account.account_key,
-                RunningAccountSync {
-                    sync_service,
-                    state_listener_handle,
-                    room_update_listener_handle,
-                    room_list_observer_handle,
-                },
-            );
+            .expect("shell sync manager running-accounts lock poisoned");
+        running_accounts.insert(
+            account.account_key,
+            RunningAccountSync {
+                sync_service,
+                state_listener_handle,
+                room_update_listener_handle,
+                room_list_observer_handle,
+            },
+        );
 
         Ok(())
     }
@@ -288,18 +283,23 @@ impl ShellSyncManager {
 
             pin_mut!(entries);
             while let Some(diffs) = entries.next().await {
-                if !diffs.is_empty() {
-                    let changed_room_ids = room_ids_from_room_list_diffs(&diffs);
-                    emit_shell_room_list_updated(&app, &account_key, changed_room_ids);
+                if diffs.is_empty() {
+                    continue;
                 }
+
+                let changed_room_ids = room_ids_from_room_list_diffs(&diffs);
+                emit_shell_room_list_updated(&app, &account_key, changed_room_ids);
             }
         })
     }
 
     fn focused_room_id(&self, account_key: &str) -> Option<String> {
-        self.focused_rooms
+        let focused_rooms = self
+            .focused_rooms
             .read()
-            .expect("shell sync manager focused-rooms lock poisoned")
+            .expect("shell sync manager focused-rooms lock poisoned");
+
+        focused_rooms
             .get(account_key)
             .map(|focused_room| focused_room.room_id.clone())
     }
@@ -314,22 +314,25 @@ impl ShellSyncManager {
         };
 
         tauri::async_runtime::spawn(async move {
-            sync_service
-                .room_list_service()
+            let room_list_service = sync_service.room_list_service();
+            room_list_service
                 .subscribe_to_rooms(&[owned_room_id.as_ref()])
                 .await;
         });
     }
 
     async fn stop_other_accounts(&self, active_account_key: &str) {
-        let inactive_account_keys = self
-            .running_accounts
-            .read()
-            .expect("shell sync manager running-accounts lock poisoned")
-            .keys()
-            .filter(|account_key| account_key.as_str() != active_account_key)
-            .cloned()
-            .collect::<Vec<_>>();
+        let inactive_account_keys = {
+            let running_accounts = self
+                .running_accounts
+                .read()
+                .expect("shell sync manager running-accounts lock poisoned");
+            running_accounts
+                .keys()
+                .filter(|account_key| account_key.as_str() != active_account_key)
+                .cloned()
+                .collect::<Vec<_>>()
+        };
 
         for account_key in inactive_account_keys {
             self.stop_account(&account_key).await;
@@ -337,13 +340,13 @@ impl ShellSyncManager {
     }
 
     pub async fn stop_all_accounts(&self) {
-        let account_keys = self
-            .running_accounts
-            .read()
-            .expect("shell sync manager running-accounts lock poisoned")
-            .keys()
-            .cloned()
-            .collect::<Vec<_>>();
+        let account_keys = {
+            let running_accounts = self
+                .running_accounts
+                .read()
+                .expect("shell sync manager running-accounts lock poisoned");
+            running_accounts.keys().cloned().collect::<Vec<_>>()
+        };
 
         for account_key in account_keys {
             self.stop_account(&account_key).await;
@@ -351,12 +354,14 @@ impl ShellSyncManager {
     }
 
     pub async fn stop_account(&self, account_key: &str) {
-        let Some(running_account) = self
-            .running_accounts
-            .write()
-            .expect("shell sync manager running-accounts lock poisoned")
-            .remove(account_key)
-        else {
+        let running_account = {
+            let mut running_accounts = self
+                .running_accounts
+                .write()
+                .expect("shell sync manager running-accounts lock poisoned");
+            running_accounts.remove(account_key)
+        };
+        let Some(running_account) = running_account else {
             return;
         };
 
@@ -368,10 +373,28 @@ impl ShellSyncManager {
         let _ = running_account.room_update_listener_handle.await;
         let _ = running_account.room_list_observer_handle.await;
 
-        self.focused_rooms
+        let mut focused_rooms = self
+            .focused_rooms
             .write()
-            .expect("shell sync manager focused-rooms lock poisoned")
-            .remove(account_key);
+            .expect("shell sync manager focused-rooms lock poisoned");
+        focused_rooms.remove(account_key);
+    }
+}
+
+async fn build_shell_sync_service(
+    app: &tauri::AppHandle,
+    account: &AccountClientSnapshot,
+) -> Result<SyncService, String> {
+    let sync_service_builder = SyncService::builder(account.client.clone()).with_offline_mode();
+
+    match sync_service_builder.build().await {
+        Ok(sync_service) => Ok(sync_service),
+        Err(error) => {
+            let detail = error.to_string();
+            let state = shell_sync_error_status(&detail);
+            emit_shell_sync_status(app, &account.account_key, state, Some(detail.clone()));
+            Err(format!("Failed to build shell sync service: {detail}"))
+        }
     }
 }
 
@@ -383,15 +406,19 @@ fn shell_sync_status_parts(state: &SyncServiceState) -> (&'static str, Option<St
         SyncServiceState::Terminated => ("terminated", None),
         SyncServiceState::Error(error) => {
             let detail = error.to_string();
-            let status = if is_unsupported_sync_error(&detail) {
-                "unsupported"
-            } else {
-                "error"
-            };
+            let status = shell_sync_error_status(&detail);
 
             (status, Some(detail))
         }
     }
+}
+
+fn shell_sync_error_status(detail: &str) -> &'static str {
+    if is_unsupported_sync_error(detail) {
+        return "unsupported";
+    }
+
+    "error"
 }
 
 fn is_unsupported_sync_error(error: &str) -> bool {

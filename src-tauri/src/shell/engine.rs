@@ -93,7 +93,7 @@ impl ShellTimelineRegistry {
         let timeline = self.live_timeline(account_key, room).await?;
         let items = timeline.items().await;
 
-        Ok(items
+        let shell_items = items
             .iter()
             .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
             .rev()
@@ -101,7 +101,9 @@ impl ShellTimelineRegistry {
             .collect::<Vec<_>>()
             .into_iter()
             .rev()
-            .collect())
+            .collect();
+
+        Ok(shell_items)
     }
 
     pub async fn subscribe_live_timeline_updates(
@@ -124,9 +126,11 @@ impl ShellTimelineRegistry {
         let room_id = room.room_id().to_string();
         let handle = tauri::async_runtime::spawn(async move {
             while let Some(diffs) = timeline_stream.next().await {
-                if !diffs.is_empty() {
-                    emit_shell_room_updated(&app, &account_key, &room_id, false);
+                if diffs.is_empty() {
+                    continue;
                 }
+
+                emit_shell_room_updated(&app, &account_key, &room_id, false);
             }
         });
 
@@ -173,11 +177,8 @@ impl ShellTimelineRegistry {
         };
 
         for _ in 0..TIMELINE_LATEST_EVENT_WAIT_ATTEMPTS {
-            if timeline
-                .latest_event_id()
-                .await
-                .is_some_and(|event_id| event_id == latest_room_event_id)
-            {
+            let timeline_latest_event_id = timeline.latest_event_id().await;
+            if timeline_latest_event_id.is_some_and(|event_id| event_id == latest_room_event_id) {
                 return;
             }
 
@@ -195,7 +196,10 @@ impl ShellTimelineRegistry {
         let before_items = timeline.items().await;
         let seen_item_ids = before_items
             .iter()
-            .filter_map(|item| item.as_event().map(|event| event.identifier().to_string()))
+            .filter_map(|item| {
+                let event = item.as_event()?;
+                Some(event.identifier().to_string())
+            })
             .collect::<std::collections::HashSet<_>>();
 
         let hit_start = timeline
@@ -280,7 +284,10 @@ impl ShellTimelineRegistry {
         let before_items = timeline.items().await;
         let seen_item_ids = before_items
             .iter()
-            .filter_map(|item| item.as_event().map(|event| event.identifier().to_string()))
+            .filter_map(|item| {
+                let event = item.as_event()?;
+                Some(event.identifier().to_string())
+            })
             .collect::<std::collections::HashSet<_>>();
 
         let hit_start = timeline
@@ -342,14 +349,13 @@ impl ShellTimelineRegistry {
     pub async fn clear_account(&self, account_key: &str) {
         let account_prefix = format!("{account_key}::");
 
-        self.live_timelines
-            .lock()
-            .await
-            .retain(|cache_key, _| !cache_key.starts_with(&account_prefix));
-        self.focused_timelines
-            .lock()
-            .await
-            .retain(|cache_key, _| !cache_key.starts_with(&account_prefix));
+        let mut live_timelines = self.live_timelines.lock().await;
+        live_timelines.retain(|cache_key, _| !cache_key.starts_with(&account_prefix));
+        drop(live_timelines);
+
+        let mut focused_timelines = self.focused_timelines.lock().await;
+        focused_timelines.retain(|cache_key, _| !cache_key.starts_with(&account_prefix));
+        drop(focused_timelines);
 
         let removed_handles = {
             let mut handles = self.live_timeline_update_handles.lock().await;
@@ -372,8 +378,13 @@ impl ShellTimelineRegistry {
     }
 
     pub async fn clear_all(&self) {
-        self.live_timelines.lock().await.clear();
-        self.focused_timelines.lock().await.clear();
+        let mut live_timelines = self.live_timelines.lock().await;
+        live_timelines.clear();
+        drop(live_timelines);
+
+        let mut focused_timelines = self.focused_timelines.lock().await;
+        focused_timelines.clear();
+        drop(focused_timelines);
 
         let removed_handles = {
             let mut handles = self.live_timeline_update_handles.lock().await;
@@ -398,13 +409,7 @@ fn timeline_item_to_shell_item(
     };
 
     let content = event.content();
-    let (body, is_edited) = if let Some(message) = content.as_message() {
-        (message.body().to_owned(), message.is_edited())
-    } else if content.is_unable_to_decrypt() {
-        (String::from("Unable to decrypt this message"), false)
-    } else {
-        return None;
-    };
+    let (body, is_edited) = timeline_event_body(content)?;
     let event_id = event
         .event_id()
         .map_or_else(|| event.identifier().to_string(), ToString::to_string);
@@ -418,6 +423,20 @@ fn timeline_item_to_shell_item(
         is_edited: Some(is_edited),
         is_own_message: event.is_own(),
     })
+}
+
+fn timeline_event_body(
+    content: &matrix_sdk_ui::timeline::TimelineItemContent,
+) -> Option<(String, bool)> {
+    if let Some(message) = content.as_message() {
+        return Some((message.body().to_owned(), message.is_edited()));
+    }
+
+    if content.is_unable_to_decrypt() {
+        return Some((String::from("Unable to decrypt this message"), false));
+    }
+
+    None
 }
 
 fn sender_display_name(

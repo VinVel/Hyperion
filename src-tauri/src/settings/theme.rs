@@ -83,16 +83,18 @@ fn normalize_theme_preset(
 ) -> String {
     let resolved_default_preset = resolve_default_theme_preset(supported_presets, default_preset);
 
-    let Some(candidate) = candidate.map(str::trim).filter(|value| !value.is_empty()) else {
+    let candidate = candidate.map(str::trim);
+    let Some(candidate) = candidate.filter(|value| !value.is_empty()) else {
         return resolved_default_preset;
     };
 
-    supported_presets
+    let resolved_preset = supported_presets
         .iter()
         .map(String::as_str)
         .find(|preset| *preset == candidate)
-        .unwrap_or(resolved_default_preset.as_str())
-        .to_owned()
+        .unwrap_or(resolved_default_preset.as_str());
+
+    resolved_preset.to_owned()
 }
 
 fn resolve_default_theme_preset(supported_presets: &[String], default_preset: &str) -> String {
@@ -104,16 +106,18 @@ fn resolve_default_theme_preset(supported_presets: &[String], default_preset: &s
         return normalized_default_preset.to_owned();
     }
 
-    supported_presets
+    let resolved_preset = supported_presets
         .iter()
         .map(String::as_str)
         .find(|preset| !preset.trim().is_empty())
-        .unwrap_or(normalized_default_preset)
-        .to_owned()
+        .unwrap_or(normalized_default_preset);
+
+    resolved_preset.to_owned()
 }
 
 fn normalize_theme_mode(candidate: Option<&str>) -> &'static str {
-    let Some(candidate) = candidate.map(str::trim).filter(|value| !value.is_empty()) else {
+    let candidate = candidate.map(str::trim);
+    let Some(candidate) = candidate.filter(|value| !value.is_empty()) else {
         return DEFAULT_THEME_MODE;
     };
 
@@ -153,10 +157,10 @@ fn write_theme_settings(app: &AppHandle, settings: &ThemeSettingsFile) -> Result
 }
 
 fn theme_settings_path(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(app
+    let app_data_dir = app
         .path()
         .app_data_dir()
-        .map_err(|error| format!("Failed to resolve app data directory: {error}"))?
-        .join("settings")
-        .join(THEME_SETTINGS_FILE_NAME))
+        .map_err(|error| format!("Failed to resolve app data directory: {error}"))?;
+
+    Ok(app_data_dir.join("settings").join(THEME_SETTINGS_FILE_NAME))
 }

@@ -14,22 +14,19 @@
  */
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     sync::{Arc, RwLock},
 };
 
 use matrix_sdk::{
     Room,
-    ruma::{
-        EventId,
-        api::client::{filter::RoomEventFilter, search::search_events},
-        events::room::message::RoomMessageEventContent,
-    },
+    ruma::{EventId, events::room::message::RoomMessageEventContent},
 };
 use tauri::async_runtime::JoinHandle;
 
 use crate::account::AccountManager;
 
+mod global_search;
 mod paging;
 mod read_state;
 mod room;
@@ -42,17 +39,13 @@ use self::{
     read_state::{mark_room_read_locally, unread_message_count_for_shell},
     room::{
         can_send_messages, homeserver_label, latest_activity_unix_ms, latest_preview_text,
-        participant_label, resolve_room, room_is_encrypted, room_title,
+        participant_label, resolve_room, room_title,
     },
     room_list::snapshot_room_list_for_account,
     search::{
-        first_visible_grapheme, matches_query, message_search_hit, normalize_query, now_unix_ms,
-        push_message_hits, relative_time_label, server_backed_search_hit,
+        first_visible_grapheme, matches_query, normalize_query, now_unix_ms, relative_time_label,
     },
-    timeline::{
-        cached_timeline_item_count, cached_timeline_items, fetch_room_timeline_chunk,
-        timeline_item_from_timeline_event, warm_room_recent_timeline,
-    },
+    timeline::{cached_timeline_item_count, warm_room_recent_timeline},
 };
 
 use super::{
@@ -60,10 +53,8 @@ use super::{
     sync::ShellSyncManager,
     types::{
         GetRoomEventContextRequest, GetRoomSummaryRequest, GetRoomTimelineRequest,
-        GlobalSearchMessageHit, GlobalSearchRequest, GlobalSearchResponse, GlobalSearchRoomHit,
-        GlobalSearchSpaceHit, ListRoomThreadsRequest, ListSpacesRequest, RoomSummary,
-        RoomThreadSummary, RoomTimeline, SendRoomMessageRequest, SendRoomMessageResponse,
-        SpaceSummary,
+        ListRoomThreadsRequest, ListSpacesRequest, RoomSummary, RoomThreadSummary, RoomTimeline,
+        SendRoomMessageRequest, SendRoomMessageResponse, SpaceSummary,
     },
 };
 
@@ -73,21 +64,6 @@ const DEFAULT_TIMELINE_LIMIT: u16 = 30;
 // Event-context jumps are meant to anchor the user around a hit, not replay a
 // full timeline page, so keep the context window smaller than the normal page.
 const DEFAULT_EVENT_CONTEXT_LIMIT: u16 = 8;
-// Search groups back the current shell UI; keeping them short avoids turning a
-// lightweight command into a broad fan-out over every room on each keystroke.
-const DEFAULT_SEARCH_LIMIT_PER_GROUP: usize = 5;
-// Recent-message fallback search should inspect enough history to be useful,
-// but remain bounded so local scans stay interactive on large accounts.
-const MESSAGE_SEARCH_SCAN_LIMIT: u16 = 20;
-// Search backfills only a couple of pages before giving up, because this path
-// is a best-effort fallback after the local index and cache have already run.
-const MESSAGE_SEARCH_MAX_PAGES: usize = 2;
-// Per-room search hits are capped so one noisy room does not crowd out the
-// global search results before other joined rooms get a chance to contribute.
-const MESSAGE_SEARCH_HITS_PER_ROOM: usize = 5;
-// Server-backed search is reserved for larger accounts where walking local room
-// history becomes more expensive than asking the homeserver for non-E2EE rooms.
-const SERVER_BACKED_SEARCH_ROOM_THRESHOLD: usize = 20;
 // Warm a meaningfully larger local window than the visible timeline so recently
 // reopened rooms can render from disk/cache without fetching again immediately.
 const RECENT_TIMELINE_WARM_LIMIT: u16 = 80;
@@ -104,13 +80,6 @@ const ROOM_LIST_SNAPSHOT_PAGE_SIZE: usize = 10_000;
 enum ShellRoomListKind {
     Conversations,
     Spaces,
-}
-
-#[derive(Clone)]
-struct SearchableRoom {
-    room: Room,
-    title: String,
-    is_encrypted: bool,
 }
 
 #[derive(Clone, Default)]
@@ -254,22 +223,28 @@ impl ShellManager {
         );
 
         let limit = request.limit.unwrap_or(DEFAULT_TIMELINE_LIMIT);
-        let (items, next_before) = if request.before.is_none() {
+        let (items, next_before);
+        if request.before.is_none() {
             self.timeline_registry
                 .subscribe_live_timeline_updates(app.clone(), &account.account_key, &room)
                 .await?;
-            load_live_room_timeline(&self.timeline_registry, &account.account_key, &room, limit)
-                .await?
+            (items, next_before) = load_live_room_timeline(
+                &self.timeline_registry,
+                &account.account_key,
+                &room,
+                limit,
+            )
+            .await?;
         } else {
-            load_paginated_room_timeline(
+            (items, next_before) = load_paginated_room_timeline(
                 &self.timeline_registry,
                 &account.account_key,
                 &room,
                 limit,
                 request.before.as_deref(),
             )
-            .await?
-        };
+            .await?;
+        }
 
         if request.before.is_none()
             && let Some(latest_item) = items.last()
@@ -402,142 +377,6 @@ impl ShellManager {
         Ok(spaces)
     }
 
-    #[allow(clippy::too_many_lines)]
-    pub async fn global_search(
-        &self,
-        app: &tauri::AppHandle,
-        account_manager: &AccountManager,
-        request: GlobalSearchRequest,
-    ) -> Result<GlobalSearchResponse, String> {
-        self.sync_manager
-            .ensure_started_for_manager(account_manager, app)
-            .await?;
-
-        let query = request.query.trim().to_lowercase();
-        if query.is_empty() {
-            return Ok(GlobalSearchResponse {
-                rooms: Vec::new(),
-                spaces: Vec::new(),
-                messages: Vec::new(),
-            });
-        }
-
-        let Some(account) = account_manager.active_account_client(app).await? else {
-            return Ok(GlobalSearchResponse {
-                rooms: Vec::new(),
-                spaces: Vec::new(),
-                messages: Vec::new(),
-            });
-        };
-
-        let limit = request
-            .limit_per_group
-            .unwrap_or(DEFAULT_SEARCH_LIMIT_PER_GROUP);
-
-        let mut rooms = Vec::new();
-        let mut spaces = Vec::new();
-        let mut messages = Vec::new();
-        let mut searchable_rooms = Vec::new();
-
-        for room in self
-            .snapshot_room_list(&account.account_key, ShellRoomListKind::Spaces)
-            .await?
-        {
-            if spaces.len() >= limit {
-                break;
-            }
-
-            let summary = self
-                .build_space_summary(&room, &account.homeserver_url)
-                .await?;
-            if matches_query(Some(&query), &[&summary.name, &summary.description]) {
-                spaces.push(GlobalSearchSpaceHit {
-                    space_id: summary.space_id,
-                    title: summary.name,
-                    description: summary.description,
-                });
-            }
-        }
-
-        for room in self
-            .snapshot_room_list(&account.account_key, ShellRoomListKind::Conversations)
-            .await?
-        {
-            let summary = self
-                .build_room_thread_summary(&account.account_key, &room)
-                .await?;
-            if rooms.len() < limit
-                && matches_query(Some(&query), &[&summary.title, &summary.preview])
-            {
-                rooms.push(GlobalSearchRoomHit {
-                    room_id: summary.room_id.clone(),
-                    title: summary.title.clone(),
-                    description: summary.preview.clone(),
-                });
-            }
-
-            searchable_rooms.push(SearchableRoom {
-                is_encrypted: room_is_encrypted(&room).await,
-                room,
-                title: summary.title,
-            });
-        }
-
-        let large_account = searchable_rooms.len() >= SERVER_BACKED_SEARCH_ROOM_THRESHOLD;
-        let mut seen_message_ids = HashSet::new();
-
-        if large_account {
-            let server_hits = self
-                .server_backed_message_search(&account.client, &searchable_rooms, &query, limit)
-                .await?;
-            push_message_hits(&mut messages, &mut seen_message_ids, server_hits, limit);
-        }
-
-        for searchable_room in &searchable_rooms {
-            if messages.len() >= limit {
-                break;
-            }
-
-            if !searchable_room.is_encrypted && large_account {
-                continue;
-            }
-
-            let scan = self
-                .indexed_message_search(
-                    &searchable_room.room,
-                    &searchable_room.title,
-                    &query,
-                    limit.saturating_sub(messages.len()),
-                )
-                .await?;
-            push_message_hits(&mut messages, &mut seen_message_ids, scan, limit);
-        }
-
-        if large_account && messages.len() < limit {
-            for searchable_room in &searchable_rooms {
-                if searchable_room.is_encrypted || messages.len() >= limit {
-                    continue;
-                }
-
-                let fallback_hits = self
-                    .indexed_message_search(
-                        &searchable_room.room,
-                        &searchable_room.title,
-                        &query,
-                        limit.saturating_sub(messages.len()),
-                    )
-                    .await?;
-                push_message_hits(&mut messages, &mut seen_message_ids, fallback_hits, limit);
-            }
-        }
-
-        Ok(GlobalSearchResponse {
-            rooms,
-            spaces,
-            messages,
-        })
-    }
-
     async fn build_room_thread_summary(
         &self,
         account_key: &str,
@@ -578,11 +417,7 @@ impl ShellManager {
         let description = room.topic().unwrap_or_default();
         let member_label = format!("{} members", room.active_members_count());
         let activity_timestamp = latest_activity_unix_ms(room);
-        let activity_label = if activity_timestamp == 0 {
-            String::from("No recent activity")
-        } else {
-            relative_time_label(activity_timestamp)
-        };
+        let activity_label = space_activity_label(activity_timestamp);
 
         Ok(SpaceSummary {
             space_id: room.room_id().to_string(),
@@ -591,11 +426,7 @@ impl ShellManager {
             member_label,
             activity_label,
             accent_label: first_visible_grapheme(&name),
-            is_official: Some(
-                room.room_id().server_name().is_some_and(|server_name| {
-                    fallback_homeserver_url.contains(server_name.as_str())
-                }),
-            ),
+            is_official: Some(space_matches_homeserver(room, fallback_homeserver_url)),
         })
     }
 
@@ -641,9 +472,7 @@ impl ShellManager {
                 .recent_timeline_warm_state
                 .write()
                 .expect("shell manager warm-state lock poisoned");
-            if warm_state.get(&state_key).is_some_and(|previous_warm_at| {
-                now.saturating_sub(*previous_warm_at) < RECENT_TIMELINE_REWARM_INTERVAL_MS
-            }) {
+            if recent_timeline_warmup_is_fresh(warm_state.get(&state_key), now) {
                 return;
             }
 
@@ -658,10 +487,11 @@ impl ShellManager {
             }
         });
 
-        self.recent_timeline_warm_handles
+        let mut warm_handles = self
+            .recent_timeline_warm_handles
             .write()
-            .expect("shell manager warm-handles lock poisoned")
-            .insert(state_key, handle);
+            .expect("shell manager warm-handles lock poisoned");
+        warm_handles.insert(state_key, handle);
     }
 
     async fn stop_recent_timeline_warmups(&self, account_key: &str) {
@@ -688,10 +518,11 @@ impl ShellManager {
             let _ = handle.await;
         }
 
-        self.recent_timeline_warm_state
+        let mut warm_state = self
+            .recent_timeline_warm_state
             .write()
-            .expect("shell manager warm-state lock poisoned")
-            .retain(|state_key, _| !state_key.starts_with(&account_prefix));
+            .expect("shell manager warm-state lock poisoned");
+        warm_state.retain(|state_key, _| !state_key.starts_with(&account_prefix));
     }
 
     async fn stop_all_recent_timeline_warmups(&self) {
@@ -711,195 +542,38 @@ impl ShellManager {
             let _ = handle.await;
         }
 
-        self.recent_timeline_warm_state
+        let mut warm_state = self
+            .recent_timeline_warm_state
             .write()
-            .expect("shell manager warm-state lock poisoned")
-            .clear();
-    }
-
-    async fn indexed_message_search(
-        &self,
-        room: &Room,
-        room_title: &str,
-        query: &str,
-        limit: usize,
-    ) -> Result<Vec<GlobalSearchMessageHit>, String> {
-        let mut hits = self
-            .local_index_hits(room, room_title, query, limit)
-            .await?;
-        if hits.len() >= limit {
-            return Ok(hits);
-        }
-
-        let fallback_hits = self
-            .scan_room_messages_for_search(
-                room,
-                room_title,
-                query,
-                limit.saturating_sub(hits.len()),
-            )
-            .await?;
-        hits.extend(fallback_hits);
-
-        Ok(hits)
-    }
-
-    async fn local_index_hits(
-        &self,
-        room: &Room,
-        room_title: &str,
-        query: &str,
-        limit: usize,
-    ) -> Result<Vec<GlobalSearchMessageHit>, String> {
-        let event_ids = room
-            .search(query, limit, None)
-            .await
-            .map_err(|error| format!("Failed to search the local room index: {error}"))?;
-
-        let mut hits = Vec::new();
-        let mut seen_event_ids = HashSet::new();
-
-        for event_id in event_ids {
-            let event = room
-                .load_or_fetch_event(&event_id, None)
-                .await
-                .map_err(|error| format!("Failed to load an indexed message match: {error}"))?;
-
-            let Some(item) = timeline_item_from_timeline_event(&event, room.own_user_id()) else {
-                continue;
-            };
-
-            if !item.body.to_lowercase().contains(query) {
-                continue;
-            }
-
-            if seen_event_ids.insert(item.event_id.clone()) {
-                hits.push(message_search_hit(room, room_title, item));
-            }
-
-            if hits.len() >= limit {
-                return Ok(hits);
-            }
-        }
-
-        Ok(hits)
-    }
-
-    async fn scan_room_messages_for_search(
-        &self,
-        room: &Room,
-        room_title: &str,
-        query: &str,
-        limit: usize,
-    ) -> Result<Vec<GlobalSearchMessageHit>, String> {
-        let mut hits = Vec::new();
-        let mut seen_event_ids = HashSet::new();
-
-        // The SDK's event cache is the intended local source for recent room
-        // history, so search it before paying for explicit pagination.
-        for item in cached_timeline_items(room).await? {
-            if !item.body.to_lowercase().contains(query) {
-                continue;
-            }
-
-            if seen_event_ids.insert(item.event_id.clone()) {
-                hits.push(message_search_hit(room, room_title, item));
-            }
-
-            if hits.len() >= limit.min(MESSAGE_SEARCH_HITS_PER_ROOM) {
-                return Ok(hits);
-            }
-        }
-
-        let mut before: Option<String> = None;
-        for _ in 0..MESSAGE_SEARCH_MAX_PAGES {
-            let (chunk, next_before) =
-                fetch_room_timeline_chunk(room, MESSAGE_SEARCH_SCAN_LIMIT, before.as_deref())
-                    .await
-                    .map_err(|error| format!("Failed to search the room timeline: {error}"))?;
-            before = next_before;
-
-            for item in chunk {
-                if !item.body.to_lowercase().contains(query) {
-                    continue;
-                }
-
-                if seen_event_ids.insert(item.event_id.clone()) {
-                    hits.push(message_search_hit(room, room_title, item));
-                }
-
-                if hits.len() >= limit.min(MESSAGE_SEARCH_HITS_PER_ROOM) {
-                    return Ok(hits);
-                }
-            }
-
-            if before.is_none() {
-                break;
-            }
-        }
-
-        Ok(hits)
+            .expect("shell manager warm-state lock poisoned");
+        warm_state.clear();
     }
 
     fn mark_room_focused(&self, account_key: &str, room_id: &str) {
         self.sync_manager.touch_focused_room(account_key, room_id);
     }
+}
 
-    async fn server_backed_message_search(
-        &self,
-        client: &matrix_sdk::Client,
-        searchable_rooms: &[SearchableRoom],
-        query: &str,
-        limit: usize,
-    ) -> Result<Vec<GlobalSearchMessageHit>, String> {
-        let searchable_room_ids = searchable_rooms
-            .iter()
-            .filter(|room| !room.is_encrypted)
-            .map(|room| room.room.room_id().to_owned())
-            .collect::<Vec<_>>();
-
-        if searchable_room_ids.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        let room_titles = searchable_rooms
-            .iter()
-            .map(|room| (room.room.room_id().to_string(), room.title.clone()))
-            .collect::<HashMap<_, _>>();
-
-        let mut filter = RoomEventFilter::default();
-        filter.rooms = Some(searchable_room_ids);
-        filter.limit = Some(u32::try_from(limit).unwrap_or(u32::MAX).into());
-
-        let mut criteria = search_events::v3::Criteria::new(query.to_owned());
-        criteria.keys = Some(vec![search_events::v3::SearchKeys::ContentBody]);
-        criteria.filter = filter;
-        criteria.order_by = Some(search_events::v3::OrderBy::Recent);
-
-        let mut categories = search_events::v3::Categories::new();
-        categories.room_events = Some(criteria);
-
-        let response = client
-            .send(search_events::v3::Request::new(categories))
-            .await
-            .map_err(|error| format!("Failed to execute server-backed message search: {error}"))?;
-
-        let mut hits = Vec::new();
-        for result in response.search_categories.room_events.results {
-            let Some(raw_event) = result.result else {
-                continue;
-            };
-
-            let Some(hit) = server_backed_search_hit(&raw_event, &room_titles, query) else {
-                continue;
-            };
-
-            hits.push(hit);
-            if hits.len() >= limit {
-                break;
-            }
-        }
-
-        Ok(hits)
+fn space_activity_label(activity_timestamp: u64) -> String {
+    if activity_timestamp == 0 {
+        return String::from("No recent activity");
     }
+
+    relative_time_label(activity_timestamp)
+}
+
+fn space_matches_homeserver(room: &Room, fallback_homeserver_url: &str) -> bool {
+    let Some(server_name) = room.room_id().server_name() else {
+        return false;
+    };
+
+    fallback_homeserver_url.contains(server_name.as_str())
+}
+
+fn recent_timeline_warmup_is_fresh(previous_warm_at: Option<&u64>, now: u64) -> bool {
+    let Some(previous_warm_at) = previous_warm_at else {
+        return false;
+    };
+
+    now.saturating_sub(*previous_warm_at) < RECENT_TIMELINE_REWARM_INTERVAL_MS
 }

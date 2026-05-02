@@ -45,38 +45,36 @@ impl<R: Runtime> AndroidSecureStorage<R> {
             },
         )?;
 
-        response
-            .value_base64
-            .map(|value| {
-                STANDARD
-                    .decode(value)
-                    .map_err(|error| crate::Error::Decode(error.to_string()))
-            })
-            .transpose()
+        let Some(secret) = response.value_base64 else {
+            return Ok(None);
+        };
+
+        let secret = STANDARD
+            .decode(secret)
+            .map_err(|error| crate::Error::Decode(error.to_string()))?;
+        Ok(Some(secret))
     }
 
     pub fn set_secret(&self, key: &str, value: &[u8]) -> crate::Result<()> {
-        self.0
-            .run_mobile_plugin::<serde_json::Value>(
-                "setSecret",
-                SetSecretRequest {
-                    key: key.to_owned(),
-                    value_base64: STANDARD.encode(value),
-                },
-            )
-            .map(|_| ())
-            .map_err(Into::into)
+        let request = SetSecretRequest {
+            key: key.to_owned(),
+            value_base64: STANDARD.encode(value),
+        };
+        let response = self
+            .0
+            .run_mobile_plugin::<serde_json::Value>("setSecret", request);
+
+        response.map(|_| ()).map_err(Into::into)
     }
 
     pub fn delete_secret(&self, key: &str) -> crate::Result<()> {
-        self.0
-            .run_mobile_plugin::<serde_json::Value>(
-                "deleteSecret",
-                SecretKeyRequest {
-                    key: key.to_owned(),
-                },
-            )
-            .map(|_| ())
-            .map_err(Into::into)
+        let request = SecretKeyRequest {
+            key: key.to_owned(),
+        };
+        let response = self
+            .0
+            .run_mobile_plugin::<serde_json::Value>("deleteSecret", request);
+
+        response.map(|_| ()).map_err(Into::into)
     }
 }

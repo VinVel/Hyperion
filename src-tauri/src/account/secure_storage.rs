@@ -50,8 +50,10 @@ pub fn set_secret<R: Runtime>(app: &AppHandle<R>, key: &str, value: &[u8]) -> Re
     #[cfg(not(target_os = "android"))]
     {
         let _ = app;
-        keyring::Entry::new(SECRET_SERVICE_NAME, key)
-            .map_err(|error| format!("Failed to open secure storage entry: {error}"))?
+        let entry = keyring::Entry::new(SECRET_SERVICE_NAME, key)
+            .map_err(|error| format!("Failed to open secure storage entry: {error}"))?;
+
+        entry
             .set_secret(value)
             .map_err(|error| format!("Failed to write secure storage entry: {error}"))
     }

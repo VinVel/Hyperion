@@ -39,8 +39,10 @@ pub(super) fn local_room_state_key(account_key: &str, room_id: &str) -> String {
 }
 
 pub(super) fn current_latest_event_id(room: &Room) -> Option<String> {
-    room.latest_event()
-        .and_then(|event| event.event_id().map(|event_id| event_id.to_string()))
+    let latest_event = room.latest_event()?;
+    let event_id = latest_event.event_id()?;
+
+    Some(event_id.to_string())
 }
 
 pub(super) fn current_latest_event_is_own(room: &Room) -> bool {
@@ -63,12 +65,13 @@ pub(super) fn current_latest_event_is_own(room: &Room) -> bool {
 }
 
 pub(super) fn latest_activity_unix_ms(room: &Room) -> u64 {
-    room.new_latest_event()
-        .timestamp()
-        .or_else(|| {
-            room.latest_event()
-                .and_then(|event| event.event().timestamp())
-        })
+    let latest_event_timestamp = room.new_latest_event().timestamp();
+    let timestamp = latest_event_timestamp.or_else(|| {
+        let latest_event = room.latest_event()?;
+        latest_event.event().timestamp()
+    });
+
+    timestamp
         .map(|timestamp| u64::from(timestamp.0))
         .unwrap_or_default()
 }
@@ -77,23 +80,21 @@ pub(super) fn latest_preview_text(room: &Room) -> Option<String> {
     let latest_event = room.new_latest_event();
 
     match latest_event {
-        LatestEventValue::Remote(event) => event
-            .raw()
-            .deserialize()
-            .ok()
-            .and_then(message_preview_from_sync_event),
+        LatestEventValue::Remote(event) => {
+            let raw_event = event.raw();
+            let event = raw_event.deserialize().ok()?;
+            message_preview_from_sync_event(event)
+        }
         LatestEventValue::LocalIsSending(local_event)
         | LatestEventValue::LocalCannotBeSent(local_event) => {
             message_preview_from_content(local_event.content.deserialize().ok()?)
         }
-        LatestEventValue::None => room.latest_event().and_then(|event| {
-            event
-                .event()
-                .raw()
-                .deserialize()
-                .ok()
-                .and_then(message_preview_from_sync_event)
-        }),
+        LatestEventValue::None => {
+            let latest_event = room.latest_event()?;
+            let raw_event = latest_event.event().raw();
+            let event = raw_event.deserialize().ok()?;
+            message_preview_from_sync_event(event)
+        }
     }
 }
 
@@ -186,9 +187,10 @@ pub(super) async fn room_title(room: &Room) -> Result<String, String> {
         }
     }
 
-    Ok(room
-        .canonical_alias()
-        .map_or_else(|| room.room_id().to_string(), |alias| alias.to_string()))
+    let room_alias = room.canonical_alias();
+    let title = room_alias.map_or_else(|| room.room_id().to_string(), |alias| alias.to_string());
+
+    Ok(title)
 }
 
 pub(super) fn participant_label(room: &Room, is_direct: bool) -> String {
@@ -220,16 +222,15 @@ pub(super) fn unread_message_count(room: &Room) -> u64 {
 }
 
 pub(super) fn homeserver_label(room: &Room, fallback_homeserver_url: &str) -> String {
-    room.room_id().server_name().map_or_else(
-        || {
-            fallback_homeserver_url
-                .trim_start_matches("https://")
-                .trim_start_matches("http://")
-                .trim_end_matches('/')
-                .to_owned()
-        },
-        ToString::to_string,
-    )
+    if let Some(server_name) = room.room_id().server_name() {
+        return server_name.to_string();
+    }
+
+    let homeserver = fallback_homeserver_url.trim_start_matches("https://");
+    let homeserver = homeserver.trim_start_matches("http://");
+    let homeserver = homeserver.trim_end_matches('/');
+
+    homeserver.to_owned()
 }
 
 pub(super) async fn can_send_messages(room: &Room) -> bool {
@@ -245,8 +246,10 @@ pub(super) async fn can_send_messages(room: &Room) -> bool {
 }
 
 pub(super) async fn room_is_encrypted(room: &Room) -> bool {
-    room.latest_encryption_state()
+    let latest_encryption_state = room
+        .latest_encryption_state()
         .await
-        .map(|state| state.is_encrypted())
-        .unwrap_or(false)
+        .map(|state| state.is_encrypted());
+
+    latest_encryption_state.unwrap_or(false)
 }

@@ -43,9 +43,11 @@ pub struct MobileWebviewOverlay<R: Runtime>(PluginHandle<R>);
 
 impl<R: Runtime> MobileWebviewOverlay<R> {
     pub fn open(&self, payload: OpenOverlayWebviewRequest) -> crate::Result<()> {
-        self.0
+        let response = self
+            .0
             .run_mobile_plugin::<serde_json::Value>("open", payload)
-            .map(|_| ())
-            .map_err(Into::into)
+            .map(|_| ());
+
+        response.map_err(Into::into)
     }
 }

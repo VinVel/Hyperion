@@ -17,7 +17,8 @@ pub mod manager;
 mod secure_storage;
 pub mod types;
 
-pub use manager::{AccountClientSnapshot, AccountManager};
+pub use manager::AccountManager;
 pub use types::{
-    AccountSummary, HomeserverDirectory, LoginRequest, RegisterAccountRequest, RegistrationOutcome,
+    AccountClientSnapshot, AccountSummary, HomeserverDirectory, LoginRequest,
+    RegisterAccountRequest, RegistrationOutcome,
 };

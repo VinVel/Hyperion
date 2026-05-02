@@ -15,6 +15,7 @@
 
 use std::collections::BTreeMap;
 
+use matrix_sdk::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -42,6 +43,28 @@ pub struct AccountSummary {
     pub user_id: String,
     pub homeserver_url: String,
     pub is_active: bool,
+}
+
+#[derive(Clone)]
+pub struct AccountClientSnapshot {
+    pub account_key: String,
+    pub homeserver_url: String,
+    pub client: Client,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(super) struct StoredAccountMetadata {
+    pub user_id: String,
+    pub homeserver_url: String,
+    pub is_active: bool,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct EncryptionPreferences {
+    #[serde(default)]
+    pub server_key_storage_opted_out: bool,
+    #[serde(default)]
+    pub verified_devices_only: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]

@@ -98,10 +98,9 @@ pub(super) async fn count_recent_unread_messages_since(room: &Room, event_id: &s
 }
 
 pub(super) async fn cached_timeline_item_count(room: &Room) -> Option<usize> {
-    cached_timeline_items(room)
-        .await
-        .ok()
-        .map(|items| items.len())
+    let items = cached_timeline_items(room).await.ok()?;
+
+    Some(items.len())
 }
 
 pub(super) async fn cached_timeline_items(room: &Room) -> Result<Vec<RoomTimelineItem>, String> {
@@ -114,10 +113,12 @@ pub(super) async fn cached_timeline_items(room: &Room) -> Result<Vec<RoomTimelin
         .await
         .map_err(|error| format!("Failed to inspect the room event cache: {error}"))?;
 
-    Ok(events
+    let items = events
         .iter()
         .filter_map(|event| timeline_item_from_timeline_event(event, room.own_user_id()))
-        .collect())
+        .collect();
+
+    Ok(items)
 }
 
 pub(super) async fn fetch_room_timeline_chunk(
@@ -133,7 +134,10 @@ pub(super) async fn fetch_room_timeline_chunk(
     let mut items = response
         .chunk
         .into_iter()
-        .filter_map(|event| timeline_item_from_timeline_event(&event, room.own_user_id()))
+        .filter_map(|event| {
+            let own_user_id = room.own_user_id();
+            timeline_item_from_timeline_event(&event, own_user_id)
+        })
         .collect::<Vec<_>>();
     items.reverse();
 
@@ -173,9 +177,10 @@ pub(super) fn timeline_item_from_timeline_event(
         sender_id: sender_id.clone(),
         sender_display_name,
         body,
-        timestamp_unix_ms: event
-            .timestamp()
-            .map_or(0, |timestamp| u64::from(timestamp.0)),
+        timestamp_unix_ms: {
+            let timestamp = event.timestamp();
+            timestamp.map_or(0, |timestamp| u64::from(timestamp.0))
+        },
         is_edited: Some(is_edited),
         is_own_message: sender_id == own_user_id.as_str(),
     })
@@ -199,15 +204,15 @@ fn message_fields_from_sync_event(
                 original.sender.to_string(),
                 None,
                 text.body.clone(),
-                original
-                    .content
-                    .relates_to
-                    .as_ref()
-                    .and_then(matrix_sdk::ruma::events::room::message::Relation::rel_type)
-                    .is_some_and(|relation_type| {
+                {
+                    let relation = original.content.relates_to.as_ref();
+                    let relation_type = relation
+                        .and_then(matrix_sdk::ruma::events::room::message::Relation::rel_type);
+                    relation_type.is_some_and(|relation_type| {
                         relation_type
                             == matrix_sdk::ruma::events::relation::RelationType::Replacement
-                    }),
+                    })
+                },
             ))
         }
         _ => None,

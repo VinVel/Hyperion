@@ -75,13 +75,11 @@ pub async fn get_encryption_overview(
     let backup_available = server_backup_enabled
         || server_backup_exists.unwrap_or_default()
         || preferences.server_key_storage_opted_out;
-    let recovery_state = if !secret_storage_enabled {
-        String::from("Disabled")
-    } else if cross_signing_complete && backup_available {
-        String::from("Enabled")
-    } else {
-        String::from("Incomplete")
-    };
+    let recovery_state = recovery_state_label(
+        secret_storage_enabled,
+        cross_signing_complete,
+        backup_available,
+    );
 
     Ok(EncryptionOverview {
         has_active_account: true,
@@ -116,10 +114,9 @@ pub async fn enable_server_key_storage(
     };
 
     let mut preferences = AccountManager::load_encryption_preferences(&account.client).await?;
-    account
-        .client
-        .encryption()
-        .backups()
+    let encryption = account.client.encryption();
+    let backups = encryption.backups();
+    backups
         .create()
         .await
         .map_err(|error| format!("Failed to enable server-side key backup: {error}"))?;
@@ -137,10 +134,9 @@ pub async fn disable_server_key_storage(
     };
 
     let mut preferences = AccountManager::load_encryption_preferences(&account.client).await?;
-    account
-        .client
-        .encryption()
-        .backups()
+    let encryption = account.client.encryption();
+    let backups = encryption.backups();
+    backups
         .disable_and_delete()
         .await
         .map_err(|error| format!("Failed to disable server-side key backup: {error}"))?;
@@ -173,10 +169,9 @@ pub async fn rotate_recovery_key(
         return Err(String::from("No active account is available"));
     };
 
-    let recovery_key = account
-        .client
-        .encryption()
-        .recovery()
+    let encryption = account.client.encryption();
+    let recovery = encryption.recovery();
+    let recovery_key = recovery
         .reset_key()
         .await
         .map_err(|error| format!("Failed to rotate recovery key: {error}"))?;
@@ -195,11 +190,11 @@ pub async fn delete_recovery(
         return Err(String::from("No active account is available"));
     };
 
-    let recovery_result = account.client.encryption().recovery().disable().await;
-    account
-        .client
-        .encryption()
-        .backups()
+    let encryption = account.client.encryption();
+    let recovery = encryption.recovery();
+    let recovery_result = recovery.disable().await;
+    let backups = encryption.backups();
+    backups
         .disable_and_delete()
         .await
         .map_err(|error| format!("Failed to delete the server key backup: {error}"))?;
@@ -227,10 +222,9 @@ pub async fn recover_with_recovery_key(
     if recovery_key.is_empty() {
         return Err(String::from("Recovery key must not be empty"));
     }
-    let recovery_is_configured = account
-        .client
-        .encryption()
-        .secret_storage()
+    let encryption = account.client.encryption();
+    let secret_storage = encryption.secret_storage();
+    let recovery_is_configured = secret_storage
         .is_enabled()
         .await
         .map_err(|error| format!("Failed to read recovery state: {error}"))?;
@@ -240,10 +234,8 @@ pub async fn recover_with_recovery_key(
         ));
     }
 
-    account
-        .client
-        .encryption()
-        .recovery()
+    let recovery = encryption.recovery();
+    recovery
         .recover(recovery_key)
         .await
         .map_err(recover_error_message)
@@ -263,9 +255,8 @@ pub async fn export_room_keys(
         return Ok(None);
     };
 
-    account
-        .client
-        .encryption()
+    let encryption = account.client.encryption();
+    encryption
         .export_room_keys(path.clone(), &passphrase, |_| true)
         .await
         .map_err(|error| format!("Failed to export room keys: {error}"))?;
@@ -287,9 +278,8 @@ pub async fn import_room_keys(
         return Ok(None);
     };
 
-    let result = account
-        .client
-        .encryption()
+    let encryption = account.client.encryption();
+    let result = encryption
         .import_room_keys(path, &passphrase)
         .await
         .map_err(|error| format!("Failed to import room keys: {error}"))?;
@@ -309,10 +299,9 @@ pub async fn reset_crypto_identity(
         return Err(String::from("No active account is available"));
     };
 
-    let Some(handle) = account
-        .client
-        .encryption()
-        .recovery()
+    let encryption = account.client.encryption();
+    let recovery = encryption.recovery();
+    let Some(handle) = recovery
         .reset_identity()
         .await
         .map_err(|error| format!("Failed to reset crypto identity: {error}"))?
@@ -361,6 +350,22 @@ fn normalized_passphrase(passphrase: &str) -> Result<String, String> {
     Ok(passphrase.to_owned())
 }
 
+fn recovery_state_label(
+    secret_storage_enabled: bool,
+    cross_signing_complete: bool,
+    backup_available: bool,
+) -> String {
+    if !secret_storage_enabled {
+        return String::from("Disabled");
+    }
+
+    if cross_signing_complete && backup_available {
+        return String::from("Enabled");
+    }
+
+    String::from("Incomplete")
+}
+
 fn room_key_export_path(app: &AppHandle) -> Result<Option<std::path::PathBuf>, String> {
     let selected = app
         .dialog()
@@ -388,28 +393,20 @@ fn file_path_into_path(file_path: FilePath) -> Result<std::path::PathBuf, String
 }
 
 async fn enable_recovery_with_clean_backup(client: &Client) -> Result<String, String> {
-    match client
-        .encryption()
-        .recovery()
-        .enable()
-        .wait_for_backups_to_upload()
-        .await
-    {
+    let encryption = client.encryption();
+    let recovery = encryption.recovery();
+    let enable_recovery = recovery.enable().wait_for_backups_to_upload();
+
+    match enable_recovery.await {
         Ok(recovery_key) => Ok(recovery_key),
         Err(error) if is_backup_already_exists_error(&error.to_string()) => {
-            client
-                .encryption()
-                .backups()
-                .disable_and_delete()
-                .await
-                .map_err(|delete_error| {
-                    format!("Failed to remove the existing server key backup: {delete_error}")
-                })?;
-            client
-                .encryption()
-                .recovery()
-                .enable()
-                .wait_for_backups_to_upload()
+            let backups = encryption.backups();
+            backups.disable_and_delete().await.map_err(|delete_error| {
+                format!("Failed to remove the existing server key backup: {delete_error}")
+            })?;
+            let recovery = encryption.recovery();
+            let enable_recovery = recovery.enable().wait_for_backups_to_upload();
+            enable_recovery
                 .await
                 .map_err(|enable_error| format!("Failed to create recovery: {enable_error}"))
         }
@@ -428,24 +425,23 @@ fn is_backup_not_enabled_error(message: &str) -> bool {
 }
 
 async fn mark_recovery_account_data_disabled(client: &Client) -> Result<(), String> {
-    client
-        .account()
-        .set_account_data_raw(
-            GlobalAccountDataEventType::from(SECRET_STORAGE_DEFAULT_KEY_EVENT_TYPE),
-            Raw::new(&json!({}))
-                .map_err(|error| format!("Failed to serialize disabled recovery state: {error}"))?
-                .cast_unchecked(),
-        )
+    let account = client.account();
+    let default_key_event_type =
+        GlobalAccountDataEventType::from(SECRET_STORAGE_DEFAULT_KEY_EVENT_TYPE);
+    let default_key_content = Raw::new(&json!({}))
+        .map_err(|error| format!("Failed to serialize disabled recovery state: {error}"))?
+        .cast_unchecked();
+    account
+        .set_account_data_raw(default_key_event_type, default_key_content)
         .await
         .map_err(|error| format!("Failed to mark recovery as disabled: {error}"))?;
-    client
-        .account()
-        .set_account_data_raw(
-            GlobalAccountDataEventType::from(BACKUP_DISABLED_EVENT_TYPE),
-            Raw::new(&json!({ "disabled": true }))
-                .map_err(|error| format!("Failed to serialize disabled backup marker: {error}"))?
-                .cast_unchecked(),
-        )
+
+    let backup_disabled_event_type = GlobalAccountDataEventType::from(BACKUP_DISABLED_EVENT_TYPE);
+    let backup_disabled_content = Raw::new(&json!({ "disabled": true }))
+        .map_err(|error| format!("Failed to serialize disabled backup marker: {error}"))?
+        .cast_unchecked();
+    account
+        .set_account_data_raw(backup_disabled_event_type, backup_disabled_content)
         .await
         .map_err(|error| format!("Failed to mark server key backup as disabled: {error}"))?;
 

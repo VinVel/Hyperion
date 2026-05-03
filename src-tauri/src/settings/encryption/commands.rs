@@ -19,8 +19,14 @@ use matrix_sdk::{
     ruma::{events::GlobalAccountDataEventType, serde::Raw},
 };
 use serde_json::json;
-use tauri::AppHandle;
+use std::{
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+};
+use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::{DialogExt, FilePath};
+use tauri_plugin_fs::{FsExt, OpenOptions};
 
 use crate::{account::AccountManager, shell::ShellManager};
 
@@ -33,6 +39,10 @@ pub use super::types::{
 const SECRET_STORAGE_DEFAULT_KEY_EVENT_TYPE: &str = "m.secret_storage.default_key";
 // Matrix Rust SDK uses this custom marker to prevent automatic backup re-creation after recovery deletion.
 const BACKUP_DISABLED_EVENT_TYPE: &str = "m.org.matrix.custom.backup_disabled";
+// Default export name shown by mobile document pickers when creating encrypted room-key files.
+const ROOM_KEY_EXPORT_FILE_NAME: &str = "hyperion-room-keys.txt";
+// App-private staging folder for Matrix SDK room-key import/export, because the SDK requires local paths.
+const ROOM_KEY_TRANSFER_DIRECTORY_NAME: &str = "room-key-transfer";
 
 #[tauri::command]
 pub async fn get_encryption_overview(
@@ -251,17 +261,22 @@ pub async fn export_room_keys(
         return Err(String::from("No active account is available"));
     };
     let passphrase = normalized_passphrase(&request.passphrase)?;
-    let Some(path) = room_key_export_path(&app)? else {
+    let Some(destination) = room_key_export_destination(&app)? else {
         return Ok(None);
     };
+    let export_path = room_key_export_path(&app, &destination)?;
 
     let encryption = account.client.encryption();
     encryption
-        .export_room_keys(path.clone(), &passphrase, |_| true)
+        .export_room_keys(export_path.clone(), &passphrase, |_| true)
         .await
         .map_err(|error| format!("Failed to export room keys: {error}"))?;
+    if let RoomKeySelectedFile::DocumentUri(destination_uri) = &destination {
+        copy_local_file_to_document_uri(&app, &export_path, destination_uri.clone())?;
+        remove_transfer_file(&export_path)?;
+    }
 
-    Ok(Some(path.to_string_lossy().into_owned()))
+    Ok(Some(destination.to_display_string()))
 }
 
 #[tauri::command]
@@ -274,15 +289,19 @@ pub async fn import_room_keys(
         return Err(String::from("No active account is available"));
     };
     let passphrase = normalized_passphrase(&request.passphrase)?;
-    let Some(path) = room_key_import_path(&app)? else {
+    let Some(source) = room_key_import_source(&app)? else {
         return Ok(None);
     };
+    let import_path = room_key_import_path(&app, &source)?;
 
     let encryption = account.client.encryption();
     let result = encryption
-        .import_room_keys(path, &passphrase)
+        .import_room_keys(import_path.clone(), &passphrase)
         .await
         .map_err(|error| format!("Failed to import room keys: {error}"))?;
+    if matches!(source, RoomKeySelectedFile::DocumentUri(_)) {
+        remove_transfer_file(&import_path)?;
+    }
 
     Ok(Some(RoomKeyImportSummary {
         imported_count: result.imported_count,
@@ -366,30 +385,130 @@ fn recovery_state_label(
     String::from("Incomplete")
 }
 
-fn room_key_export_path(app: &AppHandle) -> Result<Option<std::path::PathBuf>, String> {
+enum RoomKeySelectedFile {
+    LocalPath(PathBuf),
+    DocumentUri(FilePath),
+}
+
+impl RoomKeySelectedFile {
+    fn to_display_string(&self) -> String {
+        match self {
+            Self::LocalPath(path) => path.to_string_lossy().into_owned(),
+            Self::DocumentUri(file_path) => file_path.to_string(),
+        }
+    }
+}
+
+fn room_key_export_destination(app: &AppHandle) -> Result<Option<RoomKeySelectedFile>, String> {
     let selected = app
         .dialog()
         .file()
         .add_filter("Encrypted Matrix room keys", &["txt", "keys"])
+        .set_file_name(ROOM_KEY_EXPORT_FILE_NAME)
         .blocking_save_file();
 
-    selected.map(file_path_into_path).transpose()
+    selected.map(classify_dialog_file).transpose()
 }
 
-fn room_key_import_path(app: &AppHandle) -> Result<Option<std::path::PathBuf>, String> {
+fn room_key_import_source(app: &AppHandle) -> Result<Option<RoomKeySelectedFile>, String> {
     let selected = app
         .dialog()
         .file()
         .add_filter("Encrypted Matrix room keys", &["txt", "keys"])
         .blocking_pick_file();
 
-    selected.map(file_path_into_path).transpose()
+    selected.map(classify_dialog_file).transpose()
 }
 
-fn file_path_into_path(file_path: FilePath) -> Result<std::path::PathBuf, String> {
-    file_path
-        .into_path()
-        .map_err(|path| format!("Selected file is not a local filesystem path: {path}"))
+fn classify_dialog_file(file_path: FilePath) -> Result<RoomKeySelectedFile, String> {
+    match file_path {
+        FilePath::Path(path) => Ok(RoomKeySelectedFile::LocalPath(path)),
+        FilePath::Url(url) if url.scheme() == "file" => {
+            let path = url
+                .to_file_path()
+                .map_err(|()| format!("Selected file URL is not a valid path: {url}"))?;
+            Ok(RoomKeySelectedFile::LocalPath(path))
+        }
+        FilePath::Url(url) => Ok(RoomKeySelectedFile::DocumentUri(FilePath::Url(url))),
+    }
+}
+
+fn room_key_export_path(
+    app: &AppHandle,
+    destination: &RoomKeySelectedFile,
+) -> Result<PathBuf, String> {
+    match destination {
+        RoomKeySelectedFile::LocalPath(path) => Ok(path.clone()),
+        RoomKeySelectedFile::DocumentUri(_) => room_key_transfer_path(app, "export"),
+    }
+}
+
+fn room_key_import_path(app: &AppHandle, source: &RoomKeySelectedFile) -> Result<PathBuf, String> {
+    match source {
+        RoomKeySelectedFile::LocalPath(path) => Ok(path.clone()),
+        RoomKeySelectedFile::DocumentUri(source_uri) => {
+            let import_path = room_key_transfer_path(app, "import")?;
+            copy_document_uri_to_local_file(app, source_uri.clone(), &import_path)?;
+            Ok(import_path)
+        }
+    }
+}
+
+fn room_key_transfer_path(app: &AppHandle, operation_name: &str) -> Result<PathBuf, String> {
+    let transfer_directory = app
+        .path()
+        .app_cache_dir()
+        .map_err(|error| format!("Failed to resolve app cache directory: {error}"))?
+        .join(ROOM_KEY_TRANSFER_DIRECTORY_NAME);
+    fs::create_dir_all(&transfer_directory)
+        .map_err(|error| format!("Failed to prepare room-key transfer directory: {error}"))?;
+
+    Ok(transfer_directory.join(format!("{operation_name}-{}.keys", rand::random::<u64>())))
+}
+
+fn copy_local_file_to_document_uri(
+    app: &AppHandle,
+    source_path: &Path,
+    destination_uri: FilePath,
+) -> Result<(), String> {
+    let mut source = fs::File::open(source_path)
+        .map_err(|error| format!("Failed to open exported room keys: {error}"))?;
+    let mut options = OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    let mut destination = app
+        .fs()
+        .open(destination_uri, options)
+        .map_err(|error| format!("Failed to open selected export destination: {error}"))?;
+    std::io::copy(&mut source, &mut destination)
+        .map_err(|error| format!("Failed to copy room keys to selected destination: {error}"))?;
+    destination
+        .flush()
+        .map_err(|error| format!("Failed to flush exported room keys: {error}"))
+}
+
+fn copy_document_uri_to_local_file(
+    app: &AppHandle,
+    source_uri: FilePath,
+    destination_path: &Path,
+) -> Result<(), String> {
+    let mut options = OpenOptions::new();
+    options.read(true);
+    let mut source = app
+        .fs()
+        .open(source_uri, options)
+        .map_err(|error| format!("Failed to open selected import file: {error}"))?;
+    let mut destination = fs::File::create(destination_path)
+        .map_err(|error| format!("Failed to prepare room-key import file: {error}"))?;
+    std::io::copy(&mut source, &mut destination)
+        .map_err(|error| format!("Failed to copy selected import file: {error}"))?;
+    destination
+        .flush()
+        .map_err(|error| format!("Failed to flush room-key import file: {error}"))
+}
+
+fn remove_transfer_file(path: &Path) -> Result<(), String> {
+    fs::remove_file(path)
+        .map_err(|error| format!("Failed to remove temporary room-key transfer file: {error}"))
 }
 
 async fn enable_recovery_with_clean_backup(client: &Client) -> Result<String, String> {

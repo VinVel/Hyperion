@@ -44,6 +44,7 @@ use tauri::{AppHandle, State};
 
 use tauri_plugin_android_secure_storage as android_secure_storage;
 use tauri_plugin_dialog as dialog;
+use tauri_plugin_fs as fs;
 use tauri_plugin_mobile_webview_overlay as mobile_overlay_webview;
 
 #[tauri::command]
@@ -290,6 +291,7 @@ pub fn run() {
         .manage(ShellManager::new())
         .plugin(android_secure_storage::init())
         .plugin(dialog::init())
+        .plugin(fs::init())
         .plugin(mobile_overlay_webview::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![

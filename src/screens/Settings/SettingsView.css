@@ -220,6 +220,10 @@
   flex: 1 1 16rem;
 }
 
+.settings-view-inline-form .ui-button {
+  min-height: var(--sizing-icon-button-size);
+}
+
 .settings-view-toggle-row {
   align-items: center;
   justify-content: space-between;

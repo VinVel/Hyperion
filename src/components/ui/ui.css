@@ -124,6 +124,8 @@
 }
 
 .ui-button {
+  appearance: none;
+  -webkit-appearance: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -147,7 +149,8 @@
 
 .ui-button:disabled {
   cursor: not-allowed;
-  opacity: 0.8;
+  opacity: 1;
+  -webkit-text-fill-color: currentColor;
 }
 
 .ui-button--primary {
@@ -161,6 +164,13 @@
   box-shadow: var(--elevation-primary-action-hover);
 }
 
+.ui-button--primary:disabled,
+.ui-button--icon:disabled {
+  background: color-mix(in srgb, var(--primary) 42%, var(--surface-container-high));
+  color: color-mix(in srgb, var(--on-primary) 70%, var(--on-surface-variant));
+  box-shadow: var(--elevation-outline-subtle);
+}
+
 .ui-button--secondary {
   background: var(--surface-container-low);
   color: var(--on-surface);
@@ -169,6 +179,14 @@
 
 .ui-button--secondary:hover:not(:disabled) {
   background: var(--surface-container);
+}
+
+.ui-button--secondary:disabled {
+  background: color-mix(in srgb, var(--surface-container-low) 82%, var(--surface-container-highest));
+  color: var(--on-surface-variant);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--outline-variant) 72%, transparent),
+    var(--elevation-outline-subtle);
 }
 
 .ui-button--destructive {
@@ -184,6 +202,14 @@
   color: var(--on-error-container);
 }
 
+.ui-button--destructive:disabled {
+  background: color-mix(in srgb, var(--error-container) 64%, var(--surface-container-high));
+  color: color-mix(in srgb, var(--on-error-container) 78%, var(--on-surface-variant));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--error) 18%, transparent),
+    var(--elevation-outline-subtle);
+}
+
 .ui-button--ghost {
   background: transparent;
   color: var(--on-surface-variant);
@@ -193,6 +219,12 @@
 .ui-button--ghost:hover:not(:disabled) {
   color: var(--on-surface);
   background: color-mix(in srgb, var(--surface-container-high) 70%, transparent);
+}
+
+.ui-button--ghost:disabled {
+  background: transparent;
+  color: var(--on-surface-variant);
+  box-shadow: none;
 }
 
 .ui-button--icon {

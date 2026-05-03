@@ -2529,6 +2529,7 @@ dependencies = [
  "tauri-plugin-android-secure-storage",
  "tauri-plugin-app-events",
  "tauri-plugin-dialog",
+ "tauri-plugin-fs",
  "tauri-plugin-i18n",
  "tauri-plugin-mobile-webview-overlay",
  "tauri-plugin-opener",

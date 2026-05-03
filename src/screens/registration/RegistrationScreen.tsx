@@ -18,6 +18,7 @@ import { Webview } from "@tauri-apps/api/webview";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { LogicalPosition, LogicalSize, getCurrentWindow } from "@tauri-apps/api/window";
 import {
+  type RefObject,
   type SyntheticEvent,
   useDeferredValue,
   useEffect,
@@ -96,6 +97,33 @@ type EmbeddedWebviewState = {
   url: string;
   warning?: string | null;
 };
+type WebviewBounds = {
+  height: number;
+  width: number;
+  x: number;
+  y: number;
+};
+type RegistrationFormStageProps = {
+  captchaWarningText: string;
+  emailMissing: boolean;
+  emailRequired: boolean;
+  feedback: RegistrationFeedbackMessage | null;
+  formValues: RegistrationFormValues;
+  isSubmitting: boolean;
+  passwordMissing: boolean;
+  selectedHomeserver: HomeserverDirectoryEntry;
+  usernameMissing: boolean;
+  onBack: () => void;
+  onFieldChange: (field: keyof RegistrationFormValues, value: string) => void;
+  onSubmit: (event: SyntheticEvent<HTMLFormElement, SubmitEvent>) => void;
+};
+type EmbeddedWebviewStageProps = {
+  embeddedWebview: EmbeddedWebviewState;
+  selectedHomeserver: HomeserverDirectoryEntry | null;
+  webviewHostRef: RefObject<HTMLDivElement | null>;
+  onBack: () => void;
+  onGoToLogin: () => void;
+};
 
 const DEVICE_DISPLAY_NAME = "Hyperion";
 const EMBEDDED_WEBVIEW_LABEL = "registration-handoff-webview";
@@ -108,6 +136,95 @@ const defaultFormValues: RegistrationFormValues = {
 
 function isMobileWebviewUnavailableError(error: unknown): boolean {
   return getErrorMessage(error).toLowerCase().includes("webview api not available on mobile");
+}
+
+function compareHomeservers(
+  left: HomeserverDirectoryEntry,
+  right: HomeserverDirectoryEntry,
+): number {
+  const officialOrder = Number(right.is_official === true) - Number(left.is_official === true);
+  if (officialOrder !== 0) {
+    return officialOrder;
+  }
+
+  const flowOrder =
+    registrationFlowOrder[left.registration_flow] -
+    registrationFlowOrder[right.registration_flow];
+  if (flowOrder !== 0) {
+    return flowOrder;
+  }
+
+  return homeserverTitle(left).localeCompare(homeserverTitle(right));
+}
+
+function findRetainedHomeserverId(
+  currentServerId: string | null,
+  nextHomeservers: HomeserverDirectoryEntry[],
+): string | null {
+  if (!currentServerId) {
+    return null;
+  }
+
+  const serverStillExists = nextHomeservers.some(
+    (homeserver) => homeserver.server_id === currentServerId,
+  );
+  if (!serverStillExists) {
+    return null;
+  }
+
+  return currentServerId;
+}
+
+function homeserverMatchesSearch(
+  homeserver: HomeserverDirectoryEntry,
+  normalizedQuery: string,
+): boolean {
+  if (normalizedQuery.length === 0) {
+    return true;
+  }
+
+  const searchableText = [
+    homeserver.server_id,
+    homeserver.name,
+    homeserver.client_domain,
+    homeserver.server_domain,
+    homeserver.software,
+    homeserver.version,
+    homeserver.description,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return searchableText.includes(normalizedQuery);
+}
+
+function getWebviewBounds(element: HTMLElement): WebviewBounds {
+  const rect = element.getBoundingClientRect();
+
+  return {
+    x: Math.round(rect.left),
+    y: Math.round(rect.top),
+    width: Math.max(1, Math.round(rect.width)),
+    height: Math.max(1, Math.round(rect.height)),
+  };
+}
+
+function formValueOrNull(value: string): string | null {
+  const trimmedValue = value.trim();
+  if (trimmedValue.length === 0) {
+    return null;
+  }
+
+  return trimmedValue;
+}
+
+function registrationReturnStage(stage: RegistrationStage): NonWebviewStage {
+  if (stage === "form") {
+    return "form";
+  }
+
+  return "details";
 }
 
 export default function RegistrationScreen({
@@ -142,23 +259,14 @@ export default function RegistrationScreen({
       const directory = await invoke<HomeserverDirectory>("list_registration_homeservers");
       const nextHomeservers = normalizeHomeservers(directory.public_servers)
         .filter((homeserver) => homeserver.server_id.trim().length > 0)
-        .sort(
-          (left, right) =>
-            Number(right.is_official === true) - Number(left.is_official === true) ||
-            registrationFlowOrder[left.registration_flow] - registrationFlowOrder[right.registration_flow] ||
-            homeserverTitle(left).localeCompare(homeserverTitle(right)),
-        );
+        .sort(compareHomeservers);
 
       if (requestId !== latestHomeserverRequestIdRef.current) {
         return;
       }
 
       setHomeservers(nextHomeservers);
-      setSelectedServerId((current) =>
-        current && nextHomeservers.some((homeserver) => homeserver.server_id === current)
-          ? current
-          : null,
-      );
+      setSelectedServerId((current) => findRetainedHomeserverId(current, nextHomeservers));
 
       if (reason === "initial" || reason === "refresh") {
         setFeedback((currentFeedback) =>
@@ -202,17 +310,13 @@ export default function RegistrationScreen({
     const syncBounds = async () => {
       if (disposed || !currentWebview || !webviewHostRef.current) return;
 
-      const nextRect = webviewHostRef.current.getBoundingClientRect();
-      const nextWidth = Math.max(1, Math.round(nextRect.width));
-      const nextHeight = Math.max(1, Math.round(nextRect.height));
-
-      if (nextWidth < 1 || nextHeight < 1) return;
+      const nextBounds = getWebviewBounds(webviewHostRef.current);
 
       await Promise.allSettled([
         currentWebview.setPosition(
-          new LogicalPosition(Math.round(nextRect.left), Math.round(nextRect.top)),
+          new LogicalPosition(nextBounds.x, nextBounds.y),
         ),
-        currentWebview.setSize(new LogicalSize(nextWidth, nextHeight)),
+        currentWebview.setSize(new LogicalSize(nextBounds.width, nextBounds.height)),
       ]);
     };
 
@@ -224,25 +328,14 @@ export default function RegistrationScreen({
 
       if (disposed || !webviewHostRef.current) return;
 
-      const initialRect = webviewHostRef.current.getBoundingClientRect();
-      const initialWidth = Math.max(1, Math.round(initialRect.width));
-      const initialHeight = Math.max(1, Math.round(initialRect.height));
-
-      if (initialWidth < 1 || initialHeight < 1) {
-        requestAnimationFrame(() => {
-          if (!disposed) {
-            void openWebview();
-          }
-        });
-        return;
-      }
+      const initialBounds = getWebviewBounds(webviewHostRef.current);
 
       const nextWebview = new Webview(appWindow, EMBEDDED_WEBVIEW_LABEL, {
         url: embeddedWebview.url,
-        x: Math.round(initialRect.left),
-        y: Math.round(initialRect.top),
-        width: initialWidth,
-        height: initialHeight,
+        x: initialBounds.x,
+        y: initialBounds.y,
+        width: initialBounds.width,
+        height: initialBounds.height,
         focus: true,
         userAgent: defaultDesktopUserAgent,
       });
@@ -315,21 +408,7 @@ export default function RegistrationScreen({
   }, [embeddedWebview, stage]);
 
   const visibleHomeservers = homeservers.filter((homeserver) =>
-    deferredSearchQuery.length === 0
-      ? true
-      : [
-          homeserver.server_id,
-          homeserver.name,
-          homeserver.client_domain,
-          homeserver.server_domain,
-          homeserver.software,
-          homeserver.version,
-          homeserver.description,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase()
-          .includes(deferredSearchQuery),
+    homeserverMatchesSearch(homeserver, deferredSearchQuery),
   );
 
   const selectedHomeserver =
@@ -420,7 +499,7 @@ export default function RegistrationScreen({
   function openPublishedLink(url: string, title: string) {
     openEmbeddedWebview({
       kind: "link",
-      returnStage: stage === "form" ? "form" : "details",
+      returnStage: registrationReturnStage(stage),
       title,
       url,
     });
@@ -480,7 +559,7 @@ export default function RegistrationScreen({
     if (outcome.kind === "external_registration_opened") {
       openEmbeddedWebview({
         kind: "registration",
-        returnStage: stage === "form" ? "form" : "details",
+        returnStage: registrationReturnStage(stage),
         title: `Registration for ${homeserverTitle(outcome.homeserver)}`,
         url: outcome.reg_link,
         warning: handoffWarning(
@@ -548,8 +627,8 @@ export default function RegistrationScreen({
           server_id: selectedHomeserver.server_id,
           username: formValues.username.trim(),
           password: formValues.password,
-          email: formValues.email.trim() ? formValues.email.trim() : null,
-          display_name: formValues.displayName.trim() ? formValues.displayName.trim() : null,
+          email: formValueOrNull(formValues.email),
+          display_name: formValueOrNull(formValues.displayName),
           device_display_name: DEVICE_DISPLAY_NAME,
         },
       });
@@ -565,6 +644,18 @@ export default function RegistrationScreen({
   const selectedHomepage = selectedHomeserver ? safeLink(selectedHomeserver.homepage) : null;
   const selectedRules = selectedHomeserver ? safeLink(selectedHomeserver.rules) : null;
   const selectedPrivacy = selectedHomeserver ? safeLink(selectedHomeserver.privacy) : null;
+
+  function handleLoginAfterEmbeddedRegistration() {
+    if (!selectedHomeserver) {
+      return;
+    }
+
+    finishInLogin({
+      homeserver: selectedHomeserver.homeserver_url ?? undefined,
+      text: `If you completed registration on ${homeserverTitle(selectedHomeserver)}, sign in here.`,
+      tone: "info",
+    });
+  }
 
   return (
     <ScreenShell>
@@ -600,165 +691,195 @@ export default function RegistrationScreen({
         ) : null}
 
         {stage === "form" && selectedHomeserver ? (
-          <section
-            className="registration-screen--narrow registration-screen--form"
-            aria-labelledby="registration-form-title"
-          >
-            <div className="registration-heading-row">
-              <BackButton onClick={handleBack} />
-              <Typography variant="h1" id="registration-form-title">
-                Register on {homeserverTitle(selectedHomeserver)}
-              </Typography>
-            </div>
-            <Typography variant="body" muted className="registration-screen-copy">
-              Finish the form below to create the account.
-            </Typography>
-
-            <div className="registration-detail-tags">
-              {selectedHomeserver.is_official ? (
-                <Pill tone="primary">Official</Pill>
-              ) : null}
-              <Pill>
-                {selectedHomeserver.homeserver_url ?? homeserverHost(selectedHomeserver)}
-              </Pill>
-            </div>
-
-            {feedback ? (
-              <FeedbackMessage tone={feedback.tone}>
-                {feedback.text}
-              </FeedbackMessage>
-            ) : null}
-
-            {captchaWarningText ? (
-              <FeedbackMessage tone="error" className="registration-warning">
-                {captchaWarningText}
-              </FeedbackMessage>
-            ) : null}
-
-            {selectedHomeserver.reg_note ? (
-              <FeedbackMessage tone="info" className="registration-note">
-                {selectedHomeserver.reg_note}
-              </FeedbackMessage>
-            ) : null}
-
-            <form className="registration-form" noValidate onSubmit={handleSubmit}>
-              <TextField
-                autoCapitalize="none"
-                autoComplete="username"
-                isInvalid={usernameMissing}
-                isRequiredVisible
-                label="Username"
-                name="username"
-                onChange={(event) => updateField("username", event.currentTarget.value)}
-                spellCheck={false}
-                type="text"
-                value={formValues.username}
-              />
-
-              {selectedHomeserver.supports_display_name ? (
-                <TextField
-                  autoComplete="nickname"
-                  label="Display name"
-                  name="display-name"
-                  onChange={(event) => updateField("displayName", event.currentTarget.value)}
-                  type="text"
-                  value={formValues.displayName}
-                />
-              ) : null}
-
-              <TextField
-                autoComplete="new-password"
-                isInvalid={passwordMissing}
-                isRequiredVisible
-                label="Password"
-                name="password"
-                onChange={(event) => updateField("password", event.currentTarget.value)}
-                type="password"
-                value={formValues.password}
-              />
-
-              <TextField
-                aria-required={emailRequired}
-                autoComplete="email"
-                inputMode="email"
-                isInvalid={emailMissing}
-                isRequiredVisible={emailRequired}
-                label="Email"
-                name="email"
-                onChange={(event) => updateField("email", event.currentTarget.value)}
-                required={emailRequired}
-                type="email"
-                value={formValues.email}
-              />
-
-              <div className="registration-form-foot">
-                <span className="registration-required-copy">
-                  <span className="ui-required-marker" aria-hidden="true">
-                    *
-                  </span>{" "}
-                  Required fields
-                </span>
-
-                <Button
-                  type="submit"
-                  variant="primary"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? "Creating account..." : "Create account"}
-                </Button>
-              </div>
-            </form>
-          </section>
+          <RegistrationFormStage
+            captchaWarningText={captchaWarningText}
+            emailMissing={emailMissing}
+            emailRequired={emailRequired}
+            feedback={feedback}
+            formValues={formValues}
+            isSubmitting={isSubmitting}
+            passwordMissing={passwordMissing}
+            selectedHomeserver={selectedHomeserver}
+            usernameMissing={usernameMissing}
+            onBack={handleBack}
+            onFieldChange={updateField}
+            onSubmit={handleSubmit}
+          />
         ) : null}
 
         {stage === "webview" && embeddedWebview ? (
-          <Panel className="registration-screen--webview">
-            <div className="registration-webview-bar">
-              <BackButton onClick={handleBack} />
-              <div className="registration-webview-copy">
-                <Typography as="span" variant="label" className="registration-webview-eyebrow">
-                  {embeddedWebview.kind === "registration"
-                    ? "Registration page"
-                    : "Published homeserver link"}
-                </Typography>
-                <Typography variant="h2" className="registration-webview-title">
-                  {embeddedWebview.title}
-                </Typography>
-                <Typography variant="bodySmall" muted className="registration-webview-url">
-                  {formatWebviewUrl(embeddedWebview.url)}
-                </Typography>
-              </div>
-
-              {embeddedWebview.kind === "registration" && selectedHomeserver ? (
-                <Button
-                  variant="secondary"
-                  onClick={() =>
-                    finishInLogin({
-                      homeserver: selectedHomeserver.homeserver_url ?? undefined,
-                      text: `If you completed registration on ${homeserverTitle(selectedHomeserver)}, sign in here.`,
-                      tone: "info",
-                    })
-                  }
-                >
-                  Go to log in
-                </Button>
-              ) : null}
-            </div>
-
-            {embeddedWebview.warning ? (
-              <FeedbackMessage tone="error" className="registration-warning">
-                {embeddedWebview.warning}
-              </FeedbackMessage>
-            ) : null}
-
-            <div
-              ref={webviewHostRef}
-              className="registration-webview-host"
-              aria-label={`${embeddedWebview.title} webview`}
-            />
-          </Panel>
+          <EmbeddedWebviewStage
+            embeddedWebview={embeddedWebview}
+            selectedHomeserver={selectedHomeserver}
+            webviewHostRef={webviewHostRef}
+            onBack={handleBack}
+            onGoToLogin={handleLoginAfterEmbeddedRegistration}
+          />
         ) : null}
       </ScreenMain>
     </ScreenShell>
+  );
+}
+
+function RegistrationFormStage({
+  captchaWarningText,
+  emailMissing,
+  emailRequired,
+  feedback,
+  formValues,
+  isSubmitting,
+  passwordMissing,
+  selectedHomeserver,
+  usernameMissing,
+  onBack,
+  onFieldChange,
+  onSubmit,
+}: RegistrationFormStageProps) {
+  return (
+    <section
+      className="registration-screen--narrow registration-screen--form"
+      aria-labelledby="registration-form-title"
+    >
+      <div className="registration-heading-row">
+        <BackButton onClick={onBack} />
+        <Typography variant="h1" id="registration-form-title">
+          Register on {homeserverTitle(selectedHomeserver)}
+        </Typography>
+      </div>
+      <Typography variant="body" muted className="registration-screen-copy">
+        Finish the form below to create the account.
+      </Typography>
+
+      <div className="registration-detail-tags">
+        {selectedHomeserver.is_official ? <Pill tone="primary">Official</Pill> : null}
+        <Pill>{selectedHomeserver.homeserver_url ?? homeserverHost(selectedHomeserver)}</Pill>
+      </div>
+
+      {feedback ? <FeedbackMessage tone={feedback.tone}>{feedback.text}</FeedbackMessage> : null}
+
+      {captchaWarningText ? (
+        <FeedbackMessage tone="error" className="registration-warning">
+          {captchaWarningText}
+        </FeedbackMessage>
+      ) : null}
+
+      {selectedHomeserver.reg_note ? (
+        <FeedbackMessage tone="info" className="registration-note">
+          {selectedHomeserver.reg_note}
+        </FeedbackMessage>
+      ) : null}
+
+      <form className="registration-form" noValidate onSubmit={onSubmit}>
+        <TextField
+          autoCapitalize="none"
+          autoComplete="username"
+          isInvalid={usernameMissing}
+          isRequiredVisible
+          label="Username"
+          name="username"
+          onChange={(event) => onFieldChange("username", event.currentTarget.value)}
+          spellCheck={false}
+          type="text"
+          value={formValues.username}
+        />
+
+        {selectedHomeserver.supports_display_name ? (
+          <TextField
+            autoComplete="nickname"
+            label="Display name"
+            name="display-name"
+            onChange={(event) => onFieldChange("displayName", event.currentTarget.value)}
+            type="text"
+            value={formValues.displayName}
+          />
+        ) : null}
+
+        <TextField
+          autoComplete="new-password"
+          isInvalid={passwordMissing}
+          isRequiredVisible
+          label="Password"
+          name="password"
+          onChange={(event) => onFieldChange("password", event.currentTarget.value)}
+          type="password"
+          value={formValues.password}
+        />
+
+        <TextField
+          aria-required={emailRequired}
+          autoComplete="email"
+          inputMode="email"
+          isInvalid={emailMissing}
+          isRequiredVisible={emailRequired}
+          label="Email"
+          name="email"
+          onChange={(event) => onFieldChange("email", event.currentTarget.value)}
+          required={emailRequired}
+          type="email"
+          value={formValues.email}
+        />
+
+        <div className="registration-form-foot">
+          <span className="registration-required-copy">
+            <span className="ui-required-marker" aria-hidden="true">
+              *
+            </span>{" "}
+            Required fields
+          </span>
+
+          <Button type="submit" variant="primary" disabled={isSubmitting}>
+            {isSubmitting ? "Creating account..." : "Create account"}
+          </Button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
+function EmbeddedWebviewStage({
+  embeddedWebview,
+  selectedHomeserver,
+  webviewHostRef,
+  onBack,
+  onGoToLogin,
+}: EmbeddedWebviewStageProps) {
+  const webviewKindLabel =
+    embeddedWebview.kind === "registration" ? "Registration page" : "Published homeserver link";
+
+  return (
+    <Panel className="registration-screen--webview">
+      <div className="registration-webview-bar">
+        <BackButton onClick={onBack} />
+        <div className="registration-webview-copy">
+          <Typography as="span" variant="label" className="registration-webview-eyebrow">
+            {webviewKindLabel}
+          </Typography>
+          <Typography variant="h2" className="registration-webview-title">
+            {embeddedWebview.title}
+          </Typography>
+          <Typography variant="bodySmall" muted className="registration-webview-url">
+            {formatWebviewUrl(embeddedWebview.url)}
+          </Typography>
+        </div>
+
+        {embeddedWebview.kind === "registration" && selectedHomeserver ? (
+          <Button variant="secondary" onClick={onGoToLogin}>
+            Go to log in
+          </Button>
+        ) : null}
+      </div>
+
+      {embeddedWebview.warning ? (
+        <FeedbackMessage tone="error" className="registration-warning">
+          {embeddedWebview.warning}
+        </FeedbackMessage>
+      ) : null}
+
+      <div
+        ref={webviewHostRef}
+        className="registration-webview-host"
+        aria-label={`${embeddedWebview.title} webview`}
+      />
+    </Panel>
   );
 }

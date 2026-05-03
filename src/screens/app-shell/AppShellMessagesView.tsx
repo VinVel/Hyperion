@@ -22,6 +22,7 @@ import {
   Search,
   SendHorizontal,
 } from 'lucide-react';
+import { type KeyboardEvent } from 'react';
 import { BackButton, Button, EmptyState, Pill, ToolbarField, Typography } from '../../components/ui';
 import {
   type RoomSummary,
@@ -74,6 +75,100 @@ export default function AppShellMessagesView({
   onThreadSearchChange,
   onToggleSortMenu,
 }: AppShellMessagesViewProps) {
+  const canSendMessages = selectedRoomSummary?.canSendMessages === true;
+  const composerIsEmpty = composerValue.trim().length === 0;
+  const composerPlaceholder =
+    selectedRoomSummary?.canSendMessages === false
+      ? 'You cannot send messages in this room'
+      : 'Send a message';
+  const messageCount = selectedTimeline?.items.length ?? 0;
+
+  function handleComposerKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== 'Enter') {
+      return;
+    }
+
+    event.preventDefault();
+    onSendMessage();
+  }
+
+  function renderThreadList() {
+    if (isLoadingShell) {
+      return (
+        <Typography muted variant="body">
+          Loading conversations...
+        </Typography>
+      );
+    }
+
+    if (visibleThreads.length === 0) {
+      return (
+        <Typography muted variant="body">
+          No conversations are available for this account yet.
+        </Typography>
+      );
+    }
+
+    return visibleThreads.map((thread) => (
+      <button
+        key={thread.id}
+        className={`app-shell-thread-row${
+          selectedThread?.id === thread.id ? ' app-shell-thread-row--active' : ''
+        }`}
+        type="button"
+        onClick={() => onOpenThread(thread.id)}
+      >
+        <span className="app-shell-thread-avatar">{thread.avatarLabel}</span>
+        <span className="app-shell-thread-copy">
+          <span className="app-shell-thread-title-row">
+            <span className="app-shell-thread-title">{thread.title}</span>
+            {thread.unreadCount > 0 ? (
+              <span className="app-shell-thread-unread">{thread.unreadCount}</span>
+            ) : null}
+          </span>
+          <span className="app-shell-thread-meta">
+            {thread.participantLabel} · {thread.lastActivityLabel}
+          </span>
+        </span>
+      </button>
+    ));
+  }
+
+  function renderTimelineItems() {
+    if (!selectedTimeline?.items.length) {
+      return (
+        <div className="app-shell-timeline-item">
+          <Typography variant="label">No messages yet</Typography>
+          <Typography variant="body">
+            No text messages are available in this room yet.
+          </Typography>
+        </div>
+      );
+    }
+
+    return selectedTimeline.items.map((item) => (
+      <div
+        key={item.id}
+        className={`app-shell-timeline-item${
+          item.isOwnMessage ? ' app-shell-timeline-item--own' : ''
+        }${
+          selectedTimeline.focusedEventId === item.id
+            ? ' app-shell-timeline-item--highlighted'
+            : ''
+        }`}
+      >
+        <Typography variant="label">
+          {item.senderDisplayName}
+          {item.timeLabel ? ` · ${item.timeLabel}` : ''}
+        </Typography>
+        <Typography variant="body">
+          {item.body}
+          {item.isEdited ? ' (edited)' : ''}
+        </Typography>
+      </div>
+    ));
+  }
+
   return (
     <>
       <aside className="app-shell-sidebar" aria-label="Message thread list">
@@ -135,41 +230,7 @@ export default function AppShellMessagesView({
           </div>
         </div>
 
-        <div className="app-shell-thread-list">
-          {isLoadingShell ? (
-            <Typography muted variant="body">
-              Loading conversations...
-            </Typography>
-          ) : visibleThreads.length === 0 ? (
-            <Typography muted variant="body">
-              No conversations are available for this account yet.
-            </Typography>
-          ) : (
-            visibleThreads.map((thread) => (
-              <button
-                key={thread.id}
-                className={`app-shell-thread-row${
-                  selectedThread?.id === thread.id ? ' app-shell-thread-row--active' : ''
-                }`}
-                type="button"
-                onClick={() => onOpenThread(thread.id)}
-              >
-                <span className="app-shell-thread-avatar">{thread.avatarLabel}</span>
-                <span className="app-shell-thread-copy">
-                  <span className="app-shell-thread-title-row">
-                    <span className="app-shell-thread-title">{thread.title}</span>
-                    {thread.unreadCount > 0 ? (
-                      <span className="app-shell-thread-unread">{thread.unreadCount}</span>
-                    ) : null}
-                  </span>
-                  <span className="app-shell-thread-meta">
-                    {thread.participantLabel} · {thread.lastActivityLabel}
-                  </span>
-                </span>
-              </button>
-            ))
-          )}
-        </div>
+        <div className="app-shell-thread-list">{renderThreadList()}</div>
       </aside>
 
       <section className="app-shell-main-pane" aria-label="Conversation view">
@@ -193,7 +254,7 @@ export default function AppShellMessagesView({
                   </Typography>
                 ) : null}
               </div>
-              <Pill tone="secondary">{selectedTimeline?.items.length ?? 0} messages</Pill>
+              <Pill tone="secondary">{messageCount} messages</Pill>
             </header>
 
             <div className="app-shell-room-timeline">
@@ -209,36 +270,7 @@ export default function AppShellMessagesView({
                 </div>
               ) : null}
 
-              {selectedTimeline?.items.length ? (
-                selectedTimeline.items.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`app-shell-timeline-item${
-                      item.isOwnMessage ? ' app-shell-timeline-item--own' : ''
-                    }${
-                      selectedTimeline.focusedEventId === item.id
-                        ? ' app-shell-timeline-item--highlighted'
-                        : ''
-                    }`}
-                  >
-                    <Typography variant="label">
-                      {item.senderDisplayName}
-                      {item.timeLabel ? ` · ${item.timeLabel}` : ''}
-                    </Typography>
-                    <Typography variant="body">
-                      {item.body}
-                      {item.isEdited ? ' (edited)' : ''}
-                    </Typography>
-                  </div>
-                ))
-              ) : (
-                <div className="app-shell-timeline-item">
-                  <Typography variant="label">No messages yet</Typography>
-                  <Typography variant="body">
-                    No text messages are available in this room yet.
-                  </Typography>
-                </div>
-              )}
+              {renderTimelineItems()}
             </div>
 
             <div className="app-shell-room-composer">
@@ -246,31 +278,18 @@ export default function AppShellMessagesView({
                 <div className="app-shell-composer">
                   <input
                     className="app-shell-composer-input"
-                    disabled={!selectedRoomSummary?.canSendMessages || isSendingMessage}
-                    placeholder={
-                      selectedRoomSummary?.canSendMessages === false
-                        ? 'You cannot send messages in this room'
-                        : 'Send a message'
-                    }
+                    disabled={!canSendMessages || isSendingMessage}
+                    placeholder={composerPlaceholder}
                     type="text"
                     value={composerValue}
                     onChange={(event) => onComposerChange(event.currentTarget.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.preventDefault();
-                        onSendMessage();
-                      }
-                    }}
+                    onKeyDown={handleComposerKeyDown}
                   />
                 </div>
                 <Button
                   aria-label="Send message"
                   className="app-shell-composer-send"
-                  disabled={
-                    isSendingMessage ||
-                    !selectedRoomSummary?.canSendMessages ||
-                    composerValue.trim().length === 0
-                  }
+                  disabled={isSendingMessage || !canSendMessages || composerIsEmpty}
                   iconOnly
                   variant="primary"
                   onClick={onSendMessage}

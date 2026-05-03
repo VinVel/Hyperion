@@ -25,6 +25,7 @@ import {
   type BackendRoomTimeline,
   type BackendSpaceSummary,
   type RoomTimeline,
+  type RoomTimelineItem,
   type RoomSummary,
   type RoomThreadSort,
   type SearchResultGroup,
@@ -45,6 +46,14 @@ const shellSyncCollectionRefreshDebounceMilliseconds = 250;
 // Timeline-only updates should feel close to instant because they carry local
 // echoes and active-room messages from matrix-sdk-ui Timeline subscriptions.
 const shellSyncTimelineRefreshDebounceMilliseconds = 30;
+// Nearby event context keeps jumps readable without over-fetching timeline history.
+const roomEventContextLimit = 8;
+// Timeline pages are intentionally small enough to keep refreshes responsive.
+const roomTimelinePageSize = 30;
+// Global search waits briefly so every keystroke does not call the backend.
+const globalSearchDebounceMilliseconds = 150;
+// Each search group is capped to keep the overlay compact.
+const globalSearchLimitPerGroup = 4;
 
 type ShellSyncUpdatedPayload = {
   account_key: string;
@@ -134,6 +143,54 @@ function getErrorMessage(error: unknown): string {
   return 'Something went wrong while contacting the native shell service.';
 }
 
+function retainCurrentSelectionOrDefault<T extends { id: string }>(
+  currentId: string | null,
+  items: T[],
+): string | null {
+  if (currentId && items.some((item) => item.id === currentId)) {
+    return currentId;
+  }
+
+  return items[0]?.id ?? null;
+}
+
+function timelineAnchorForRoom(
+  roomId: string,
+  timelineJumpTarget: TimelineJumpTarget | null,
+): string | null {
+  if (timelineJumpTarget?.roomId !== roomId) {
+    return null;
+  }
+
+  if (timelineJumpTarget.eventId.trim().length === 0) {
+    return null;
+  }
+
+  return timelineJumpTarget.eventId;
+}
+
+function shouldRefreshSelectedRoomFromSync(
+  selectedThreadId: string | null,
+  pendingRoomIds: Set<string>,
+  pendingAmbiguousRoomListUpdate: boolean,
+): boolean {
+  if (!selectedThreadId) {
+    return false;
+  }
+
+  return pendingRoomIds.has(selectedThreadId) || pendingAmbiguousRoomListUpdate;
+}
+
+function mergeOlderTimelineItems(
+  currentItems: RoomTimelineItem[],
+  olderItems: RoomTimelineItem[],
+): RoomTimelineItem[] {
+  const seenItemIds = new Set(currentItems.map((item) => item.id));
+  const uniqueOlderItems = olderItems.filter((item) => !seenItemIds.has(item.id));
+
+  return [...uniqueOlderItems, ...currentItems];
+}
+
 export default function useAppShellState({
   activeAccount,
   onActiveAccountChange,
@@ -177,14 +234,10 @@ export default function useAppShellState({
     setRoomThreads(mappedThreads);
     setSpaces(mappedSpaces);
     setSelectedThreadId((currentThreadId) =>
-      currentThreadId && mappedThreads.some((thread) => thread.id === currentThreadId)
-        ? currentThreadId
-        : mappedThreads[0]?.id ?? null,
+      retainCurrentSelectionOrDefault(currentThreadId, mappedThreads),
     );
     setSelectedSpaceId((currentSpaceId) =>
-      currentSpaceId && mappedSpaces.some((space) => space.id === currentSpaceId)
-        ? currentSpaceId
-        : mappedSpaces[0]?.id ?? null,
+      retainCurrentSelectionOrDefault(currentSpaceId, mappedSpaces),
     );
   }, []);
 
@@ -196,21 +249,23 @@ export default function useAppShellState({
 
   const refreshSelectedRoom = useCallback(
     async (roomId: string, anchoredEventId?: string | null) => {
-      const [backendSummary, backendTimeline] = await Promise.all([
-        invoke<BackendRoomSummary>('get_room_summary', {
-          request: { room_id: roomId },
-        }),
+      const timelineRequest =
         anchoredEventId && anchoredEventId.trim().length > 0
           ? invoke<BackendRoomTimeline>('get_room_event_context', {
               request: {
                 room_id: roomId,
                 event_id: anchoredEventId,
-                context_limit: 8,
+                context_limit: roomEventContextLimit,
               },
             })
           : invoke<BackendRoomTimeline>('get_room_timeline', {
-              request: { room_id: roomId, limit: 30 },
-            }),
+              request: { room_id: roomId, limit: roomTimelinePageSize },
+            });
+      const [backendSummary, backendTimeline] = await Promise.all([
+        invoke<BackendRoomSummary>('get_room_summary', {
+          request: { room_id: roomId },
+        }),
+        timelineRequest,
       ]);
 
       setSelectedRoomSummary(mapRoomSummary(backendSummary));
@@ -309,11 +364,7 @@ export default function useAppShellState({
 
     async function loadSelectedRoom() {
       try {
-        const anchoredEventId =
-          timelineJumpTarget?.roomId === roomId &&
-          timelineJumpTarget.eventId.trim().length > 0
-            ? timelineJumpTarget.eventId
-            : null;
+        const anchoredEventId = timelineAnchorForRoom(roomId, timelineJumpTarget);
         await refreshSelectedRoom(roomId, anchoredEventId);
         if (!anchoredEventId) {
           await refreshRoomCollections();
@@ -354,6 +405,11 @@ export default function useAppShellState({
     let timelineRefreshTimeoutId: number | null = null;
     const pendingRoomIds = new Set<string>();
     let pendingAmbiguousRoomListUpdate = false;
+
+    async function refreshSelectedRoomAfterSync(roomId: string) {
+      await refreshSelectedRoom(roomId, null);
+      await refreshRoomCollections();
+    }
 
     const unlistenPromise = listen<ShellSyncUpdatedPayload>(
       SHELL_SYNC_UPDATED_EVENT,
@@ -396,9 +452,11 @@ export default function useAppShellState({
             return;
           }
 
-          const selectedRoomMayHaveChanged =
-            selectedThreadId &&
-            (pendingRoomIds.has(selectedThreadId) || pendingAmbiguousRoomListUpdate);
+          const selectedRoomMayHaveChanged = shouldRefreshSelectedRoomFromSync(
+            selectedThreadId,
+            pendingRoomIds,
+            pendingAmbiguousRoomListUpdate,
+          );
 
           pendingRoomIds.clear();
           pendingAmbiguousRoomListUpdate = false;
@@ -412,16 +470,14 @@ export default function useAppShellState({
             return;
           }
 
-          void refreshSelectedRoom(selectedThreadId, null)
-            .then(() => refreshRoomCollections())
-            .catch((error) => {
-              if (!cancelled) {
-                setFeedbackMessage({
-                  tone: 'error',
-                  text: getErrorMessage(error),
-                });
-              }
-            });
+          void refreshSelectedRoomAfterSync(selectedThreadId).catch((error) => {
+            if (!cancelled) {
+              setFeedbackMessage({
+                tone: 'error',
+                text: getErrorMessage(error),
+              });
+            }
+          });
         }, shellSyncTimelineRefreshDebounceMilliseconds);
       },
     );
@@ -458,25 +514,34 @@ export default function useAppShellState({
     }
 
     let cancelled = false;
-    const timeoutId = window.setTimeout(() => {
-      void invoke<BackendGlobalSearchResponse>('global_search', {
-        request: { query, limit_per_group: 4 },
-      })
-        .then((response) => {
-          if (!cancelled) {
-            setGlobalSearchResults(mapGlobalSearchResponse(response));
-          }
-        })
-        .catch((error) => {
-          if (!cancelled) {
-            setFeedbackMessage({
-              tone: 'error',
-              text: getErrorMessage(error),
-            });
-            setGlobalSearchResults([]);
-          }
+
+    async function runGlobalSearch() {
+      try {
+        const response = await invoke<BackendGlobalSearchResponse>('global_search', {
+          request: { query, limit_per_group: globalSearchLimitPerGroup },
         });
-    }, 150);
+
+        if (cancelled) {
+          return;
+        }
+
+        setGlobalSearchResults(mapGlobalSearchResponse(response));
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setFeedbackMessage({
+          tone: 'error',
+          text: getErrorMessage(error),
+        });
+        setGlobalSearchResults([]);
+      }
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void runGlobalSearch();
+    }, globalSearchDebounceMilliseconds);
 
     return () => {
       cancelled = true;
@@ -510,6 +575,11 @@ export default function useAppShellState({
   const switchableAccounts = knownAccounts
     .filter((account) => account.account_key !== activeAccount.account_key)
     .sort((left, right) => left.user_id.localeCompare(right.user_id));
+
+  const refreshRoomThreadsAfterSend = useCallback(async () => {
+    const backendThreads = await invoke<BackendRoomThreadSummary[]>('list_room_threads');
+    setRoomThreads(backendThreads.map(mapRoomThreadSummary));
+  }, []);
 
   const openRoomAtLatest = useCallback((roomId: string) => {
     setTimelineJumpTarget(null);
@@ -587,9 +657,7 @@ export default function useAppShellState({
       setTimelineJumpTarget(null);
       await Promise.all([
         reloadSelectedTimeline(selectedThreadId),
-        invoke<BackendRoomThreadSummary[]>('list_room_threads').then((backendThreads) => {
-          setRoomThreads(backendThreads.map(mapRoomThreadSummary));
-        }),
+        refreshRoomThreadsAfterSend(),
       ]);
     } catch (error) {
       setFeedbackMessage({
@@ -599,7 +667,7 @@ export default function useAppShellState({
     } finally {
       setIsSendingMessage(false);
     }
-  }, [composerValue, reloadSelectedTimeline, selectedThreadId]);
+  }, [composerValue, refreshRoomThreadsAfterSend, reloadSelectedTimeline, selectedThreadId]);
 
   const loadOlderMessages = useCallback(async () => {
     if (!selectedThreadId || !selectedTimeline?.nextBefore || isLoadingOlderMessages) {
@@ -613,7 +681,7 @@ export default function useAppShellState({
         request: {
           room_id: selectedThreadId,
           before: selectedTimeline.nextBefore,
-          limit: 30,
+          limit: roomTimelinePageSize,
         },
       });
       const olderTimeline = mapRoomTimeline(backendTimeline);
@@ -623,12 +691,9 @@ export default function useAppShellState({
           return olderTimeline;
         }
 
-        const seenItemIds = new Set(currentTimeline.items.map((item) => item.id));
-        const olderItems = olderTimeline.items.filter((item) => !seenItemIds.has(item.id));
-
         return {
           ...currentTimeline,
-          items: [...olderItems, ...currentTimeline.items],
+          items: mergeOlderTimelineItems(currentTimeline.items, olderTimeline.items),
           nextBefore: olderTimeline.nextBefore,
         };
       });

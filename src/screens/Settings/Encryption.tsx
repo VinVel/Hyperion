@@ -53,6 +53,10 @@ type CryptoIdentityResetOutcome =
   | { kind: 'completed' }
   | { kind: 'uiaa_required' }
   | { kind: 'oauth_required'; approval_url: string };
+type EncryptionFeedbackMessage = {
+  tone: 'success' | 'info' | 'warning';
+  text: string;
+};
 
 const elementEncryptionHelpUrl = 'https://element.io/de/help#encryption5';
 
@@ -81,6 +85,34 @@ function normalizeRecoveryKeyForComparison(value: string): string {
   return value.replace(/\s+/g, '');
 }
 
+function recoveryActionName(recoveryConfirmationPending: boolean): string {
+  if (recoveryConfirmationPending) {
+    return 'confirm-recovery-key';
+  }
+
+  return 'recover';
+}
+
+function cryptoIdentityResetMessage(
+  result: CryptoIdentityResetOutcome,
+): EncryptionFeedbackMessage {
+  if (result.kind === 'completed') {
+    return { tone: 'success', text: 'Crypto identity was reset.' };
+  }
+
+  if (result.kind === 'oauth_required') {
+    return {
+      tone: 'warning',
+      text: `Approve the reset in a browser: ${result.approval_url}`,
+    };
+  }
+
+  return {
+    tone: 'warning',
+    text: 'The homeserver requires interactive authentication before reset.',
+  };
+}
+
 export default function Encryption() {
   const [overview, setOverview] = useState<EncryptionOverview | null>(null);
   const [recoveryKey, setRecoveryKey] = useState('');
@@ -89,9 +121,7 @@ export default function Encryption() {
   const [exportPassphrase, setExportPassphrase] = useState('');
   const [importPassphrase, setImportPassphrase] = useState('');
   const [pendingAction, setPendingAction] = useState<string | null>(null);
-  const [message, setMessage] = useState<{ tone: 'success' | 'info' | 'warning'; text: string } | null>(
-    null,
-  );
+  const [message, setMessage] = useState<EncryptionFeedbackMessage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDeleteRecovery, setConfirmDeleteRecovery] = useState(false);
   const [confirmIdentityReset, setConfirmIdentityReset] = useState(false);
@@ -124,6 +154,108 @@ export default function Encryption() {
     } finally {
       setPendingAction(null);
     }
+  }
+
+  async function toggleServerKeyStorage() {
+    if (isServerKeyStorageEnabled) {
+      await invoke('disable_server_key_storage');
+      setMessage({ tone: 'warning', text: 'Server-side key storage is disabled.' });
+      return;
+    }
+
+    await invoke('enable_server_key_storage');
+    setMessage({ tone: 'success', text: 'Server-side key storage is enabled.' });
+  }
+
+  async function createRecoveryKey() {
+    const result = await invoke<GeneratedRecoveryKey>('create_recovery_key');
+    setGeneratedRecoveryKey(result.recovery_key);
+    setRecoveryConfirmation({ expectedKey: result.recovery_key, action: 'create' });
+    setRecoveryKey('');
+    setMessage({ tone: 'info', text: 'Save this recovery key now. It is shown only once.' });
+  }
+
+  async function rotateRecoveryKey() {
+    const result = await invoke<GeneratedRecoveryKey>('rotate_recovery_key');
+    setGeneratedRecoveryKey(result.recovery_key);
+    setRecoveryConfirmation({ expectedKey: result.recovery_key, action: 'rotate' });
+    setRecoveryKey('');
+    setMessage({ tone: 'info', text: 'Save the new recovery key now.' });
+  }
+
+  async function deleteRecovery() {
+    await invoke('delete_recovery');
+    setGeneratedRecoveryKey(null);
+    setRecoveryConfirmation(null);
+    setConfirmDeleteRecovery(false);
+    setMessage({ tone: 'warning', text: 'Recovery was deleted.' });
+  }
+
+  async function confirmOrRecoverWithRecoveryKey() {
+    if (recoveryConfirmation) {
+      const expectedKey = normalizeRecoveryKeyForComparison(recoveryConfirmation.expectedKey);
+      const enteredKey = normalizeRecoveryKeyForComparison(recoveryKey);
+      if (enteredKey !== expectedKey) {
+        throw new Error('The recovery key does not match the newly generated key.');
+      }
+
+      const actionLabel = recoveryConfirmation.action === 'rotate' ? 'rotated' : 'created';
+      setGeneratedRecoveryKey(null);
+      setRecoveryConfirmation(null);
+      setRecoveryKey('');
+      setMessage({ tone: 'success', text: `Recovery key was ${actionLabel} and confirmed.` });
+      return;
+    }
+
+    if (overview?.recovery_state === 'Disabled') {
+      throw new Error('Recovery is disabled for this account. Create a new recovery key first.');
+    }
+
+    await invoke('recover_with_recovery_key', { request: { recovery_key: recoveryKey } });
+    setRecoveryKey('');
+    setMessage({ tone: 'success', text: 'Encryption secrets were recovered.' });
+  }
+
+  async function exportRoomKeys() {
+    const path = await invoke<string | null>('export_room_keys', {
+      request: { passphrase: exportPassphrase },
+    });
+
+    if (!path) {
+      return;
+    }
+
+    setExportPassphrase('');
+    setMessage({ tone: 'success', text: `Room keys were exported to ${path}.` });
+  }
+
+  async function importRoomKeys() {
+    const result = await invoke<RoomKeyImportSummary | null>('import_room_keys', {
+      request: { passphrase: importPassphrase },
+    });
+
+    if (!result) {
+      return;
+    }
+
+    setImportPassphrase('');
+    setMessage({
+      tone: 'success',
+      text: `Imported ${result.imported_count} of ${result.total_count} room keys.`,
+    });
+  }
+
+  async function resetCryptoIdentity() {
+    const result = await invoke<CryptoIdentityResetOutcome>('reset_crypto_identity');
+    setConfirmIdentityReset(false);
+    setMessage(cryptoIdentityResetMessage(result));
+  }
+
+  async function toggleVerifiedDevicesOnly() {
+    await invoke('set_verified_devices_only', {
+      enabled: !overview?.verified_devices_only,
+    });
+    setMessage({ tone: 'success', text: 'Device trust preference was saved.' });
   }
 
   if (!overview?.has_active_account) {
@@ -179,17 +311,7 @@ export default function Encryption() {
             checked={isServerKeyStorageEnabled}
             disabled={isBusy}
             label="Server-side key storage"
-            onClick={() =>
-              void runAction('server-key-storage', async () => {
-                if (isServerKeyStorageEnabled) {
-                  await invoke('disable_server_key_storage');
-                  setMessage({ tone: 'warning', text: 'Server-side key storage is disabled.' });
-                } else {
-                  await invoke('enable_server_key_storage');
-                  setMessage({ tone: 'success', text: 'Server-side key storage is enabled.' });
-                }
-              })
-            }
+            onClick={() => void runAction('server-key-storage', toggleServerKeyStorage)}
           />
         </div>
 
@@ -234,23 +356,19 @@ export default function Encryption() {
         ) : null}
 
         <div className="settings-view-action-row">
-          <Button disabled={isBusy || recoveryConfirmationPending} onClick={() => void runAction('create-recovery', async () => {
-            const result = await invoke<GeneratedRecoveryKey>('create_recovery_key');
-            setGeneratedRecoveryKey(result.recovery_key);
-            setRecoveryConfirmation({ expectedKey: result.recovery_key, action: 'create' });
-            setRecoveryKey('');
-            setMessage({ tone: 'info', text: 'Save this recovery key now. It is shown only once.' });
-          })} variant="primary">
+          <Button
+            disabled={isBusy || recoveryConfirmationPending}
+            onClick={() => void runAction('create-recovery', createRecoveryKey)}
+            variant="primary"
+          >
             <KeyRound aria-hidden="true" />
             Create key
           </Button>
-          <Button disabled={isBusy || recoveryConfirmationPending} onClick={() => void runAction('rotate-recovery', async () => {
-            const result = await invoke<GeneratedRecoveryKey>('rotate_recovery_key');
-            setGeneratedRecoveryKey(result.recovery_key);
-            setRecoveryConfirmation({ expectedKey: result.recovery_key, action: 'rotate' });
-            setRecoveryKey('');
-            setMessage({ tone: 'info', text: 'Save the new recovery key now.' });
-          })} variant="secondary">
+          <Button
+            disabled={isBusy || recoveryConfirmationPending}
+            onClick={() => void runAction('rotate-recovery', rotateRecoveryKey)}
+            variant="secondary"
+          >
             <RefreshCw aria-hidden="true" />
             Rotate
           </Button>
@@ -270,13 +388,11 @@ export default function Encryption() {
             <Typography variant="bodySmall">
               Delete recovery and server backups for this account?
             </Typography>
-            <Button disabled={isBusy} onClick={() => void runAction('delete-recovery', async () => {
-              await invoke('delete_recovery');
-              setGeneratedRecoveryKey(null);
-              setRecoveryConfirmation(null);
-              setConfirmDeleteRecovery(false);
-              setMessage({ tone: 'warning', text: 'Recovery was deleted.' });
-            })} variant="destructive">
+            <Button
+              disabled={isBusy}
+              onClick={() => void runAction('delete-recovery', deleteRecovery)}
+              variant="destructive"
+            >
               Confirm
             </Button>
           </div>
@@ -289,30 +405,16 @@ export default function Encryption() {
             type="password"
             value={recoveryKey}
           />
-          <Button disabled={isBusy || recoveryKeyInputIsEmpty} onClick={() => void runAction(recoveryConfirmationPending ? 'confirm-recovery-key' : 'recover', async () => {
-            if (recoveryConfirmation) {
-              const expectedKey = normalizeRecoveryKeyForComparison(recoveryConfirmation.expectedKey);
-              const enteredKey = normalizeRecoveryKeyForComparison(recoveryKey);
-              if (enteredKey !== expectedKey) {
-                throw new Error('The recovery key does not match the newly generated key.');
-              }
-
-              const actionLabel = recoveryConfirmation.action === 'rotate' ? 'rotated' : 'created';
-              setGeneratedRecoveryKey(null);
-              setRecoveryConfirmation(null);
-              setRecoveryKey('');
-              setMessage({ tone: 'success', text: `Recovery key was ${actionLabel} and confirmed.` });
-              return;
+          <Button
+            disabled={isBusy || recoveryKeyInputIsEmpty}
+            onClick={() =>
+              void runAction(
+                recoveryActionName(recoveryConfirmationPending),
+                confirmOrRecoverWithRecoveryKey,
+              )
             }
-
-            if (overview.recovery_state === 'Disabled') {
-              throw new Error('Recovery is disabled for this account. Create a new recovery key first.');
-            }
-
-            await invoke('recover_with_recovery_key', { request: { recovery_key: recoveryKey } });
-            setRecoveryKey('');
-            setMessage({ tone: 'success', text: 'Encryption secrets were recovered.' });
-          })} variant="secondary">
+            variant="secondary"
+          >
             {recoveryConfirmationPending ? 'Confirm' : 'Recover'}
           </Button>
         </div>
@@ -356,15 +458,11 @@ export default function Encryption() {
             type="password"
             value={exportPassphrase}
           />
-          <Button disabled={isBusy || exportPassphrase.trim().length === 0} onClick={() => void runAction('export-keys', async () => {
-            const path = await invoke<string | null>('export_room_keys', {
-              request: { passphrase: exportPassphrase },
-            });
-            if (path) {
-              setExportPassphrase('');
-              setMessage({ tone: 'success', text: `Room keys were exported to ${path}.` });
-            }
-          })} variant="secondary">
+          <Button
+            disabled={isBusy || exportPassphrase.trim().length === 0}
+            onClick={() => void runAction('export-keys', exportRoomKeys)}
+            variant="secondary"
+          >
             <Download aria-hidden="true" />
             Export
           </Button>
@@ -377,18 +475,11 @@ export default function Encryption() {
             type="password"
             value={importPassphrase}
           />
-          <Button disabled={isBusy || importPassphrase.trim().length === 0} onClick={() => void runAction('import-keys', async () => {
-            const result = await invoke<RoomKeyImportSummary | null>('import_room_keys', {
-              request: { passphrase: importPassphrase },
-            });
-            if (result) {
-              setImportPassphrase('');
-              setMessage({
-                tone: 'success',
-                text: `Imported ${result.imported_count} of ${result.total_count} room keys.`,
-              });
-            }
-          })} variant="secondary">
+          <Button
+            disabled={isBusy || importPassphrase.trim().length === 0}
+            onClick={() => void runAction('import-keys', importRoomKeys)}
+            variant="secondary"
+          >
             <Upload aria-hidden="true" />
             Import
           </Button>
@@ -411,23 +502,11 @@ export default function Encryption() {
             <Typography variant="bodySmall">
               Reset this account&apos;s crypto identity only if you cannot recover encryption.
             </Typography>
-            <Button disabled={isBusy} onClick={() => void runAction('reset-identity', async () => {
-              const result = await invoke<CryptoIdentityResetOutcome>('reset_crypto_identity');
-              setConfirmIdentityReset(false);
-              if (result.kind === 'completed') {
-                setMessage({ tone: 'success', text: 'Crypto identity was reset.' });
-              } else if (result.kind === 'oauth_required') {
-                setMessage({
-                  tone: 'warning',
-                  text: `Approve the reset in a browser: ${result.approval_url}`,
-                });
-              } else {
-                setMessage({
-                  tone: 'warning',
-                  text: 'The homeserver requires interactive authentication before reset.',
-                });
-              }
-            })} variant="destructive">
+            <Button
+              disabled={isBusy}
+              onClick={() => void runAction('reset-identity', resetCryptoIdentity)}
+              variant="destructive"
+            >
               Confirm reset
             </Button>
           </div>
@@ -457,12 +536,7 @@ export default function Encryption() {
             checked={overview.verified_devices_only}
             disabled={isBusy}
             label="Only verified devices"
-            onClick={() => void runAction('verified-devices-only', async () => {
-              await invoke('set_verified_devices_only', {
-                enabled: !overview.verified_devices_only,
-              });
-              setMessage({ tone: 'success', text: 'Device trust preference was saved.' });
-            })}
+            onClick={() => void runAction('verified-devices-only', toggleVerifiedDevicesOnly)}
           />
         </div>
       </Card>

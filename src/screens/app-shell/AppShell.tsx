@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-import { FeedbackMessage, ScreenMain, ScreenShell } from '../../components/ui';
+import { ScreenMain, ScreenShell, useFeedbackToast } from '../../components/ui';
 import type { AccountSummary } from './appShellAdapters';
 import AppShellMessagesView from './AppShellMessagesView';
 import AppShellNavigation from './AppShellNavigation';
@@ -40,6 +40,7 @@ export default function AppShell({
     activeAccount,
     onActiveAccountChange,
   });
+  useFeedbackToast(shell.feedbackMessage);
 
   return (
     <ScreenShell
@@ -121,12 +122,6 @@ export default function AppShell({
             ) : null}
           </div>
         </section>
-
-        {shell.feedbackMessage ? (
-          <FeedbackMessage className="app-shell-feedback" tone={shell.feedbackMessage.tone}>
-            {shell.feedbackMessage.text}
-          </FeedbackMessage>
-        ) : null}
 
         <AppShellSearchOverlay
           globalSearchQuery={shell.globalSearchQuery}

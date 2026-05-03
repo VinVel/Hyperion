@@ -26,5 +26,12 @@ export { ScreenHeader, ScreenMain, ScreenShell } from './Screen';
 export { TextField } from './TextField';
 export { ToolbarField } from './ToolbarField';
 export { Toggle } from './Toggle';
+export {
+  ToastProvider,
+  notifyFeedback,
+  toastVisibilityChangedEvent,
+  useFeedbackToast,
+  type ToastFeedback,
+} from './Toast';
 export { Typography } from './Typography';
 export { classNames } from './classNames';

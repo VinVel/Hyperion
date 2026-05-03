@@ -29,13 +29,15 @@ import {
 import {
   BackButton,
   Button,
-  FeedbackMessage,
+  notifyFeedback,
   Panel,
   Pill,
   ScreenMain,
   ScreenShell,
   TextField,
+  toastVisibilityChangedEvent,
   Typography,
+  useFeedbackToast,
 } from "../../components/ui";
 import { defaultDesktopUserAgent } from "../../config/defaultDesktopUserAgent";
 import { HomeserverDetailsScreen } from "./HomeserverDetailsScreen";
@@ -107,7 +109,6 @@ type RegistrationFormStageProps = {
   captchaWarningText: string;
   emailMissing: boolean;
   emailRequired: boolean;
-  feedback: RegistrationFeedbackMessage | null;
   formValues: RegistrationFormValues;
   isSubmitting: boolean;
   passwordMissing: boolean;
@@ -127,6 +128,12 @@ type EmbeddedWebviewStageProps = {
 
 const DEVICE_DISPLAY_NAME = "Hyperion";
 const EMBEDDED_WEBVIEW_LABEL = "registration-handoff-webview";
+// Native child webviews paint above DOM content, so toasts need a non-overlapping viewport slot.
+const nativeWebviewActiveClassName = "hyperion-native-webview-active";
+const toastVisibleClassName = "hyperion-toast-visible";
+const toastRegionSelector = ".ui-toast-region";
+// Keep the native child webview visually separated from the floating toast.
+const webviewToastGapPixels = 12;
 const defaultFormValues: RegistrationFormValues = {
   username: "",
   displayName: "",
@@ -201,12 +208,58 @@ function homeserverMatchesSearch(
 
 function getWebviewBounds(element: HTMLElement): WebviewBounds {
   const rect = element.getBoundingClientRect();
+  const toastRect = getVisibleToastRect();
 
+  if (!toastRect || !rectsOverlap(rect, toastRect)) {
+    return roundedWebviewBounds(rect.left, rect.top, rect.right, rect.bottom);
+  }
+
+  let clippedTop = rect.top;
+  let clippedBottom = rect.bottom;
+  const toastIsInTopHalf = toastRect.top < window.innerHeight / 2;
+
+  if (toastIsInTopHalf) {
+    clippedTop = Math.min(rect.bottom - 1, toastRect.bottom + webviewToastGapPixels);
+  } else {
+    clippedBottom = Math.max(rect.top + 1, toastRect.top - webviewToastGapPixels);
+  }
+
+  return roundedWebviewBounds(rect.left, clippedTop, rect.right, clippedBottom);
+}
+
+function getVisibleToastRect(): DOMRect | null {
+  if (!document.body.classList.contains(toastVisibleClassName)) {
+    return null;
+  }
+
+  const toastRegion = document.querySelector<HTMLElement>(toastRegionSelector);
+  if (!toastRegion) {
+    return null;
+  }
+
+  return toastRegion.getBoundingClientRect();
+}
+
+function rectsOverlap(first: DOMRect, second: DOMRect): boolean {
+  return (
+    first.left < second.right &&
+    first.right > second.left &&
+    first.top < second.bottom &&
+    first.bottom > second.top
+  );
+}
+
+function roundedWebviewBounds(
+  left: number,
+  top: number,
+  right: number,
+  bottom: number,
+): WebviewBounds {
   return {
-    x: Math.round(rect.left),
-    y: Math.round(rect.top),
-    width: Math.max(1, Math.round(rect.width)),
-    height: Math.max(1, Math.round(rect.height)),
+    x: Math.round(left),
+    y: Math.round(top),
+    width: Math.max(1, Math.round(right - left)),
+    height: Math.max(1, Math.round(bottom - top)),
   };
 }
 
@@ -244,6 +297,8 @@ export default function RegistrationScreen({
   const webviewHostRef = useRef<HTMLDivElement | null>(null);
   const latestHomeserverRequestIdRef = useRef(0);
   const deferredSearchQuery = useDeferredValue(searchQuery.trim().toLowerCase());
+
+  useFeedbackToast(feedback);
 
   async function loadHomeservers(reason: "initial" | "refresh" = "initial") {
     const requestId = latestHomeserverRequestIdRef.current + 1;
@@ -303,6 +358,7 @@ export default function RegistrationScreen({
     const appWindow = getCurrentWindow();
     let disposed = false;
     let resizeObserver: ResizeObserver | null = null;
+    let bodyClassObserver: MutationObserver | null = null;
     let removeWindowResizeListener: (() => void) | null = null;
     let removeScrollListener: (() => void) | null = null;
     let currentWebview: Webview | null = null;
@@ -318,6 +374,10 @@ export default function RegistrationScreen({
         ),
         currentWebview.setSize(new LogicalSize(nextBounds.width, nextBounds.height)),
       ]);
+    };
+
+    const handleLayoutChange = () => {
+      void syncBounds();
     };
 
     const openWebview = async () => {
@@ -352,17 +412,22 @@ export default function RegistrationScreen({
 
       if (disposed || !webviewHostRef.current) return;
 
-      const handleLayoutChange = () => {
-        void syncBounds();
-      };
-
       if (typeof ResizeObserver !== "undefined") {
         resizeObserver = new ResizeObserver(handleLayoutChange);
         resizeObserver.observe(webviewHostRef.current);
       }
 
+      if (typeof MutationObserver !== "undefined") {
+        bodyClassObserver = new MutationObserver(handleLayoutChange);
+        bodyClassObserver.observe(document.body, {
+          attributeFilter: ["class"],
+          attributes: true,
+        });
+      }
+
       removeWindowResizeListener = await appWindow.onResized(handleLayoutChange);
       window.addEventListener("scroll", handleLayoutChange, true);
+      window.addEventListener(toastVisibilityChangedEvent, handleLayoutChange);
       removeScrollListener = () => window.removeEventListener("scroll", handleLayoutChange, true);
 
       await syncBounds();
@@ -396,8 +461,10 @@ export default function RegistrationScreen({
     return () => {
       disposed = true;
       resizeObserver?.disconnect();
+      bodyClassObserver?.disconnect();
       removeWindowResizeListener?.();
       removeScrollListener?.();
+      window.removeEventListener(toastVisibilityChangedEvent, handleLayoutChange);
 
       void (async () => {
         const existingWebview =
@@ -662,7 +729,6 @@ export default function RegistrationScreen({
       <ScreenMain className="registration-main">
         {stage === "directory" ? (
           <HomeserverDirectoryScreen
-            feedback={feedback}
             isLoadingHomeservers={isLoadingHomeservers}
             isRefreshingHomeservers={isRefreshingHomeservers}
             searchQuery={searchQuery}
@@ -676,7 +742,6 @@ export default function RegistrationScreen({
 
         {stage === "details" && selectedHomeserver ? (
           <HomeserverDetailsScreen
-            feedback={feedback}
             homeserver={selectedHomeserver}
             isSubmitting={isSubmitting}
             captchaWarningText={captchaWarningText}
@@ -695,7 +760,6 @@ export default function RegistrationScreen({
             captchaWarningText={captchaWarningText}
             emailMissing={emailMissing}
             emailRequired={emailRequired}
-            feedback={feedback}
             formValues={formValues}
             isSubmitting={isSubmitting}
             passwordMissing={passwordMissing}
@@ -725,7 +789,6 @@ function RegistrationFormStage({
   captchaWarningText,
   emailMissing,
   emailRequired,
-  feedback,
   formValues,
   isSubmitting,
   passwordMissing,
@@ -735,6 +798,18 @@ function RegistrationFormStage({
   onFieldChange,
   onSubmit,
 }: RegistrationFormStageProps) {
+  useEffect(() => {
+    if (captchaWarningText) {
+      notifyFeedback({ tone: "error", text: captchaWarningText });
+    }
+  }, [captchaWarningText]);
+
+  useEffect(() => {
+    if (selectedHomeserver.reg_note) {
+      notifyFeedback({ tone: "info", text: selectedHomeserver.reg_note });
+    }
+  }, [selectedHomeserver.reg_note]);
+
   return (
     <section
       className="registration-screen--narrow registration-screen--form"
@@ -754,20 +829,6 @@ function RegistrationFormStage({
         {selectedHomeserver.is_official ? <Pill tone="primary">Official</Pill> : null}
         <Pill>{selectedHomeserver.homeserver_url ?? homeserverHost(selectedHomeserver)}</Pill>
       </div>
-
-      {feedback ? <FeedbackMessage tone={feedback.tone}>{feedback.text}</FeedbackMessage> : null}
-
-      {captchaWarningText ? (
-        <FeedbackMessage tone="error" className="registration-warning">
-          {captchaWarningText}
-        </FeedbackMessage>
-      ) : null}
-
-      {selectedHomeserver.reg_note ? (
-        <FeedbackMessage tone="info" className="registration-note">
-          {selectedHomeserver.reg_note}
-        </FeedbackMessage>
-      ) : null}
 
       <form className="registration-form" noValidate onSubmit={onSubmit}>
         <TextField
@@ -846,6 +907,20 @@ function EmbeddedWebviewStage({
   const webviewKindLabel =
     embeddedWebview.kind === "registration" ? "Registration page" : "Published homeserver link";
 
+  useEffect(() => {
+    document.body.classList.add(nativeWebviewActiveClassName);
+
+    return () => {
+      document.body.classList.remove(nativeWebviewActiveClassName);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (embeddedWebview.warning) {
+      notifyFeedback({ tone: "error", text: embeddedWebview.warning });
+    }
+  }, [embeddedWebview.warning]);
+
   return (
     <Panel className="registration-screen--webview">
       <div className="registration-webview-bar">
@@ -868,12 +943,6 @@ function EmbeddedWebviewStage({
           </Button>
         ) : null}
       </div>
-
-      {embeddedWebview.warning ? (
-        <FeedbackMessage tone="error" className="registration-warning">
-          {embeddedWebview.warning}
-        </FeedbackMessage>
-      ) : null}
 
       <div
         ref={webviewHostRef}

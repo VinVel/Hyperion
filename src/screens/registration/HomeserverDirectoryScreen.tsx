@@ -14,13 +14,12 @@
  */
 
 import { Search } from "lucide-react";
-import { BackButton, Button, FeedbackMessage, Pill, Typography } from "../../components/ui";
-import type { FeedbackMessage as RegistrationFeedbackMessage, HomeserverDirectoryEntry } from "./registrationShared";
+import { BackButton, Button, Pill, Typography } from "../../components/ui";
+import type { HomeserverDirectoryEntry } from "./registrationShared";
 import { flowLabel, homeserverCopy, homeserverHost, homeserverTitle } from "./registrationShared";
 import "./HomeserverDirectoryScreen.css";
 
 type HomeserverDirectoryScreenProps = {
-  feedback: RegistrationFeedbackMessage | null;
   isLoadingHomeservers: boolean;
   isRefreshingHomeservers: boolean;
   searchQuery: string;
@@ -32,7 +31,6 @@ type HomeserverDirectoryScreenProps = {
 };
 
 export function HomeserverDirectoryScreen({
-  feedback,
   isLoadingHomeservers,
   isRefreshingHomeservers,
   searchQuery,
@@ -85,12 +83,6 @@ export function HomeserverDirectoryScreen({
           ? "Loading published registration metadata..."
           : `${visibleHomeservers.length} ${visibleHomeservers.length === 1 ? "homeserver" : "homeservers"} available`}
       </Typography>
-
-      {feedback ? (
-        <FeedbackMessage tone={feedback.tone}>
-          {feedback.text}
-        </FeedbackMessage>
-      ) : null}
 
       {isLoadingHomeservers ? (
         <Typography variant="body" muted className="registration-empty-state">

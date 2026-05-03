@@ -29,14 +29,7 @@
   margin: 0 auto;
 }
 
-.registration-screen-copy,
-.registration-feedback,
-.registration-note {
-  margin-top: var(--spacing-margin-top-large);
-}
-
-.registration-warning,
-.registration-note {
+.registration-screen-copy {
   margin-top: var(--spacing-margin-top-large);
 }
 

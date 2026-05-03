@@ -25,7 +25,15 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Button, Card, FeedbackMessage, TextField, Toggle, Typography } from '../../components/ui';
+import {
+  Button,
+  Card,
+  FeedbackMessage,
+  TextField,
+  Toggle,
+  Typography,
+  useFeedbackToast,
+} from '../../components/ui';
 
 type EncryptionOverview = {
   has_active_account: boolean;
@@ -125,6 +133,8 @@ export default function Encryption() {
   const [error, setError] = useState<string | null>(null);
   const [confirmDeleteRecovery, setConfirmDeleteRecovery] = useState(false);
   const [confirmIdentityReset, setConfirmIdentityReset] = useState(false);
+  useFeedbackToast(error ? { tone: 'error', text: error } : null);
+  useFeedbackToast(message);
 
   async function refreshOverview() {
     const nextOverview = await invoke<EncryptionOverview>('get_encryption_overview');
@@ -268,7 +278,6 @@ export default function Encryption() {
               Sign in to a Matrix account before changing encryption settings.
             </Typography>
           </div>
-          {error ? <FeedbackMessage tone="error">{error}</FeedbackMessage> : null}
         </Card>
       </div>
     );
@@ -281,9 +290,6 @@ export default function Encryption() {
 
   return (
     <div className="settings-view-section-body settings-view-section-body--encryption">
-      {error ? <FeedbackMessage tone="error">{error}</FeedbackMessage> : null}
-      {message ? <FeedbackMessage tone={message.tone}>{message.text}</FeedbackMessage> : null}
-
       <Card className="settings-view-card">
         <div
           className={`settings-view-card-head${
@@ -350,9 +356,9 @@ export default function Encryption() {
           </FeedbackMessage>
         ) : null}
         {recoveryConfirmationPending ? (
-          <FeedbackMessage tone="info">
+          <Typography muted variant="bodySmall">
             Paste the newly generated recovery key below to confirm that it was saved.
-          </FeedbackMessage>
+          </Typography>
         ) : null}
 
         <div className="settings-view-action-row">

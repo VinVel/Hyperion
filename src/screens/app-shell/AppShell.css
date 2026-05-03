@@ -632,11 +632,6 @@
   color: color-mix(in srgb, var(--on-primary-container) 82%, transparent);
 }
 
-.app-shell-feedback {
-  margin-top: 0;
-  margin-left: calc(var(--layout-app-rail-width) + var(--spacing-gap-large));
-}
-
 .app-shell-search-overlay {
   position: fixed;
   inset: 0;
@@ -904,7 +899,4 @@
     align-items: flex-start;
   }
 
-  .app-shell-feedback {
-    margin-left: 0;
-  }
 }

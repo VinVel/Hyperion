@@ -13,8 +13,9 @@
  * Project home: hyperion.velcore.net
  */
 
-import { BackButton, Button, Card, FeedbackMessage, Pill, Typography } from "../../components/ui";
-import type { FeedbackMessage as RegistrationFeedbackMessage, HomeserverDirectoryEntry } from "./registrationShared";
+import { useEffect } from "react";
+import { BackButton, Button, Card, notifyFeedback, Pill, Typography } from "../../components/ui";
+import type { HomeserverDirectoryEntry } from "./registrationShared";
 import {
   boolLabel,
   flowLabel,
@@ -26,7 +27,6 @@ import {
 import "./HomeserverDetailsScreen.css";
 
 type HomeserverDetailsScreenProps = {
-  feedback: RegistrationFeedbackMessage | null;
   homeserver: HomeserverDirectoryEntry;
   isSubmitting: boolean;
   captchaWarningText: string;
@@ -40,7 +40,6 @@ type HomeserverDetailsScreenProps = {
 };
 
 export function HomeserverDetailsScreen({
-  feedback,
   homeserver,
   isSubmitting,
   captchaWarningText,
@@ -52,6 +51,24 @@ export function HomeserverDetailsScreen({
   onOpenRegistrationForm,
   onContinueHomeserverFlow,
 }: HomeserverDetailsScreenProps) {
+  useEffect(() => {
+    if (homeserver.registration_flow !== "matrix_sdk") {
+      notifyFeedback({ tone: "warning", text: handoffWarning(homeserver, "external_flow") });
+    }
+  }, [homeserver]);
+
+  useEffect(() => {
+    if (captchaWarningText) {
+      notifyFeedback({ tone: "error", text: captchaWarningText });
+    }
+  }, [captchaWarningText]);
+
+  useEffect(() => {
+    if (homeserver.reg_note) {
+      notifyFeedback({ tone: "info", text: homeserver.reg_note });
+    }
+  }, [homeserver.reg_note]);
+
   return (
     <section
       className="registration-screen--narrow registration-screen--details"
@@ -81,24 +98,6 @@ export function HomeserverDetailsScreen({
           <Pill>{homeserver.reg_method}</Pill>
         ) : null}
       </div>
-
-      {feedback ? (
-        <FeedbackMessage tone={feedback.tone}>
-          {feedback.text}
-        </FeedbackMessage>
-      ) : null}
-
-      {homeserver.registration_flow !== "matrix_sdk" ? (
-        <FeedbackMessage tone="warning" className="registration-warning">
-          {handoffWarning(homeserver, "external_flow")}
-        </FeedbackMessage>
-      ) : null}
-
-      {captchaWarningText ? (
-        <FeedbackMessage tone="error" className="registration-warning">
-          {captchaWarningText}
-        </FeedbackMessage>
-      ) : null}
 
       <div className="registration-detail-grid">
         <Card>
@@ -242,12 +241,6 @@ export function HomeserverDetailsScreen({
           </dl>
         </Card>
       </div>
-
-      {homeserver.reg_note ? (
-        <FeedbackMessage tone="info" className="registration-note">
-          {homeserver.reg_note}
-        </FeedbackMessage>
-      ) : null}
 
       <div className="registration-action-row">
         {homeserver.registration_flow === "matrix_sdk" ? (

@@ -318,10 +318,6 @@
   min-width: 0;
 }
 
-.settings-view-error {
-  color: var(--error);
-}
-
 .settings-view-mobile-detail-head {
   flex: 0 0 auto;
   gap: var(--spacing-gap-medium);

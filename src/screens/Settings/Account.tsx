@@ -15,7 +15,7 @@
 
 import { UserRoundPlus, LogOut } from 'lucide-react';
 import { useState } from 'react';
-import { Button, Card, Typography } from '../../components/ui';
+import { Button, Card, Typography, useFeedbackToast } from '../../components/ui';
 
 type AccountProps = {
   onAddAccount: () => void;
@@ -37,6 +37,7 @@ function getErrorMessage(error: unknown): string {
 export default function Account({ onAddAccount, onSignOut }: AccountProps) {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
+  useFeedbackToast(signOutError ? { tone: 'error', text: signOutError } : null);
 
   async function handleSignOut() {
     if (isSigningOut) {
@@ -78,11 +79,6 @@ export default function Account({ onAddAccount, onSignOut }: AccountProps) {
           </Button>
         </div>
 
-        {signOutError ? (
-          <Typography className="settings-view-error" variant="bodySmall">
-            {signOutError}
-          </Typography>
-        ) : null}
       </Card>
     </div>
   );

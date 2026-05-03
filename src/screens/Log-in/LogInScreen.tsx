@@ -19,11 +19,11 @@ import { type SyntheticEvent, useEffect, useState } from "react";
 import {
   Button,
   BackButton,
-  FeedbackMessage,
   ScreenMain,
   ScreenShell,
   TextField,
   Typography,
+  useFeedbackToast,
 } from "../../components/ui";
 import type { AccountSummary } from "../app-shell";
 import "./LogInScreen.css";
@@ -81,6 +81,8 @@ export default function LogInScreen({
   const [feedback, setFeedback] = useState<FeedbackMessage | null>(initialFeedback);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationRequested, setValidationRequested] = useState(false);
+
+  useFeedbackToast(feedback);
 
   useEffect(() => {
     if (initialFeedback) {
@@ -256,14 +258,6 @@ export default function LogInScreen({
               </Button>
             </div>
           </form>
-
-          <div className="login-feedback-slot" aria-live="polite">
-            {feedback ? (
-              <FeedbackMessage tone={feedback.tone}>
-                {feedback.text}
-              </FeedbackMessage>
-            ) : null}
-          </div>
         </section>
       </ScreenMain>
     </ScreenShell>

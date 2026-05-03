@@ -102,10 +102,6 @@
   min-width: var(--sizing-login-sign-up-button-min-width);
 }
 
-.login-feedback-slot {
-  min-height: 4.5rem;
-}
-
 @media (max-width: 960px) {
   .login-stage {
     min-height: auto;

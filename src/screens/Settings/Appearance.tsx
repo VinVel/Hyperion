@@ -15,7 +15,7 @@
 
 import { Palette } from 'lucide-react';
 import { useState } from 'react';
-import { Button, Card, Typography } from '../../components/ui';
+import { Button, Card, Typography, useFeedbackToast } from '../../components/ui';
 import { useTheme } from '../../context/ThemeContext';
 import {
   themePresetDetails,
@@ -45,6 +45,8 @@ export default function Appearance() {
   const [isSavingPreset, setIsSavingPreset] = useState(false);
   const [themeModeError, setThemeModeError] = useState<string | null>(null);
   const [presetError, setPresetError] = useState<string | null>(null);
+  useFeedbackToast(themeModeError ? { tone: 'error', text: themeModeError } : null);
+  useFeedbackToast(presetError ? { tone: 'error', text: presetError } : null);
 
   async function handleThemeModeChange(nextTheme: ThemeMode) {
     if (theme === nextTheme || isSavingThemeMode) {
@@ -115,11 +117,6 @@ export default function Appearance() {
           })}
         </div>
 
-        {themeModeError ? (
-          <Typography className="settings-view-error" variant="bodySmall">
-            {themeModeError}
-          </Typography>
-        ) : null}
       </Card>
 
       <Card className="settings-view-card">
@@ -176,11 +173,6 @@ export default function Appearance() {
         <Typography muted variant="meta">
           Current theme mode: {theme}
         </Typography>
-        {presetError ? (
-          <Typography className="settings-view-error" variant="bodySmall">
-            {presetError}
-          </Typography>
-        ) : null}
       </Card>
     </div>
   );

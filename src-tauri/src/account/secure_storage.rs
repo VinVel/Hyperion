@@ -20,7 +20,10 @@ use tauri_plugin_android_secure_storage as android_secure_storage;
 #[cfg(not(target_os = "android"))]
 const SECRET_SERVICE_NAME: &str = "net.velcore.hyperion.matrix-store";
 
-pub fn get_secret<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<Option<Vec<u8>>, String> {
+pub fn get_secret<R: Runtime>(
+    #[cfg_attr(not(target_os = "android"), allow(unused_variables))] app: &AppHandle<R>,
+    key: &str,
+) -> Result<Option<Vec<u8>>, String> {
     #[cfg(target_os = "android")]
     {
         return android_secure_storage::get_secret(app, key).map_err(|error| error.to_string());
@@ -28,7 +31,6 @@ pub fn get_secret<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<Option<Ve
 
     #[cfg(not(target_os = "android"))]
     {
-        let _ = app;
         let entry = keyring::Entry::new(SECRET_SERVICE_NAME, key)
             .map_err(|error| format!("Failed to open secure storage entry: {error}"))?;
 
@@ -40,7 +42,11 @@ pub fn get_secret<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<Option<Ve
     }
 }
 
-pub fn set_secret<R: Runtime>(app: &AppHandle<R>, key: &str, value: &[u8]) -> Result<(), String> {
+pub fn set_secret<R: Runtime>(
+    #[cfg_attr(not(target_os = "android"), allow(unused_variables))] app: &AppHandle<R>,
+    key: &str,
+    value: &[u8],
+) -> Result<(), String> {
     #[cfg(target_os = "android")]
     {
         return android_secure_storage::set_secret(app, key, value)
@@ -49,7 +55,6 @@ pub fn set_secret<R: Runtime>(app: &AppHandle<R>, key: &str, value: &[u8]) -> Re
 
     #[cfg(not(target_os = "android"))]
     {
-        let _ = app;
         let entry = keyring::Entry::new(SECRET_SERVICE_NAME, key)
             .map_err(|error| format!("Failed to open secure storage entry: {error}"))?;
 
@@ -59,7 +64,10 @@ pub fn set_secret<R: Runtime>(app: &AppHandle<R>, key: &str, value: &[u8]) -> Re
     }
 }
 
-pub fn delete_secret<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<(), String> {
+pub fn delete_secret<R: Runtime>(
+    #[cfg_attr(not(target_os = "android"), allow(unused_variables))] app: &AppHandle<R>,
+    key: &str,
+) -> Result<(), String> {
     #[cfg(target_os = "android")]
     {
         return android_secure_storage::delete_secret(app, key).map_err(|error| error.to_string());
@@ -67,7 +75,6 @@ pub fn delete_secret<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<(), St
 
     #[cfg(not(target_os = "android"))]
     {
-        let _ = app;
         let entry = keyring::Entry::new(SECRET_SERVICE_NAME, key)
             .map_err(|error| format!("Failed to open secure storage entry: {error}"))?;
 

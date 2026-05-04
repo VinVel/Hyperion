@@ -121,7 +121,8 @@ impl ShellTimelineRegistry {
         }
 
         let timeline = self.live_timeline(account_key, room).await?;
-        let (_, mut timeline_stream) = timeline.subscribe().await;
+        let (timeline_initial_items, mut timeline_stream) = timeline.subscribe().await;
+        drop(timeline_initial_items);
         let account_key = account_key.to_owned();
         let room_id = room.room_id().to_string();
         let handle = tauri::async_runtime::spawn(async move {
@@ -150,7 +151,7 @@ impl ShellTimelineRegistry {
         let mut items = timeline.items().await;
 
         if items.len() < usize::from(visible_limit) {
-            let _ = timeline
+            let _hit_start = timeline
                 .paginate_backwards(fetch_limit)
                 .await
                 .map_err(|error| format!("Failed to bootstrap the live room timeline: {error}"))?;
@@ -176,7 +177,7 @@ impl ShellTimelineRegistry {
             return;
         };
 
-        for _ in 0..TIMELINE_LATEST_EVENT_WAIT_ATTEMPTS {
+        for _wait_attempt in 0..TIMELINE_LATEST_EVENT_WAIT_ATTEMPTS {
             let timeline_latest_event_id = timeline.latest_event_id().await;
             if timeline_latest_event_id.is_some_and(|event_id| event_id == latest_room_event_id) {
                 return;
@@ -373,7 +374,7 @@ impl ShellTimelineRegistry {
 
         for handle in removed_handles {
             handle.abort();
-            let _ = handle.await;
+            drop(handle.await);
         }
     }
 
@@ -390,13 +391,13 @@ impl ShellTimelineRegistry {
             let mut handles = self.live_timeline_update_handles.lock().await;
             handles
                 .drain()
-                .map(|(_, handle)| handle)
+                .map(|handle_entry| handle_entry.1)
                 .collect::<Vec<_>>()
         };
 
         for handle in removed_handles {
             handle.abort();
-            let _ = handle.await;
+            drop(handle.await);
         }
     }
 }

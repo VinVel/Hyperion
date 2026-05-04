@@ -268,7 +268,7 @@ pub async fn export_room_keys(
 
     let encryption = account.client.encryption();
     encryption
-        .export_room_keys(export_path.clone(), &passphrase, |_| true)
+        .export_room_keys(export_path.clone(), &passphrase, |_room_key| true)
         .await
         .map_err(|error| format!("Failed to export room keys: {error}"))?;
     if let RoomKeySelectedFile::DocumentUri(destination_uri) = &destination {
@@ -299,7 +299,7 @@ pub async fn import_room_keys(
         .import_room_keys(import_path.clone(), &passphrase)
         .await
         .map_err(|error| format!("Failed to import room keys: {error}"))?;
-    if matches!(source, RoomKeySelectedFile::DocumentUri(_)) {
+    if matches!(source, RoomKeySelectedFile::DocumentUri(_source_uri)) {
         remove_transfer_file(&import_path)?;
     }
 
@@ -329,7 +329,9 @@ pub async fn reset_crypto_identity(
     };
 
     match handle.auth_type() {
-        CrossSigningResetAuthType::Uiaa(_) => Ok(CryptoIdentityResetOutcome::UiaaRequired),
+        CrossSigningResetAuthType::Uiaa(_uiaa_auth_info) => {
+            Ok(CryptoIdentityResetOutcome::UiaaRequired)
+        }
         CrossSigningResetAuthType::OAuth(info) => Ok(CryptoIdentityResetOutcome::OAuthRequired {
             approval_url: info.approval_url.to_string(),
         }),
@@ -439,7 +441,7 @@ fn room_key_export_path(
 ) -> Result<PathBuf, String> {
     match destination {
         RoomKeySelectedFile::LocalPath(path) => Ok(path.clone()),
-        RoomKeySelectedFile::DocumentUri(_) => room_key_transfer_path(app, "export"),
+        RoomKeySelectedFile::DocumentUri(_destination_uri) => room_key_transfer_path(app, "export"),
     }
 }
 

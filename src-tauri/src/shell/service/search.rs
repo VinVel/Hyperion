@@ -44,7 +44,8 @@ pub(super) fn server_backed_search_hit(
     room_titles: &HashMap<String, String>,
     query: &str,
 ) -> Option<GlobalSearchMessageHit> {
-    let (event_id, room_id, _sender_id, body) = message_fields_from_timeline_event(raw_event)?;
+    let (event_id, room_id, _sender_id_for_search_result, body) =
+        message_fields_from_timeline_event(raw_event)?;
     if !body.to_lowercase().contains(query) {
         return None;
     }

@@ -19,7 +19,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use matrix_sdk::{Client, SqliteStoreConfig, search_index::SearchIndexStoreKind};
 use matrix_sdk_base::crypto::CollectStrategy;
 use tauri::AppHandle;
@@ -84,7 +84,7 @@ impl AccountManager {
         let storage = self.account_storage(app, &request.homeserver_url, &request.username)?;
         let store_key = Self::load_or_create_store_key(app, &storage.store_id)?;
         let client = self
-            .login_client_with_recovery(app, &storage, &store_key, &request)
+            .login_client_with_recovery(&storage, &store_key, &request)
             .await?;
         let matrix_auth = client.matrix_auth();
         let session = matrix_auth
@@ -189,9 +189,10 @@ impl AccountManager {
     ) -> Result<Option<AccountSummary>, String> {
         self.ensure_loaded(app).await?;
 
-        let Some((_, _, store_dir)) = self.active_account_snapshot() else {
+        let Some(active_account_snapshot) = self.active_account_snapshot() else {
             return Ok(None);
         };
+        let store_dir = active_account_snapshot.2;
 
         let store_root_dir = store_dir
             .parent()
@@ -207,10 +208,10 @@ impl AccountManager {
         self.release_accounts_for_store_dir(&store_dir);
         self.persist_account_store_metadata().await?;
 
-        let _ = Self::remove_dir_with_retries(
+        drop(Self::remove_dir_with_retries(
             store_root_dir,
             "Failed to remove the signed-out account store directory",
-        );
+        ));
 
         self.active_account(app).await
     }
@@ -226,7 +227,10 @@ impl AccountManager {
         };
 
         match client.whoami().await {
-            Ok(_) => Ok(Some(account_summary)),
+            Ok(account_identity) => {
+                drop(account_identity);
+                Ok(Some(account_summary))
+            }
             Err(error) if Self::is_invalid_session_error(&error.to_string()) => {
                 drop(client);
                 self.release_deauthorized_account_store(&store_dir);
@@ -339,7 +343,6 @@ impl AccountManager {
 
     async fn login_client_with_recovery(
         &self,
-        _app: &AppHandle,
         storage: &AccountStorageLocation,
         store_key: &[u8; STORE_KEY_LENGTH],
         request: &LoginRequest,
@@ -386,8 +389,8 @@ impl AccountManager {
 
         let matching_account_keys: Vec<String> = accounts
             .iter()
-            .filter(|(_, account)| account.store_dir == store_dir)
-            .map(|(account_key, _)| account_key.clone())
+            .filter(|account_entry| account_entry.1.store_dir == store_dir)
+            .map(|account_entry| account_entry.0.clone())
             .collect();
 
         if matching_account_keys.is_empty() {

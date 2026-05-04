@@ -73,7 +73,7 @@ pub(super) async fn count_recent_unread_messages_since(room: &Room, event_id: &s
     let mut from = None;
     let mut unread_count = 0_u64;
 
-    for _ in 0..UNREAD_COUNT_BACKFILL_MAX_PAGES {
+    for _backfill_page_index in 0..UNREAD_COUNT_BACKFILL_MAX_PAGES {
         let (items, next_from) =
             fetch_room_timeline_chunk(room, UNREAD_COUNT_BACKFILL_LIMIT, from.as_deref())
                 .await

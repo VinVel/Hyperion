@@ -279,7 +279,7 @@ impl ShellSyncManager {
             let (entries, entries_controller) =
                 room_list.entries_with_dynamic_adapters(ACTIVE_ROOM_LIST_OBSERVER_PAGE_SIZE);
             let filter = Box::new(filters::new_filter_joined());
-            let _ = entries_controller.set_filter(filter);
+            let _filter_was_applied = entries_controller.set_filter(filter);
 
             pin_mut!(entries);
             while let Some(diffs) = entries.next().await {
@@ -369,9 +369,9 @@ impl ShellSyncManager {
         running_account.state_listener_handle.abort();
         running_account.room_update_listener_handle.abort();
         running_account.room_list_observer_handle.abort();
-        let _ = running_account.state_listener_handle.await;
-        let _ = running_account.room_update_listener_handle.await;
-        let _ = running_account.room_list_observer_handle.await;
+        drop(running_account.state_listener_handle.await);
+        drop(running_account.room_update_listener_handle.await);
+        drop(running_account.room_list_observer_handle.await);
 
         let mut focused_rooms = self
             .focused_rooms

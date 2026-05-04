@@ -106,14 +106,12 @@ impl AccountManager {
             &store_key,
         )
         .await?;
-        match perform_registration(&client, &request).await {
-            Ok(_) => {}
-            Err(error) if error.as_uiaa_response().is_some() => {
+        if let Err(error) = perform_registration(&client, &request).await {
+            if error.as_uiaa_response().is_some() {
                 return handle_uiaa_registration_requirement(homeserver, &error);
             }
-            Err(error) => {
-                return Err(format!("Registration failed: {error}"));
-            }
+
+            return Err(format!("Registration failed: {error}"));
         }
 
         let mut notes = Vec::new();

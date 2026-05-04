@@ -450,7 +450,7 @@ impl ShellManager {
     ) {
         room_candidates.sort_by(|left, right| right.1.cmp(&left.1));
 
-        for (room_id, _) in room_candidates
+        for (room_id, _activity_timestamp) in room_candidates
             .into_iter()
             .take(RECENT_TIMELINE_WARM_ROOM_COUNT)
         {
@@ -515,7 +515,7 @@ impl ShellManager {
 
         for handle in removed_handles {
             handle.abort();
-            let _ = handle.await;
+            drop(handle.await);
         }
 
         let mut warm_state = self
@@ -533,13 +533,13 @@ impl ShellManager {
                 .expect("shell manager warm-handles lock poisoned");
             warm_handles
                 .drain()
-                .map(|(_, handle)| handle)
+                .map(|warm_handle_entry| warm_handle_entry.1)
                 .collect::<Vec<_>>()
         };
 
         for handle in removed_handles {
             handle.abort();
-            let _ = handle.await;
+            drop(handle.await);
         }
 
         let mut warm_state = self

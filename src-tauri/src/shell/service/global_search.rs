@@ -311,7 +311,7 @@ impl ShellManager {
         }
 
         let mut before: Option<String> = None;
-        for _ in 0..MESSAGE_SEARCH_MAX_PAGES {
+        for _search_page_index in 0..MESSAGE_SEARCH_MAX_PAGES {
             let (chunk, next_before) =
                 fetch_room_timeline_chunk(room, MESSAGE_SEARCH_SCAN_LIMIT, before.as_deref())
                     .await

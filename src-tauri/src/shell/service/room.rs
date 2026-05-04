@@ -135,7 +135,7 @@ fn message_preview_from_sync_event(
 pub(super) async fn persisted_read_anchor_event_id(room: &Room) -> Option<String> {
     let own_user_id = room.own_user_id();
 
-    if let Ok(Some((event_id, _receipt))) = room
+    if let Ok(Some((event_id, _read_private_receipt))) = room
         .load_user_receipt(
             ReceiptType::ReadPrivate,
             ReceiptThread::Unthreaded,
@@ -146,7 +146,7 @@ pub(super) async fn persisted_read_anchor_event_id(room: &Room) -> Option<String
         return Some(event_id.to_string());
     }
 
-    if let Ok(Some((event_id, _receipt))) = room
+    if let Ok(Some((event_id, _read_receipt))) = room
         .load_user_receipt(ReceiptType::Read, ReceiptThread::Unthreaded, own_user_id)
         .await
     {

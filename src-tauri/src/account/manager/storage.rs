@@ -21,7 +21,7 @@ use std::{
     time::Duration,
 };
 
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use matrix_sdk::{Client, authentication::matrix::MatrixSession};
 use rand::{RngCore, rngs::OsRng};
 use tauri::{AppHandle, Manager};
@@ -52,7 +52,10 @@ impl AccountManager {
         let mut store_root_dir = storage_parent_dir.join(&store_id);
 
         if store_root_dir.exists() && !self.store_dir_is_managed(&store_root_dir.join("store")) {
-            let _ = secure_storage::delete_secret(app, &Self::store_key_entry_id(&store_id));
+            drop(secure_storage::delete_secret(
+                app,
+                &Self::store_key_entry_id(&store_id),
+            ));
             store_id = Self::replacement_account_store_id(&store_id);
             store_root_dir = storage_parent_dir.join(&store_id);
         }
@@ -255,10 +258,10 @@ impl AccountManager {
                     "Skipping persisted account store {} because the Matrix client could not be rebuilt: {error}",
                     storage.store_id
                 );
-                let _ = secure_storage::delete_secret(
+                drop(secure_storage::delete_secret(
                     app,
                     &Self::store_key_entry_id(&storage.store_id),
-                );
+                ));
                 return Ok(None);
             }
         };
@@ -353,7 +356,10 @@ impl AccountManager {
             eprintln!("{error}");
         }
 
-        let _ = secure_storage::delete_secret(app, &Self::store_key_entry_id(&storage.store_id));
+        drop(secure_storage::delete_secret(
+            app,
+            &Self::store_key_entry_id(&storage.store_id),
+        ));
     }
 
     pub(super) async fn persist_account_store_metadata(&self) -> Result<(), String> {
@@ -551,7 +557,7 @@ impl AccountManager {
         };
 
         let secret_len = secret.len();
-        let key_bytes: [u8; STORE_KEY_LENGTH] = secret.try_into().map_err(|_| {
+        let key_bytes: [u8; STORE_KEY_LENGTH] = secret.try_into().map_err(|_length_error| {
             format!(
                 "Secure storage returned an invalid store key length for {store_id}: expected {STORE_KEY_LENGTH}, got {secret_len}",
             )

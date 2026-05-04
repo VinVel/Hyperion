@@ -67,7 +67,7 @@ async fn snapshot_room_list(
             Box::new(filters::new_filter_space()),
         ])),
     };
-    let _ = entries_controller.set_filter(filter);
+    let _filter_was_applied = entries_controller.set_filter(filter);
 
     pin_mut!(entries);
     let diffs = entries
@@ -88,7 +88,7 @@ async fn snapshot_room_list(
                     )
                     .collect::<Vec<_>>(),
             ),
-            _ => None,
+            _other_diff => None,
         })
         .unwrap_or_default())
 }
@@ -109,6 +109,7 @@ async fn wait_for_room_list_initial_load(room_list: &matrix_sdk_ui::room_list_se
     pin_mut!(timeout);
 
     match select(wait_for_loaded, timeout).await {
-        Either::Left(((), _)) | Either::Right(((), _)) => (),
+        Either::Left(((), _timeout_future)) => (),
+        Either::Right(((), _wait_for_loaded_future)) => (),
     }
 }

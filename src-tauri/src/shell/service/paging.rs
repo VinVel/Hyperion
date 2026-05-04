@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use matrix_sdk::{Room, ruma::EventId};
 
 use super::{

@@ -44,6 +44,10 @@ use tauri::{AppHandle, RunEvent, State};
 
 use tauri_plugin_dialog as dialog;
 use tauri_plugin_fs as fs;
+
+#[cfg(mobile)]
+use tauri_plugin_app_events as app_events;
+#[cfg(mobile)]
 use tauri_plugin_mobile_webview_overlay as mobile_overlay_webview;
 
 #[tauri::command]
@@ -229,6 +233,7 @@ async fn global_search(
 }
 
 #[tauri::command]
+#[cfg(mobile)]
 async fn open_mobile_overlay_webview(
     app: AppHandle,
     url: String,
@@ -290,9 +295,16 @@ pub fn run() {
         .manage(ShellManager::new())
         .plugin(dialog::init())
         .plugin(fs::init())
-        .plugin(mobile_overlay_webview::init())
         .plugin(tauri_plugin_opener::init())
-        .setup(|_app| {
+        .setup(|app| {
+            #[cfg(mobile)]
+            {
+                app.handle().plugin(app_events::init())?;
+                app.handle().plugin(mobile_overlay_webview::init())?;
+            }
+            #[cfg(not(mobile))]
+            let _app_handle = app.handle();
+
             account::secure_storage::initialize_default_store()?;
             Ok(())
         })
@@ -312,6 +324,7 @@ pub fn run() {
             send_room_message,
             list_spaces,
             global_search,
+            #[cfg(mobile)]
             open_mobile_overlay_webview,
             get_encryption_overview,
             enable_server_key_storage,

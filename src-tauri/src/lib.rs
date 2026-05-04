@@ -40,9 +40,8 @@ use shell::{
     RoomThreadSummary, RoomTimeline, SendRoomMessageRequest, SendRoomMessageResponse, ShellManager,
     SpaceSummary,
 };
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, RunEvent, State};
 
-use tauri_plugin_android_secure_storage as android_secure_storage;
 use tauri_plugin_dialog as dialog;
 use tauri_plugin_fs as fs;
 use tauri_plugin_mobile_webview_overlay as mobile_overlay_webview;
@@ -289,11 +288,14 @@ pub fn run() {
     tauri::Builder::default()
         .manage(AccountManager::new())
         .manage(ShellManager::new())
-        .plugin(android_secure_storage::init())
         .plugin(dialog::init())
         .plugin(fs::init())
         .plugin(mobile_overlay_webview::init())
         .plugin(tauri_plugin_opener::init())
+        .setup(|_app| {
+            account::secure_storage::initialize_default_store()?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             login_account,
             list_accounts,
@@ -327,6 +329,11 @@ pub fn run() {
             set_theme_mode,
             set_theme_preset
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app_handle, event| {
+            if let RunEvent::Exit = event {
+                account::secure_storage::unset_default_store();
+            }
+        });
 }

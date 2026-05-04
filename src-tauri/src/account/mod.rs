@@ -14,7 +14,7 @@
  */
 
 pub mod manager;
-mod secure_storage;
+pub(crate) mod secure_storage;
 pub mod types;
 
 pub use manager::AccountManager;

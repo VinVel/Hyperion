@@ -13,74 +13,88 @@
  * Project home: hyperion.velcore.net
  */
 
-use tauri::{AppHandle, Runtime};
 #[cfg(target_os = "android")]
-use tauri_plugin_android_secure_storage as android_secure_storage;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tauri::{AppHandle, Runtime};
 
-#[cfg(not(target_os = "android"))]
+// Matrix store encryption keys are grouped under this stable service name for
+// compatibility with existing desktop credentials.
 const SECRET_SERVICE_NAME: &str = "net.velcore.hyperion.matrix-store";
 
-pub fn get_secret<R: Runtime>(
-    #[cfg_attr(not(target_os = "android"), allow(unused_variables))] app: &AppHandle<R>,
-    key: &str,
-) -> Result<Option<Vec<u8>>, String> {
-    #[cfg(target_os = "android")]
-    {
-        return android_secure_storage::get_secret(app, key).map_err(|error| error.to_string());
-    }
+// Android uses a named keyring-core store so Hyperion credentials stay isolated
+// from any other Rust keyring users in the same application process.
+#[cfg(target_os = "android")]
+const ANDROID_STORE_NAME: &str = "hyperion-matrix-store";
 
-    #[cfg(not(target_os = "android"))]
-    {
-        let entry = keyring::Entry::new(SECRET_SERVICE_NAME, key)
-            .map_err(|error| format!("Failed to open secure storage entry: {error}"))?;
+pub(crate) fn initialize_default_store() -> keyring_core::Result<()> {
+    keyring_core::set_default_store(platform_default_store()?);
+    Ok(())
+}
 
-        match entry.get_secret() {
-            Ok(secret) => Ok(Some(secret)),
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(error) => Err(format!("Failed to read secure storage entry: {error}")),
-        }
+pub(crate) fn unset_default_store() {
+    drop(keyring_core::unset_default_store());
+}
+
+#[cfg(target_os = "windows")]
+fn platform_default_store() -> keyring_core::Result<Arc<keyring_core::CredentialStore>> {
+    let store = windows_native_keyring_store::Store::new()?;
+    Ok(store)
+}
+
+#[cfg(target_os = "macos")]
+fn platform_default_store() -> keyring_core::Result<Arc<keyring_core::CredentialStore>> {
+    let store = apple_native_keyring_store::keychain::Store::new()?;
+    Ok(store)
+}
+
+#[cfg(target_os = "ios")]
+fn platform_default_store() -> keyring_core::Result<Arc<keyring_core::CredentialStore>> {
+    let store = apple_native_keyring_store::protected::Store::new()?;
+    Ok(store)
+}
+
+#[cfg(target_os = "linux")]
+fn platform_default_store() -> keyring_core::Result<Arc<keyring_core::CredentialStore>> {
+    let store = linux_keyutils_keyring_store::Store::new()?;
+    Ok(store)
+}
+
+#[cfg(target_os = "android")]
+fn platform_default_store() -> keyring_core::Result<Arc<keyring_core::CredentialStore>> {
+    let mut configuration = HashMap::new();
+    configuration.insert("name", ANDROID_STORE_NAME);
+
+    let store = android_native_keyring_store::Store::new_with_configuration(&configuration)?;
+    Ok(store)
+}
+
+pub fn get_secret<R: Runtime>(_app: &AppHandle<R>, key: &str) -> Result<Option<Vec<u8>>, String> {
+    let entry = keyring_core::Entry::new(SECRET_SERVICE_NAME, key)
+        .map_err(|error| format!("Failed to open secure storage entry: {error}"))?;
+
+    match entry.get_secret() {
+        Ok(secret) => Ok(Some(secret)),
+        Err(keyring_core::Error::NoEntry) => Ok(None),
+        Err(error) => Err(format!("Failed to read secure storage entry: {error}")),
     }
 }
 
-pub fn set_secret<R: Runtime>(
-    #[cfg_attr(not(target_os = "android"), allow(unused_variables))] app: &AppHandle<R>,
-    key: &str,
-    value: &[u8],
-) -> Result<(), String> {
-    #[cfg(target_os = "android")]
-    {
-        return android_secure_storage::set_secret(app, key, value)
-            .map_err(|error| error.to_string());
-    }
+pub fn set_secret<R: Runtime>(_app: &AppHandle<R>, key: &str, value: &[u8]) -> Result<(), String> {
+    let entry = keyring_core::Entry::new(SECRET_SERVICE_NAME, key)
+        .map_err(|error| format!("Failed to open secure storage entry: {error}"))?;
 
-    #[cfg(not(target_os = "android"))]
-    {
-        let entry = keyring::Entry::new(SECRET_SERVICE_NAME, key)
-            .map_err(|error| format!("Failed to open secure storage entry: {error}"))?;
-
-        entry
-            .set_secret(value)
-            .map_err(|error| format!("Failed to write secure storage entry: {error}"))
-    }
+    entry
+        .set_secret(value)
+        .map_err(|error| format!("Failed to write secure storage entry: {error}"))
 }
 
-pub fn delete_secret<R: Runtime>(
-    #[cfg_attr(not(target_os = "android"), allow(unused_variables))] app: &AppHandle<R>,
-    key: &str,
-) -> Result<(), String> {
-    #[cfg(target_os = "android")]
-    {
-        return android_secure_storage::delete_secret(app, key).map_err(|error| error.to_string());
-    }
+pub fn delete_secret<R: Runtime>(_app: &AppHandle<R>, key: &str) -> Result<(), String> {
+    let entry = keyring_core::Entry::new(SECRET_SERVICE_NAME, key)
+        .map_err(|error| format!("Failed to open secure storage entry: {error}"))?;
 
-    #[cfg(not(target_os = "android"))]
-    {
-        let entry = keyring::Entry::new(SECRET_SERVICE_NAME, key)
-            .map_err(|error| format!("Failed to open secure storage entry: {error}"))?;
-
-        match entry.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-            Err(error) => Err(format!("Failed to delete secure storage entry: {error}")),
-        }
+    match entry.delete_credential() {
+        Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
+        Err(error) => Err(format!("Failed to delete secure storage entry: {error}")),
     }
 }

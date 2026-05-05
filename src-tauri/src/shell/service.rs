@@ -14,18 +14,17 @@
  */
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, RwLock},
 };
 
-use matrix_sdk::{
-    Room,
-    ruma::{EventId, events::room::message::RoomMessageEventContent},
-};
+use matrix_sdk::{Room, ruma::events::room::message::RoomMessageEventContent};
 use tauri::async_runtime::JoinHandle;
 
 use crate::account::AccountManager;
 
+mod cache_state;
+mod caching;
 mod global_search;
 mod paging;
 mod read_state;
@@ -33,6 +32,7 @@ mod room;
 mod room_list;
 mod search;
 mod timeline;
+mod timeline_commands;
 
 use self::{
     paging::{focused_timeline_page_token, load_live_room_timeline, load_paginated_room_timeline},
@@ -45,16 +45,15 @@ use self::{
     search::{
         first_visible_grapheme, matches_query, normalize_query, now_unix_ms, relative_time_label,
     },
-    timeline::{cached_timeline_item_count, warm_room_recent_timeline},
+    timeline::{cached_timeline_item_count, cached_timeline_items, warm_room_recent_timeline},
 };
 
 use super::{
     engine::ShellTimelineRegistry,
     sync::ShellSyncManager,
     types::{
-        GetRoomEventContextRequest, GetRoomSummaryRequest, GetRoomTimelineRequest,
-        ListRoomThreadsRequest, ListSpacesRequest, RoomSummary, RoomThreadSummary, RoomTimeline,
-        SendRoomMessageRequest, SendRoomMessageResponse, SpaceSummary,
+        GetRoomSummaryRequest, ListRoomThreadsRequest, ListSpacesRequest, RoomSummary,
+        RoomThreadSummary, SendRoomMessageRequest, SendRoomMessageResponse, SpaceSummary,
     },
 };
 
@@ -76,6 +75,9 @@ const RECENT_TIMELINE_REWARM_INTERVAL_MS: u64 = 10 * 60 * 1_000;
 // Command snapshots need a bounded page size when materializing the room-list
 // stream. Keep it large enough to cover realistic active accounts in one pass.
 const ROOM_LIST_SNAPSHOT_PAGE_SIZE: usize = 10_000;
+// Restoring very deep rooms should stay bounded on app startup; explicit older
+// pagination can still continue beyond this as the user asks for more history.
+const MAX_RESTORED_TIMELINE_ITEMS: usize = 1_000;
 
 enum ShellRoomListKind {
     Conversations,
@@ -89,6 +91,10 @@ pub struct ShellManager {
     recent_timeline_warm_state: Arc<RwLock<HashMap<String, u64>>>,
     recent_timeline_warm_handles: Arc<RwLock<HashMap<String, JoinHandle<()>>>>,
     locally_read_room_state: Arc<RwLock<HashMap<String, String>>>,
+    room_thread_cache_served_accounts: Arc<RwLock<HashSet<String>>>,
+    room_timeline_cache_served_keys: Arc<RwLock<HashSet<String>>>,
+    search_indexer: SearchIndexer,
+    search_backfill_coordinator: SearchBackfillCoordinator,
 }
 
 impl ShellManager {
@@ -99,6 +105,10 @@ impl ShellManager {
             recent_timeline_warm_state: Arc::new(RwLock::new(HashMap::new())),
             recent_timeline_warm_handles: Arc::new(RwLock::new(HashMap::new())),
             locally_read_room_state: Arc::new(RwLock::new(HashMap::new())),
+            room_thread_cache_served_accounts: Arc::new(RwLock::new(HashSet::new())),
+            room_timeline_cache_served_keys: Arc::new(RwLock::new(HashSet::new())),
+            search_indexer: SearchIndexer::new(),
+            search_backfill_coordinator: SearchBackfillCoordinator::new(),
         }
     }
 
@@ -114,14 +124,21 @@ impl ShellManager {
 
     pub async fn stop_account(&self, account_key: &str) {
         self.stop_recent_timeline_warmups(account_key).await;
+        self.search_backfill_coordinator
+            .stop_account(account_key)
+            .await;
         self.sync_manager.stop_account(account_key).await;
         self.timeline_registry.clear_account(account_key).await;
+        self.clear_served_room_thread_cache(account_key);
+        self.clear_served_room_timeline_caches(account_key);
     }
 
     pub async fn stop_all_accounts(&self) {
         self.stop_all_recent_timeline_warmups().await;
         self.sync_manager.stop_all_accounts().await;
         self.timeline_registry.clear_all().await;
+        self.clear_all_served_room_thread_caches();
+        self.clear_all_served_room_timeline_caches();
     }
 
     pub async fn list_room_threads(
@@ -130,17 +147,28 @@ impl ShellManager {
         account_manager: &AccountManager,
         request: ListRoomThreadsRequest,
     ) -> Result<Vec<RoomThreadSummary>, String> {
-        self.sync_manager
-            .ensure_started_for_manager(account_manager, app)
-            .await?;
-
         let Some(account) = account_manager.active_account_client(app).await? else {
             return Ok(Vec::new());
         };
 
+        if !self.room_thread_cache_was_served(&account.account_key)
+            && let Some(cached_rooms) =
+                Self::cached_room_threads(&account.account_key, &account.store_dir, &request)
+        {
+            self.mark_room_thread_cache_served(&account.account_key);
+            self.ensure_sync_in_background(app, account_manager);
+            return Ok(cached_rooms);
+        }
+
+        self.sync_manager
+            .ensure_started_for_manager(account_manager, app)
+            .await?;
+
         let query = normalize_query(request.search_query.as_deref());
         let mut rooms = Vec::new();
+        let mut all_room_summaries = Vec::new();
         let mut recent_room_candidates = Vec::new();
+        let mut active_room_ids = HashSet::new();
 
         for room in self
             .snapshot_room_list(&account.account_key, ShellRoomListKind::Conversations)
@@ -149,7 +177,11 @@ impl ShellManager {
             let summary = self
                 .build_room_thread_summary(&account.account_key, &room)
                 .await?;
+            active_room_ids.insert(summary.room_id.clone());
+            self.index_room_summary(&account.account_key, &account.store_dir, &summary)
+                .await;
             recent_room_candidates.push((summary.room_id.clone(), summary.last_activity_unix_ms));
+            all_room_summaries.push(summary.clone());
             if matches_query(
                 query.as_deref(),
                 &[&summary.title, &summary.preview, &summary.participant_label],
@@ -158,11 +190,34 @@ impl ShellManager {
             }
         }
 
+        self.tombstone_stale_room_documents(
+            &account.account_key,
+            &account.store_dir,
+            &active_room_ids,
+        )
+        .await;
+        Self::remember_room_threads(
+            &account.account_key,
+            &account.store_dir,
+            &all_room_summaries,
+        );
+
         self.schedule_recent_timeline_warmup(
             &account.client,
             &account.account_key,
+            &account.store_dir,
             recent_room_candidates,
         );
+        self.schedule_search_backfill(
+            account.client.clone(),
+            &account.account_key,
+            &account.store_dir,
+            rooms
+                .iter()
+                .map(|room| (room.room_id.clone(), room.last_activity_unix_ms))
+                .collect(),
+        )
+        .await;
 
         Ok(rooms)
     }
@@ -173,6 +228,17 @@ impl ShellManager {
         account_manager: &AccountManager,
         request: GetRoomSummaryRequest,
     ) -> Result<RoomSummary, String> {
+        if let Some(account) = account_manager.active_account_client(app).await?
+            && self.room_thread_cache_was_served(&account.account_key)
+            && let Some(summary) = Self::cached_room_summary(
+                &account.account_key,
+                &account.store_dir,
+                &request.room_id,
+            )
+        {
+            return Ok(summary);
+        }
+
         self.sync_manager
             .ensure_started_for_manager(account_manager, app)
             .await?;
@@ -198,105 +264,6 @@ impl ShellManager {
             topic,
             is_direct,
             can_send_messages,
-        })
-    }
-
-    pub async fn get_room_timeline(
-        &self,
-        app: &tauri::AppHandle,
-        account_manager: &AccountManager,
-        request: GetRoomTimelineRequest,
-    ) -> Result<RoomTimeline, String> {
-        self.sync_manager
-            .ensure_started_for_manager(account_manager, app)
-            .await?;
-
-        let Some(account) = account_manager.active_account_client(app).await? else {
-            return Err(String::from("No active account is available"));
-        };
-        let room = resolve_room(&account.client, &request.room_id)?;
-        self.mark_room_focused(&account.account_key, room.room_id().as_str());
-        self.schedule_room_timeline_warmup(
-            account.client.clone(),
-            &account.account_key,
-            room.room_id().to_string(),
-        );
-
-        let limit = request.limit.unwrap_or(DEFAULT_TIMELINE_LIMIT);
-        let (items, next_before);
-        if request.before.is_none() {
-            self.timeline_registry
-                .subscribe_live_timeline_updates(app.clone(), &account.account_key, &room)
-                .await?;
-            (items, next_before) = load_live_room_timeline(
-                &self.timeline_registry,
-                &account.account_key,
-                &room,
-                limit,
-            )
-            .await?;
-        } else {
-            (items, next_before) = load_paginated_room_timeline(
-                &self.timeline_registry,
-                &account.account_key,
-                &room,
-                limit,
-                request.before.as_deref(),
-            )
-            .await?;
-        }
-
-        if request.before.is_none()
-            && let Some(latest_item) = items.last()
-        {
-            self.timeline_registry
-                .mark_live_timeline_as_read(&account.account_key, &room)
-                .await?;
-            mark_room_read_locally(
-                &self.locally_read_room_state,
-                &account.account_key,
-                room.room_id().as_str(),
-                &latest_item.event_id,
-            );
-        }
-
-        Ok(RoomTimeline {
-            room_id: room.room_id().to_string(),
-            items,
-            next_before,
-            focused_event_id: None,
-        })
-    }
-
-    pub async fn get_room_event_context(
-        &self,
-        app: &tauri::AppHandle,
-        account_manager: &AccountManager,
-        request: GetRoomEventContextRequest,
-    ) -> Result<RoomTimeline, String> {
-        self.sync_manager
-            .ensure_started_for_manager(account_manager, app)
-            .await?;
-
-        let Some(account) = account_manager.active_account_client(app).await? else {
-            return Err(String::from("No active account is available"));
-        };
-        let room = resolve_room(&account.client, &request.room_id)?;
-        self.mark_room_focused(&account.account_key, room.room_id().as_str());
-        let event_id = EventId::parse(&request.event_id)
-            .map_err(|error| format!("Invalid event id: {error}"))?
-            .clone();
-        let context_limit = request.context_limit.unwrap_or(DEFAULT_EVENT_CONTEXT_LIMIT);
-        let items = self
-            .timeline_registry
-            .focused_timeline_items(&account.account_key, &room, event_id.clone(), context_limit)
-            .await?;
-
-        Ok(RoomTimeline {
-            room_id: room.room_id().to_string(),
-            items,
-            next_before: Some(focused_timeline_page_token(event_id.as_ref(), 1)),
-            focused_event_id: Some(request.event_id),
         })
     }
 
@@ -343,6 +310,25 @@ impl ShellManager {
             &event_id,
         );
 
+        let title = room_title(&room).await?;
+        let sent_item = crate::shell::types::RoomTimelineItem {
+            event_id: event_id.clone(),
+            sender_id: room.own_user_id().to_string(),
+            sender_display_name: None,
+            body: body.to_owned(),
+            timestamp_unix_ms: now_unix_ms(),
+            is_edited: Some(false),
+            is_own_message: true,
+        };
+        self.index_timeline_items(
+            &account.account_key,
+            &account.store_dir,
+            room.room_id().as_str(),
+            &title,
+            &[sent_item],
+        )
+        .await;
+
         Ok(SendRoomMessageResponse { event_id })
     }
 
@@ -362,6 +348,7 @@ impl ShellManager {
 
         let query = normalize_query(request.search_query.as_deref());
         let mut spaces = Vec::new();
+        let mut active_space_ids = HashSet::new();
         for room in self
             .snapshot_room_list(&account.account_key, ShellRoomListKind::Spaces)
             .await?
@@ -369,10 +356,20 @@ impl ShellManager {
             let summary = self
                 .build_space_summary(&room, &account.homeserver_url)
                 .await?;
+            active_space_ids.insert(summary.space_id.clone());
+            self.index_space_summary(&account.account_key, &account.store_dir, &summary)
+                .await;
             if matches_query(query.as_deref(), &[&summary.name, &summary.description]) {
                 spaces.push(summary);
             }
         }
+
+        self.tombstone_stale_space_documents(
+            &account.account_key,
+            &account.store_dir,
+            &active_space_ids,
+        )
+        .await;
 
         Ok(spaces)
     }
@@ -446,6 +443,7 @@ impl ShellManager {
         &self,
         client: &matrix_sdk::Client,
         account_key: &str,
+        store_dir: &std::path::Path,
         mut room_candidates: Vec<(String, u64)>,
     ) {
         room_candidates.sort_by(|left, right| right.1.cmp(&left.1));
@@ -454,7 +452,7 @@ impl ShellManager {
             .into_iter()
             .take(RECENT_TIMELINE_WARM_ROOM_COUNT)
         {
-            self.schedule_room_timeline_warmup(client.clone(), account_key, room_id);
+            self.schedule_room_timeline_warmup(client.clone(), account_key, store_dir, room_id);
         }
     }
 
@@ -462,6 +460,7 @@ impl ShellManager {
         &self,
         client: matrix_sdk::Client,
         account_key: &str,
+        store_dir: &std::path::Path,
         room_id: String,
     ) {
         let now = now_unix_ms();
@@ -479,11 +478,31 @@ impl ShellManager {
             warm_state.insert(state_key.clone(), now);
         }
 
+        let account_key = account_key.to_owned();
+        let store_dir = store_dir.to_owned();
+        let search_indexer = self.search_indexer.clone();
         let handle = tauri::async_runtime::spawn(async move {
             if let Err(error) =
                 warm_room_recent_timeline(&client, &room_id, RECENT_TIMELINE_WARM_LIMIT).await
             {
                 eprintln!("Failed to warm recent room timeline for {room_id}: {error}");
+                return;
+            }
+
+            let Ok(room) = resolve_room(&client, &room_id) else {
+                return;
+            };
+            let Ok(title) = room_title(&room).await else {
+                return;
+            };
+            let Ok(items) = cached_timeline_items(&room).await else {
+                return;
+            };
+            if let Err(error) = search_indexer
+                .upsert_timeline_items(&account_key, &store_dir, &room_id, &title, &items)
+                .await
+            {
+                eprintln!("Failed to index warmed room timeline for search: {error}");
             }
         });
 
@@ -551,6 +570,190 @@ impl ShellManager {
 
     fn mark_room_focused(&self, account_key: &str, room_id: &str) {
         self.sync_manager.touch_focused_room(account_key, room_id);
+    }
+
+    fn ensure_sync_in_background(&self, app: &tauri::AppHandle, account_manager: &AccountManager) {
+        let shell_manager = self.clone();
+        let app = app.clone();
+        let account_manager = account_manager.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(error) = shell_manager
+                .ensure_active_account_sync(&app, &account_manager)
+                .await
+            {
+                eprintln!("Failed to refresh cached shell room list in background: {error}");
+            }
+        });
+    }
+
+    async fn index_room_summary(
+        &self,
+        account_key: &str,
+        store_dir: &std::path::Path,
+        summary: &RoomThreadSummary,
+    ) {
+        if let Err(error) = self
+            .search_indexer
+            .upsert_room_summary(account_key, store_dir, summary)
+            .await
+        {
+            eprintln!("Failed to index room summary for search: {error}");
+        }
+    }
+
+    async fn index_space_summary(
+        &self,
+        account_key: &str,
+        store_dir: &std::path::Path,
+        summary: &SpaceSummary,
+    ) {
+        if let Err(error) = self
+            .search_indexer
+            .upsert_space_summary(account_key, store_dir, summary)
+            .await
+        {
+            eprintln!("Failed to index space summary for search: {error}");
+        }
+    }
+
+    async fn tombstone_stale_room_documents(
+        &self,
+        account_key: &str,
+        store_dir: &std::path::Path,
+        active_room_ids: &HashSet<String>,
+    ) {
+        if let Err(error) = self
+            .search_indexer
+            .tombstone_stale_rooms(account_key, store_dir, active_room_ids)
+            .await
+        {
+            eprintln!("Failed to tombstone stale room search documents: {error}");
+        }
+    }
+
+    async fn tombstone_stale_space_documents(
+        &self,
+        account_key: &str,
+        store_dir: &std::path::Path,
+        active_space_ids: &HashSet<String>,
+    ) {
+        if let Err(error) = self
+            .search_indexer
+            .tombstone_stale_spaces(account_key, store_dir, active_space_ids)
+            .await
+        {
+            eprintln!("Failed to tombstone stale space search documents: {error}");
+        }
+    }
+
+    async fn schedule_search_backfill(
+        &self,
+        client: matrix_sdk::Client,
+        account_key: &str,
+        store_dir: &std::path::Path,
+        room_candidates: Vec<(String, u64)>,
+    ) {
+        self.search_backfill_coordinator
+            .schedule_recent_rooms(
+                client,
+                account_key,
+                store_dir,
+                self.search_indexer.clone(),
+                room_candidates,
+            )
+            .await;
+    }
+
+    async fn index_timeline_items(
+        &self,
+        account_key: &str,
+        store_dir: &std::path::Path,
+        room_id: &str,
+        room_title: &str,
+        items: &[crate::shell::types::RoomTimelineItem],
+    ) {
+        if let Err(error) = self
+            .search_indexer
+            .upsert_timeline_items(account_key, store_dir, room_id, room_title, items)
+            .await
+        {
+            eprintln!("Failed to index room timeline for search: {error}");
+            drop(
+                self.search_indexer
+                    .record_room_error(account_key, store_dir, room_id, "message_room", &error)
+                    .await,
+            );
+        }
+    }
+
+    async fn delete_redacted_timeline_items(
+        &self,
+        account_key: &str,
+        store_dir: &std::path::Path,
+        room: &Room,
+    ) {
+        let redacted_event_ids = match self
+            .timeline_registry
+            .live_redacted_event_ids(account_key, room)
+            .await
+        {
+            Ok(redacted_event_ids) => redacted_event_ids,
+            Err(error) => {
+                eprintln!("Failed to inspect redacted timeline items for search: {error}");
+                return;
+            }
+        };
+        self.delete_message_documents(
+            account_key,
+            store_dir,
+            room.room_id().as_str(),
+            &redacted_event_ids,
+        )
+        .await;
+    }
+
+    async fn delete_focused_redacted_timeline_items(
+        &self,
+        account_key: &str,
+        store_dir: &std::path::Path,
+        room: &Room,
+        event_id: matrix_sdk::ruma::OwnedEventId,
+        context_limit: u16,
+    ) {
+        let redacted_event_ids = match self
+            .timeline_registry
+            .focused_redacted_event_ids(account_key, room, event_id, context_limit)
+            .await
+        {
+            Ok(redacted_event_ids) => redacted_event_ids,
+            Err(error) => {
+                eprintln!("Failed to inspect focused redacted timeline items for search: {error}");
+                return;
+            }
+        };
+        self.delete_message_documents(
+            account_key,
+            store_dir,
+            room.room_id().as_str(),
+            &redacted_event_ids,
+        )
+        .await;
+    }
+
+    async fn delete_message_documents(
+        &self,
+        account_key: &str,
+        store_dir: &std::path::Path,
+        room_id: &str,
+        event_ids: &[String],
+    ) {
+        if let Err(error) = self
+            .search_indexer
+            .delete_message_documents(account_key, store_dir, room_id, event_ids)
+            .await
+        {
+            eprintln!("Failed to remove redacted messages from search: {error}");
+        }
     }
 }
 

@@ -19,7 +19,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   type AccountSummary,
   type AuthenticatedShellView,
-  type BackendGlobalSearchResponse,
   type BackendRoomSummary,
   type BackendRoomThreadSummary,
   type BackendRoomTimeline,
@@ -28,15 +27,19 @@ import {
   type RoomTimelineItem,
   type RoomSummary,
   type RoomThreadSort,
-  type SearchResultGroup,
   type SpaceSummary,
   filterAndSortRoomThreads,
-  mapGlobalSearchResponse,
   mapRoomSummary,
   mapRoomThreadSummary,
   mapRoomTimeline,
   mapSpaceSummary,
 } from './appShellAdapters';
+import {
+  type BackendGlobalSearchResponse,
+  type SearchResultGroup,
+  globalSearchStatusNotice,
+  mapGlobalSearchResponse,
+} from './search';
 
 const SHELL_SYNC_UPDATED_EVENT = 'hyperion://shell-sync-updated';
 
@@ -54,6 +57,12 @@ const roomTimelinePageSize = 30;
 const globalSearchDebounceMilliseconds = 150;
 // Each search group is capped to keep the overlay compact.
 const globalSearchLimitPerGroup = 4;
+// The last opened room is UI navigation state, so keep it in browser storage
+// per Matrix account instead of making the backend infer it from activity.
+const appShellSelectionStoragePrefix = 'hyperion.appShell.selection';
+// Keep recently opened room views in memory so switching rooms is an immediate
+// render operation while the backend refresh catches up.
+const maximumInMemoryRoomSnapshots = 24;
 
 type ShellSyncUpdatedPayload = {
   account_key: string;
@@ -77,6 +86,11 @@ type AccountShellSelection = {
   spaceId: string | null;
 };
 
+type SelectedRoomSnapshot = {
+  summary: RoomSummary;
+  timeline: RoomTimeline;
+};
+
 type UseAppShellStateOptions = {
   activeAccount: AccountSummary;
   onActiveAccountChange: (nextAccount: AccountSummary) => void;
@@ -88,6 +102,7 @@ export type UseAppShellStateResult = {
   feedbackMessage: FeedbackMessage | null;
   globalSearchQuery: string;
   globalSearchResults: SearchResultGroup[];
+  globalSearchStatusNotice: string | null;
   isAccountCenterOpen: boolean;
   isGlobalSearchOpen: boolean;
   isLoadingOlderMessages: boolean;
@@ -154,6 +169,31 @@ function retainCurrentSelectionOrDefault<T extends { id: string }>(
   return items[0]?.id ?? null;
 }
 
+function storedSelectionKey(accountKey: string): string {
+  return `${appShellSelectionStoragePrefix}.${accountKey}`;
+}
+
+function readStoredSelection(accountKey: string): AccountShellSelection {
+  try {
+    const rawValue = window.localStorage.getItem(storedSelectionKey(accountKey));
+    if (!rawValue) {
+      return { threadId: null, spaceId: null };
+    }
+
+    const parsedValue = JSON.parse(rawValue) as Partial<AccountShellSelection>;
+    return {
+      threadId: typeof parsedValue.threadId === 'string' ? parsedValue.threadId : null,
+      spaceId: typeof parsedValue.spaceId === 'string' ? parsedValue.spaceId : null,
+    };
+  } catch {
+    return { threadId: null, spaceId: null };
+  }
+}
+
+function writeStoredSelection(accountKey: string, selection: AccountShellSelection) {
+  window.localStorage.setItem(storedSelectionKey(accountKey), JSON.stringify(selection));
+}
+
 function timelineAnchorForRoom(
   roomId: string,
   timelineJumpTarget: TimelineJumpTarget | null,
@@ -191,6 +231,29 @@ function mergeOlderTimelineItems(
   return [...uniqueOlderItems, ...currentItems];
 }
 
+function rememberRoomSnapshot(
+  currentSnapshots: Record<string, SelectedRoomSnapshot>,
+  roomSnapshot: SelectedRoomSnapshot,
+): Record<string, SelectedRoomSnapshot> {
+  const nextSnapshots = {
+    ...currentSnapshots,
+    [roomSnapshot.timeline.roomId]: roomSnapshot,
+  };
+  const snapshotEntries = Object.entries(nextSnapshots);
+  if (snapshotEntries.length <= maximumInMemoryRoomSnapshots) {
+    return nextSnapshots;
+  }
+
+  const [oldestRoomId] = snapshotEntries[0] ?? [];
+  if (!oldestRoomId) {
+    return nextSnapshots;
+  }
+
+  const trimmedSnapshots = { ...nextSnapshots };
+  delete trimmedSnapshots[oldestRoomId];
+  return trimmedSnapshots;
+}
+
 export default function useAppShellState({
   activeAccount,
   onActiveAccountChange,
@@ -199,11 +262,19 @@ export default function useAppShellState({
   const [knownAccounts, setKnownAccounts] = useState<AccountSummary[]>([activeAccount]);
   const [roomThreads, setRoomThreads] = useState<ReturnType<typeof mapRoomThreadSummary>[]>([]);
   const [spaces, setSpaces] = useState<SpaceSummary[]>([]);
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
-  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
+  const initialSelection = readStoredSelection(activeAccount.account_key);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(
+    initialSelection.threadId,
+  );
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(
+    initialSelection.spaceId,
+  );
   const [selectionAccountKey, setSelectionAccountKey] = useState(activeAccount.account_key);
   const [selectedRoomSummary, setSelectedRoomSummary] = useState<RoomSummary | null>(null);
   const [selectedTimeline, setSelectedTimeline] = useState<RoomTimeline | null>(null);
+  const [roomSnapshotsByRoomId, setRoomSnapshotsByRoomId] = useState<
+    Record<string, SelectedRoomSnapshot>
+  >({});
   const [timelineJumpTarget, setTimelineJumpTarget] = useState<TimelineJumpTarget | null>(null);
   const [composerValue, setComposerValue] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
@@ -215,30 +286,35 @@ export default function useAppShellState({
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [globalSearchResults, setGlobalSearchResults] = useState<SearchResultGroup[]>([]);
+  const [globalSearchNotice, setGlobalSearchNotice] = useState<string | null>(null);
   const [isAccountCenterOpen, setIsAccountCenterOpen] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<FeedbackMessage | null>(null);
   const [switchingAccountKey, setSwitchingAccountKey] = useState<string | null>(null);
   const [isLoadingShell, setIsLoadingShell] = useState(true);
   const activeAccountKeyRef = useRef(activeAccount.account_key);
-  const accountSelectionsRef = useRef<Record<string, AccountShellSelection>>({});
 
   const refreshRoomCollections = useCallback(async () => {
-    const [backendThreads, backendSpaces] = await Promise.all([
-      invoke<BackendRoomThreadSummary[]>('list_room_threads'),
-      invoke<BackendSpaceSummary[]>('list_spaces'),
-    ]);
-
+    const backendThreads = await invoke<BackendRoomThreadSummary[]>('list_room_threads');
     const mappedThreads = backendThreads.map(mapRoomThreadSummary);
-    const mappedSpaces = backendSpaces.map(mapSpaceSummary);
-
     setRoomThreads(mappedThreads);
-    setSpaces(mappedSpaces);
     setSelectedThreadId((currentThreadId) =>
       retainCurrentSelectionOrDefault(currentThreadId, mappedThreads),
     );
-    setSelectedSpaceId((currentSpaceId) =>
-      retainCurrentSelectionOrDefault(currentSpaceId, mappedSpaces),
-    );
+
+    void invoke<BackendSpaceSummary[]>('list_spaces')
+      .then((backendSpaces) => {
+        const mappedSpaces = backendSpaces.map(mapSpaceSummary);
+        setSpaces(mappedSpaces);
+        setSelectedSpaceId((currentSpaceId) =>
+          retainCurrentSelectionOrDefault(currentSpaceId, mappedSpaces),
+        );
+      })
+      .catch((error) => {
+        setFeedbackMessage({
+          tone: 'error',
+          text: getErrorMessage(error),
+        });
+      });
   }, []);
 
   const refreshShellSnapshot = useCallback(async () => {
@@ -247,8 +323,17 @@ export default function useAppShellState({
     await refreshRoomCollections();
   }, [refreshRoomCollections]);
 
-  const refreshSelectedRoom = useCallback(
-    async (roomId: string, anchoredEventId?: string | null) => {
+  const selectedThreadIdRef = useRef(selectedThreadId);
+
+  useEffect(() => {
+    selectedThreadIdRef.current = selectedThreadId;
+  }, [selectedThreadId]);
+
+  const loadSelectedRoomSnapshot = useCallback(
+    async (
+      roomId: string,
+      anchoredEventId?: string | null,
+    ): Promise<SelectedRoomSnapshot> => {
       const timelineRequest =
         anchoredEventId && anchoredEventId.trim().length > 0
           ? invoke<BackendRoomTimeline>('get_room_event_context', {
@@ -268,8 +353,10 @@ export default function useAppShellState({
         timelineRequest,
       ]);
 
-      setSelectedRoomSummary(mapRoomSummary(backendSummary));
-      setSelectedTimeline(mapRoomTimeline(backendTimeline));
+      return {
+        summary: mapRoomSummary(backendSummary),
+        timeline: mapRoomTimeline(backendTimeline),
+      };
     },
     [],
   );
@@ -282,10 +369,10 @@ export default function useAppShellState({
       return;
     }
 
-    accountSelectionsRef.current[activeAccount.account_key] = {
+    writeStoredSelection(activeAccount.account_key, {
       threadId: selectedThreadId,
       spaceId: selectedSpaceId,
-    };
+    });
   }, [activeAccount.account_key, selectedSpaceId, selectedThreadId, selectionAccountKey]);
 
   useEffect(() => {
@@ -293,10 +380,7 @@ export default function useAppShellState({
       return;
     }
 
-    const nextSelection = accountSelectionsRef.current[activeAccount.account_key] ?? {
-      threadId: null,
-      spaceId: null,
-    };
+    const nextSelection = readStoredSelection(activeAccount.account_key);
 
     activeAccountKeyRef.current = activeAccount.account_key;
     setSelectionAccountKey(activeAccount.account_key);
@@ -304,6 +388,7 @@ export default function useAppShellState({
     setSelectedSpaceId(nextSelection.spaceId);
     setSelectedRoomSummary(null);
     setSelectedTimeline(null);
+    setRoomSnapshotsByRoomId({});
     setTimelineJumpTarget(null);
     setComposerValue('');
     setIsLoadingOlderMessages(false);
@@ -365,9 +450,25 @@ export default function useAppShellState({
     async function loadSelectedRoom() {
       try {
         const anchoredEventId = timelineAnchorForRoom(roomId, timelineJumpTarget);
-        await refreshSelectedRoom(roomId, anchoredEventId);
+        const roomSnapshot = await loadSelectedRoomSnapshot(roomId, anchoredEventId);
+        if (cancelled || selectedThreadIdRef.current !== roomId) {
+          return;
+        }
+
+        setSelectedRoomSummary(roomSnapshot.summary);
+        setSelectedTimeline(roomSnapshot.timeline);
+        setRoomSnapshotsByRoomId((currentSnapshots) =>
+          rememberRoomSnapshot(currentSnapshots, roomSnapshot),
+        );
         if (!anchoredEventId) {
-          await refreshRoomCollections();
+          void refreshRoomCollections().catch((error) => {
+            if (!cancelled) {
+              setFeedbackMessage({
+                tone: 'error',
+                text: getErrorMessage(error),
+              });
+            }
+          });
         }
 
         if (cancelled) {
@@ -391,12 +492,12 @@ export default function useAppShellState({
       cancelled = true;
     };
   }, [
-    activeAccount.account_key,
-    refreshRoomCollections,
-    refreshSelectedRoom,
-    selectionAccountKey,
-    selectedThreadId,
-    timelineJumpTarget,
+        activeAccount.account_key,
+        loadSelectedRoomSnapshot,
+        refreshRoomCollections,
+        selectionAccountKey,
+        selectedThreadId,
+        timelineJumpTarget,
   ]);
 
   useEffect(() => {
@@ -407,8 +508,24 @@ export default function useAppShellState({
     let pendingAmbiguousRoomListUpdate = false;
 
     async function refreshSelectedRoomAfterSync(roomId: string) {
-      await refreshSelectedRoom(roomId, null);
-      await refreshRoomCollections();
+      const roomSnapshot = await loadSelectedRoomSnapshot(roomId, null);
+      if (cancelled || selectedThreadIdRef.current !== roomId) {
+        return;
+      }
+
+      setSelectedRoomSummary(roomSnapshot.summary);
+      setSelectedTimeline(roomSnapshot.timeline);
+      setRoomSnapshotsByRoomId((currentSnapshots) =>
+        rememberRoomSnapshot(currentSnapshots, roomSnapshot),
+      );
+      void refreshRoomCollections().catch((error) => {
+        if (!cancelled) {
+          setFeedbackMessage({
+            tone: 'error',
+            text: getErrorMessage(error),
+          });
+        }
+      });
     }
 
     const unlistenPromise = listen<ShellSyncUpdatedPayload>(
@@ -495,8 +612,8 @@ export default function useAppShellState({
   }, [
     activeAccount.account_key,
     activeView,
+    loadSelectedRoomSnapshot,
     refreshRoomCollections,
-    refreshSelectedRoom,
     selectedThreadId,
     timelineJumpTarget,
   ]);
@@ -504,12 +621,14 @@ export default function useAppShellState({
   useEffect(() => {
     if (!isGlobalSearchOpen) {
       setGlobalSearchResults([]);
+      setGlobalSearchNotice(null);
       return;
     }
 
     const query = globalSearchQuery.trim();
     if (query.length === 0) {
       setGlobalSearchResults([]);
+      setGlobalSearchNotice(null);
       return;
     }
 
@@ -526,6 +645,7 @@ export default function useAppShellState({
         }
 
         setGlobalSearchResults(mapGlobalSearchResponse(response));
+        setGlobalSearchNotice(globalSearchStatusNotice(response));
       } catch (error) {
         if (cancelled) {
           return;
@@ -536,6 +656,7 @@ export default function useAppShellState({
           text: getErrorMessage(error),
         });
         setGlobalSearchResults([]);
+        setGlobalSearchNotice(null);
       }
     }
 
@@ -557,6 +678,10 @@ export default function useAppShellState({
     visibleThreads.find((thread) => thread.id === selectedThreadId) ??
     roomThreads.find((thread) => thread.id === selectedThreadId) ??
     null;
+  const selectedRoomSummaryForSelectedThread =
+    selectedRoomSummary?.id === selectedThreadId ? selectedRoomSummary : null;
+  const selectedTimelineForSelectedThread =
+    selectedTimeline?.roomId === selectedThreadId ? selectedTimeline : null;
   const visibleSpaces = useMemo(() => {
     const normalizedQuery = spaceSearchQuery.trim().toLowerCase();
     if (normalizedQuery.length === 0) {
@@ -582,10 +707,19 @@ export default function useAppShellState({
   }, []);
 
   const openRoomAtLatest = useCallback((roomId: string) => {
+    const cachedRoomSnapshot = roomSnapshotsByRoomId[roomId];
+    if (cachedRoomSnapshot) {
+      setSelectedRoomSummary(cachedRoomSnapshot.summary);
+      setSelectedTimeline(cachedRoomSnapshot.timeline);
+    } else {
+      setSelectedRoomSummary(null);
+      setSelectedTimeline(null);
+    }
+
     setTimelineJumpTarget(null);
     setSelectedThreadId(roomId);
     setActiveView('messages');
-  }, []);
+  }, [roomSnapshotsByRoomId]);
 
   const openRoomAtEvent = useCallback((roomId: string, eventId: string) => {
     setTimelineJumpTarget({ roomId, eventId });
@@ -595,9 +729,18 @@ export default function useAppShellState({
 
   const reloadSelectedTimeline = useCallback(
     async (roomId: string) => {
-      await refreshSelectedRoom(roomId, null);
+      const roomSnapshot = await loadSelectedRoomSnapshot(roomId, null);
+      if (selectedThreadIdRef.current !== roomId) {
+        return;
+      }
+
+      setSelectedRoomSummary(roomSnapshot.summary);
+      setSelectedTimeline(roomSnapshot.timeline);
+      setRoomSnapshotsByRoomId((currentSnapshots) =>
+        rememberRoomSnapshot(currentSnapshots, roomSnapshot),
+      );
     },
-    [refreshSelectedRoom],
+    [loadSelectedRoomSnapshot],
   );
 
   const switchAccount = useCallback(
@@ -619,6 +762,7 @@ export default function useAppShellState({
         setSelectedTimeline(null);
         setGlobalSearchQuery('');
         setGlobalSearchResults([]);
+        setGlobalSearchNotice(null);
         setTimelineJumpTarget(null);
         setComposerValue('');
       } catch (error) {
@@ -688,14 +832,43 @@ export default function useAppShellState({
 
       setSelectedTimeline((currentTimeline) => {
         if (!currentTimeline || currentTimeline.roomId !== olderTimeline.roomId) {
+          setRoomSnapshotsByRoomId((currentSnapshots) =>
+            rememberRoomSnapshot(currentSnapshots, {
+              summary: selectedRoomSummaryForSelectedThread ?? {
+                id: olderTimeline.roomId,
+                title: selectedThread?.title ?? '',
+                participantLabel: selectedThread?.participantLabel ?? '',
+                homeserverLabel: selectedThread?.homeserverLabel ?? '',
+                topic: '',
+                isDirect: selectedThread?.isDirect ?? false,
+                canSendMessages: true,
+              },
+              timeline: olderTimeline,
+            }),
+          );
           return olderTimeline;
         }
 
-        return {
+        const mergedTimeline = {
           ...currentTimeline,
           items: mergeOlderTimelineItems(currentTimeline.items, olderTimeline.items),
           nextBefore: olderTimeline.nextBefore,
         };
+        setRoomSnapshotsByRoomId((currentSnapshots) =>
+          rememberRoomSnapshot(currentSnapshots, {
+            summary: selectedRoomSummaryForSelectedThread ?? {
+              id: mergedTimeline.roomId,
+              title: selectedThread?.title ?? '',
+              participantLabel: selectedThread?.participantLabel ?? '',
+              homeserverLabel: selectedThread?.homeserverLabel ?? '',
+              topic: '',
+              isDirect: selectedThread?.isDirect ?? false,
+              canSendMessages: true,
+            },
+            timeline: mergedTimeline,
+          }),
+        );
+        return mergedTimeline;
       });
     } catch (error) {
       setFeedbackMessage({
@@ -705,7 +878,13 @@ export default function useAppShellState({
     } finally {
       setIsLoadingOlderMessages(false);
     }
-  }, [isLoadingOlderMessages, selectedThreadId, selectedTimeline]);
+  }, [
+    isLoadingOlderMessages,
+    selectedRoomSummaryForSelectedThread,
+    selectedThread,
+    selectedThreadId,
+    selectedTimeline,
+  ]);
 
   const openMessagesView = useCallback(() => {
     setActiveView('messages');
@@ -736,6 +915,7 @@ export default function useAppShellState({
       setIsGlobalSearchOpen(false);
       setGlobalSearchQuery('');
       setGlobalSearchResults([]);
+      setGlobalSearchNotice(null);
 
       if (targetView) {
         setActiveView(targetView);
@@ -758,6 +938,7 @@ export default function useAppShellState({
     feedbackMessage,
     globalSearchQuery,
     globalSearchResults,
+    globalSearchStatusNotice: globalSearchNotice,
     isAccountCenterOpen,
     isGlobalSearchOpen,
     isLoadingOlderMessages,
@@ -765,10 +946,10 @@ export default function useAppShellState({
     isSendingMessage,
     isSortMenuOpen,
     isThreadOpen,
-    selectedRoomSummary,
+    selectedRoomSummary: selectedRoomSummaryForSelectedThread,
     selectedSpace,
     selectedThread,
-    selectedTimeline,
+    selectedTimeline: selectedTimelineForSelectedThread,
     spaceSearchQuery,
     switchableAccounts,
     switchingAccountKey,

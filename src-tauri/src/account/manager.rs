@@ -19,7 +19,6 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use matrix_sdk::{Client, SqliteStoreConfig, search_index::SearchIndexStoreKind};
 use matrix_sdk_base::crypto::CollectStrategy;
 use tauri::AppHandle;
@@ -280,6 +279,7 @@ impl AccountManager {
             account_key,
             homeserver_url: account.homeserver_url.clone(),
             client: account.client.clone(),
+            store_dir: account.store_dir.clone(),
         }))
     }
 
@@ -494,17 +494,20 @@ impl AccountManager {
             .server_name_or_homeserver_url(homeserver_target)
             .sqlite_store_with_config_and_cache_path(store_config, Some(cache_dir))
             .with_room_key_recipient_strategy(room_key_recipient_strategy)
-            // Encrypted rooms need local plaintext indexing on the device, so keep
-            // the search index per account and encrypt it with the same account-bound key.
-            .search_index_store(SearchIndexStoreKind::EncryptedDirectory(
-                search_index_dir,
-                search_index_password,
-            ));
+            // Hyperion owns durable search indexing. Keeping the SDK's
+            // experimental index in memory avoids path issues from raw room IDs
+            // on Windows while the app-level index handles searchable metadata.
+            .search_index_store(SearchIndexStoreKind::InMemory);
 
-        client_builder
+        let client = client_builder
             .build()
             .await
-            .map_err(|err| format!("Failed to build Matrix client: {err}"))
+            .map_err(|err| format!("Failed to build Matrix client: {err}"))?;
+        client
+            .event_cache()
+            .subscribe()
+            .map_err(|err| format!("Failed to subscribe the Matrix event cache: {err}"))?;
+        Ok(client)
     }
 
     pub(super) fn store_logged_in_account(

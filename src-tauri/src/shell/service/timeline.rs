@@ -20,8 +20,10 @@ use matrix_sdk::{
         api::client::filter::RoomEventFilter,
         events::{
             AnySyncMessageLikeEvent, AnySyncTimelineEvent,
-            room::message::{MessageType, SyncRoomMessageEvent},
+            relation::RelationType,
+            room::message::{MessageType, Relation, SyncRoomMessageEvent},
         },
+        room_version_rules::RedactionRules,
     },
 };
 
@@ -127,7 +129,11 @@ pub(super) async fn fetch_room_timeline_chunk(
     from: Option<&str>,
 ) -> Result<(Vec<RoomTimelineItem>, Option<String>), String> {
     let response = room
-        .messages(backward_shell_timeline_options(limit, from))
+        .messages(backward_shell_timeline_options(
+            limit,
+            from,
+            TimelineChunkFilter::MessagesOnly,
+        ))
         .await
         .map_err(|error| format!("Failed to load room timeline: {error}"))?;
 
@@ -144,16 +150,72 @@ pub(super) async fn fetch_room_timeline_chunk(
     Ok((items, response.end))
 }
 
-fn backward_shell_timeline_options(limit: u16, from: Option<&str>) -> MessagesOptions {
+pub(super) async fn fetch_room_timeline_search_updates(
+    room: &Room,
+    limit: u16,
+    from: Option<&str>,
+) -> Result<TimelineSearchUpdates, String> {
+    let response = room
+        .messages(backward_shell_timeline_options(
+            limit,
+            from,
+            TimelineChunkFilter::MessagesAndRedactions,
+        ))
+        .await
+        .map_err(|error| format!("Failed to load room timeline: {error}"))?;
+
+    let own_user_id = room.own_user_id();
+    let mut updates = TimelineSearchUpdates::default();
+    for event in response.chunk {
+        let raw_event = event.raw();
+        let Ok(parsed_event) = raw_event.deserialize() else {
+            continue;
+        };
+
+        if let Some(item) = timeline_item_from_sync_event(&event, &parsed_event, own_user_id) {
+            updates.items.push(item);
+        }
+        if let Some(redacted_event_id) = redacted_event_id_from_sync_event(&parsed_event) {
+            updates.redacted_event_ids.push(redacted_event_id);
+        }
+    }
+
+    updates.items.reverse();
+    updates.next_token = response.end;
+    Ok(updates)
+}
+
+#[derive(Default)]
+pub(super) struct TimelineSearchUpdates {
+    pub(super) items: Vec<RoomTimelineItem>,
+    pub(super) redacted_event_ids: Vec<String>,
+    pub(super) next_token: Option<String>,
+}
+
+#[derive(Clone, Copy)]
+enum TimelineChunkFilter {
+    MessagesOnly,
+    MessagesAndRedactions,
+}
+
+fn backward_shell_timeline_options(
+    limit: u16,
+    from: Option<&str>,
+    chunk_filter: TimelineChunkFilter,
+) -> MessagesOptions {
     let mut options = MessagesOptions::backward();
     options.limit = limit.into();
     let mut filter = RoomEventFilter::default();
     // The shell timeline only renders message-like content, and encrypted
     // room messages still arrive as `m.room.encrypted` before decryption.
-    filter.types = Some(vec![
+    let mut event_types = vec![
         String::from("m.room.message"),
         String::from("m.room.encrypted"),
-    ]);
+    ];
+    if matches!(chunk_filter, TimelineChunkFilter::MessagesAndRedactions) {
+        event_types.push(String::from("m.room.redaction"));
+    }
+    filter.types = Some(event_types);
     options.filter = filter;
 
     if let Some(from) = from {
@@ -169,8 +231,16 @@ pub(super) fn timeline_item_from_timeline_event(
 ) -> Option<RoomTimelineItem> {
     let raw_event = event.raw();
     let parsed = raw_event.deserialize().ok()?;
+    timeline_item_from_sync_event(event, &parsed, own_user_id)
+}
+
+fn timeline_item_from_sync_event(
+    event: &matrix_sdk::deserialized_responses::TimelineEvent,
+    parsed: &AnySyncTimelineEvent,
+    own_user_id: &matrix_sdk::ruma::UserId,
+) -> Option<RoomTimelineItem> {
     let (event_id, sender_id, sender_display_name, body, is_edited) =
-        message_fields_from_sync_event(&parsed)?;
+        message_fields_from_sync_event(parsed)?;
 
     Some(RoomTimelineItem {
         event_id,
@@ -195,26 +265,38 @@ fn message_fields_from_sync_event(
                 return None;
             };
 
-            let MessageType::Text(text) = &original.content.msgtype else {
-                return None;
-            };
+            let mut event_id = original.event_id.to_string();
+            let mut body = message_body(&original.content.msgtype)?;
+            let relation = original.content.relates_to.as_ref();
+            let is_edited = relation
+                .and_then(Relation::rel_type)
+                .is_some_and(|relation_type| relation_type == RelationType::Replacement);
 
-            Some((
-                original.event_id.to_string(),
-                original.sender.to_string(),
-                None,
-                text.body.clone(),
-                {
-                    let relation = original.content.relates_to.as_ref();
-                    let relation_type = relation
-                        .and_then(matrix_sdk::ruma::events::room::message::Relation::rel_type);
-                    relation_type.is_some_and(|relation_type| {
-                        relation_type
-                            == matrix_sdk::ruma::events::relation::RelationType::Replacement
-                    })
-                },
-            ))
+            if let Some(Relation::Replacement(replacement)) = relation {
+                event_id = replacement.event_id.to_string();
+                body = message_body(&replacement.new_content.msgtype)?;
+            }
+
+            Some((event_id, original.sender.to_string(), None, body, is_edited))
         }
         _ => None,
     }
+}
+
+fn message_body(message_type: &MessageType) -> Option<String> {
+    let MessageType::Text(text) = message_type else {
+        return None;
+    };
+
+    Some(text.body.clone())
+}
+
+fn redacted_event_id_from_sync_event(event: &AnySyncTimelineEvent) -> Option<String> {
+    let AnySyncTimelineEvent::MessageLike(AnySyncMessageLikeEvent::RoomRedaction(redaction)) =
+        event
+    else {
+        return None;
+    };
+
+    Some(redaction.redacts(&RedactionRules::V1)?.to_string())
 }

@@ -22,7 +22,7 @@ import {
   Search,
   SendHorizontal,
 } from 'lucide-react';
-import { type KeyboardEvent } from 'react';
+import { type KeyboardEvent, useLayoutEffect, useRef } from 'react';
 import { BackButton, Button, EmptyState, Pill, ToolbarField, Typography } from '../../components/ui';
 import {
   type RoomSummary,
@@ -75,6 +75,8 @@ export default function AppShellMessagesView({
   onThreadSearchChange,
   onToggleSortMenu,
 }: AppShellMessagesViewProps) {
+  const timelineRef = useRef<HTMLDivElement | null>(null);
+  const previousTimelineRoomIdRef = useRef<string | null>(null);
   const canSendMessages = selectedRoomSummary?.canSendMessages === true;
   const composerIsEmpty = composerValue.trim().length === 0;
   const composerPlaceholder =
@@ -93,7 +95,7 @@ export default function AppShellMessagesView({
   }
 
   function renderThreadList() {
-    if (isLoadingShell) {
+    if (isLoadingShell && visibleThreads.length === 0) {
       return (
         <Typography muted variant="body">
           Loading conversations...
@@ -168,6 +170,22 @@ export default function AppShellMessagesView({
       </div>
     ));
   }
+
+  useLayoutEffect(() => {
+    const timelineElement = timelineRef.current;
+    if (!timelineElement || !selectedTimeline) {
+      previousTimelineRoomIdRef.current = selectedTimeline?.roomId ?? null;
+      return;
+    }
+
+    const roomChanged = previousTimelineRoomIdRef.current !== selectedTimeline.roomId;
+    previousTimelineRoomIdRef.current = selectedTimeline.roomId;
+    if (!roomChanged || selectedTimeline.focusedEventId) {
+      return;
+    }
+
+    timelineElement.scrollTop = timelineElement.scrollHeight;
+  }, [selectedTimeline?.focusedEventId, selectedTimeline?.items.length, selectedTimeline?.roomId]);
 
   return (
     <>
@@ -257,7 +275,7 @@ export default function AppShellMessagesView({
               <Pill tone="secondary">{messageCount} messages</Pill>
             </header>
 
-            <div className="app-shell-room-timeline">
+            <div ref={timelineRef} className="app-shell-room-timeline">
               {selectedTimeline?.nextBefore ? (
                 <div className="app-shell-room-timeline-controls">
                   <Button

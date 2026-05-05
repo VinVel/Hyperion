@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, path::PathBuf};
 
 use matrix_sdk::Client;
 use serde::{Deserialize, Serialize};
@@ -50,6 +50,7 @@ pub struct AccountClientSnapshot {
     pub account_key: String,
     pub homeserver_url: String,
     pub client: Client,
+    pub store_dir: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

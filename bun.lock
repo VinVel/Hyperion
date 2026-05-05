@@ -6,17 +6,18 @@
       "name": "hyperion",
       "dependencies": {
         "@razein97/tauri-plugin-i18n": "^2.0.1",
-        "@tauri-apps/api": "^2.10.1",
+        "@tauri-apps/api": "^2.11.0",
         "@tauri-apps/plugin-fs": "^2.5.1",
-        "@tauri-apps/plugin-opener": "^2.5.3",
-        "lucide-react": "^1.11.0",
+        "@tauri-apps/plugin-opener": "^2.5.4",
+        "lucide-react": "^1.14.0",
         "react": "^19.2.5",
         "react-dom": "^19.2.5",
         "tauri-plugin-app-events-api": "./plugins/tauri-plugin-app-events",
+        "tauri-plugin-cache-api": "^0.1.6",
       },
       "devDependencies": {
         "@eslint/js": "9.39.4",
-        "@tauri-apps/cli": "^2.10.1",
+        "@tauri-apps/cli": "^2.11.0",
         "@types/react": "^19.2.14",
         "@types/react-dom": "^19.2.3",
         "@vitejs/plugin-react": "^4.7.0",
@@ -24,7 +25,7 @@
         "eslint-plugin-react": "^7.37.5",
         "eslint-plugin-unused-imports": "^4.4.1",
         "typescript": "^6.0.3",
-        "typescript-eslint": "^8.59.0",
+        "typescript-eslint": "^8.59.2",
         "vite": "^7.3.2",
       },
     },
@@ -681,6 +682,8 @@
     "supports-preserve-symlinks-flag": ["supports-preserve-symlinks-flag@1.0.0", "", {}, "sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w=="],
 
     "tauri-plugin-app-events-api": ["tauri-plugin-app-events-api@file:plugins/tauri-plugin-app-events", { "dependencies": { "@tauri-apps/api": "^2.11.0" }, "devDependencies": { "@rollup/plugin-typescript": "^11.1.6", "@tauri-apps/cli": "^2.11.0", "rollup": "^4.60.3", "tslib": "^2.8.1", "typescript": "^5.9.3" } }],
+
+    "tauri-plugin-cache-api": ["tauri-plugin-cache-api@0.1.6", "", { "dependencies": { "@tauri-apps/api": "^2.9.1" } }, "sha512-JjkyoISdJLh1M8+wtz/qUglXMVQiim/VR3bQZxijq7GMiPu1DZScMCmIOxEZEPipkF0Y9cRh+svxR2n6oOZl9w=="],
 
     "tinyglobby": ["tinyglobby@0.2.15", "", { "dependencies": { "fdir": "^6.5.0", "picomatch": "^4.0.3" } }, "sha512-j2Zq4NyQYG5XMST4cbs02Ak8iJUdxRM0XI5QyxXuZOzKOINmWurp3smXu3y5wDcJrptwpSjgXHzIQxR0omXljQ=="],
 

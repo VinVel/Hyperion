@@ -33,21 +33,25 @@ pub(super) async fn load_live_room_timeline(
     timeline_registry: &ShellTimelineRegistry,
     account_key: &str,
     room: &Room,
-    limit: u16,
+    visible_limit: u16,
+    page_size: u16,
 ) -> Result<(Vec<RoomTimelineItem>, Option<String>), String> {
     let (items, hit_start) = timeline_registry
         .ensure_live_timeline_window(
             account_key,
             room,
-            limit,
-            limit.max(RECENT_TIMELINE_WARM_LIMIT),
+            visible_limit,
+            visible_limit.max(RECENT_TIMELINE_WARM_LIMIT),
         )
         .await?;
 
     let next_before = if hit_start {
         None
     } else {
-        Some(timeline_page_token(1))
+        Some(timeline_page_token(next_live_page_index(
+            items.len(),
+            usize::from(page_size),
+        )))
     };
 
     Ok((items, next_before))
@@ -71,6 +75,7 @@ pub(super) async fn load_paginated_room_timeline(
                 owned_event_id,
                 DEFAULT_EVENT_CONTEXT_LIMIT,
                 limit,
+                page_index,
             )
             .await?;
 
@@ -85,7 +90,7 @@ pub(super) async fn load_paginated_room_timeline(
 
     if let Some(page_index) = before.and_then(parse_timeline_page_token) {
         let (items, hit_start) = timeline_registry
-            .paginate_live_timeline_backwards(account_key, room, limit)
+            .paginate_live_timeline_backwards(account_key, room, limit, page_index)
             .await?;
 
         let next_before = if hit_start {
@@ -98,6 +103,19 @@ pub(super) async fn load_paginated_room_timeline(
     }
 
     Err(String::from("Unsupported timeline pagination token"))
+}
+
+pub(super) fn visible_count_after_live_page(
+    before: Option<&str>,
+    page_size: u16,
+    returned_item_count: usize,
+) -> Option<usize> {
+    let page_index = before.and_then(parse_timeline_page_token)?;
+    Some(
+        page_index
+            .saturating_mul(usize::from(page_size))
+            .saturating_add(returned_item_count),
+    )
 }
 
 pub(super) fn timeline_page_token(page_index: usize) -> String {
@@ -123,4 +141,38 @@ fn parse_focused_timeline_page_token(token: &str) -> Option<(String, usize)> {
     let page_index = page_index.parse::<usize>().ok()?;
 
     Some((event_id, page_index))
+}
+
+fn next_live_page_index(returned_item_count: usize, page_size: usize) -> usize {
+    if returned_item_count == 0 || page_size == 0 {
+        return 1;
+    }
+
+    returned_item_count.div_ceil(page_size)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{next_live_page_index, timeline_page_token, visible_count_after_live_page};
+
+    #[test]
+    fn next_live_page_index_tracks_returned_local_window() {
+        assert_eq!(next_live_page_index(30, 30), 1);
+        assert_eq!(next_live_page_index(80, 30), 3);
+        assert_eq!(next_live_page_index(200, 30), 7);
+    }
+
+    #[test]
+    fn visible_count_after_live_page_ignores_focused_or_missing_tokens() {
+        let before = timeline_page_token(7);
+        assert_eq!(
+            visible_count_after_live_page(Some(&before), 30, 30),
+            Some(240)
+        );
+        assert_eq!(visible_count_after_live_page(None, 30, 30), None);
+        assert_eq!(
+            visible_count_after_live_page(Some("timeline-ui-event:abc:1"), 30, 30),
+            None
+        );
+    }
 }

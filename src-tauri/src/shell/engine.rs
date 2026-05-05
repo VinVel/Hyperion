@@ -22,7 +22,7 @@ use matrix_sdk::ruma::{
 };
 use matrix_sdk::{Room, sleep::sleep};
 use matrix_sdk_ui::timeline::{
-    RoomExt, Timeline, TimelineDetails, TimelineFocus, TimelineItemKind,
+    RoomExt, Timeline, TimelineDetails, TimelineFocus, TimelineItem, TimelineItemKind,
 };
 use tauri::async_runtime::JoinHandle;
 use tauri::async_runtime::Mutex as AsyncMutex;
@@ -36,6 +36,9 @@ const TIMELINE_LATEST_EVENT_WAIT_ATTEMPTS: usize = 8;
 // Keep each wait short; this is only a consistency bridge for event propagation
 // inside matrix-sdk-ui, not a network retry loop.
 const TIMELINE_LATEST_EVENT_WAIT_STEP_MS: u64 = 50;
+// Restoring a remembered room depth can require multiple SDK UI pagination
+// passes because Matrix SDK may reveal cached events in smaller chunks.
+const TIMELINE_RESTORE_PAGINATION_ATTEMPTS: usize = 8;
 
 #[derive(Clone, Default)]
 pub struct ShellTimelineRegistry {
@@ -106,6 +109,17 @@ impl ShellTimelineRegistry {
         Ok(shell_items)
     }
 
+    pub async fn live_redacted_event_ids(
+        &self,
+        account_key: &str,
+        room: &Room,
+    ) -> Result<Vec<String>, String> {
+        let timeline = self.live_timeline(account_key, room).await?;
+        let items = timeline.items().await;
+
+        Ok(redacted_event_ids_from_timeline_items(items.iter()))
+    }
+
     pub async fn subscribe_live_timeline_updates(
         &self,
         app: tauri::AppHandle,
@@ -149,26 +163,39 @@ impl ShellTimelineRegistry {
     ) -> Result<(Vec<RoomTimelineItem>, bool), String> {
         let timeline = self.live_timeline(account_key, room).await?;
         let mut items = timeline.items().await;
+        let had_existing_items = !items.is_empty();
 
-        if items.len() < usize::from(visible_limit) {
-            let _hit_start = timeline
+        let mut hit_timeline_start = false;
+        let mut shell_items = timeline_items_to_shell_items(items.iter());
+        let mut restore_attempts = 0;
+        while shell_items.len() < usize::from(visible_limit)
+            && !hit_timeline_start
+            && restore_attempts < TIMELINE_RESTORE_PAGINATION_ATTEMPTS
+        {
+            hit_timeline_start = timeline
                 .paginate_backwards(fetch_limit)
                 .await
                 .map_err(|error| format!("Failed to bootstrap the live room timeline: {error}"))?;
+            restore_attempts += 1;
+            items = timeline.items().await;
+            shell_items = timeline_items_to_shell_items(items.iter());
         }
 
         Self::wait_for_timeline_to_reach_room_latest(room, &timeline).await;
         items = timeline.items().await;
-
-        let shell_items = items
-            .iter()
-            .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
-            .collect::<Vec<_>>();
+        shell_items = timeline_items_to_shell_items(items.iter());
         let len = shell_items.len();
         let visible_limit = usize::from(visible_limit);
-        let start_index = len.saturating_sub(visible_limit);
+        let start_index = if had_existing_items {
+            0
+        } else {
+            len.saturating_sub(visible_limit)
+        };
 
-        Ok((shell_items[start_index..].to_vec(), start_index == 0))
+        Ok((
+            shell_items[start_index..].to_vec(),
+            hit_timeline_start && start_index == 0,
+        ))
     }
 
     async fn wait_for_timeline_to_reach_room_latest(room: &Room, timeline: &Timeline) {
@@ -192,9 +219,21 @@ impl ShellTimelineRegistry {
         account_key: &str,
         room: &Room,
         limit: u16,
+        page_index: usize,
     ) -> Result<(Vec<RoomTimelineItem>, bool), String> {
         let timeline = self.live_timeline(account_key, room).await?;
         let before_items = timeline.items().await;
+        let loaded_shell_items = before_items
+            .iter()
+            .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
+            .collect::<Vec<_>>();
+
+        if let Some(loaded_page) =
+            loaded_timeline_page(&loaded_shell_items, page_index, usize::from(limit))
+        {
+            return Ok((loaded_page, false));
+        }
+
         let seen_item_ids = before_items
             .iter()
             .filter_map(|item| {
@@ -271,6 +310,21 @@ impl ShellTimelineRegistry {
             .collect())
     }
 
+    pub async fn focused_redacted_event_ids(
+        &self,
+        account_key: &str,
+        room: &Room,
+        event_id: OwnedEventId,
+        context_limit: u16,
+    ) -> Result<Vec<String>, String> {
+        let timeline = self
+            .focused_timeline(account_key, room, event_id, context_limit)
+            .await?;
+        let items = timeline.items().await;
+
+        Ok(redacted_event_ids_from_timeline_items(items.iter()))
+    }
+
     pub async fn paginate_focused_timeline_backwards(
         &self,
         account_key: &str,
@@ -278,11 +332,23 @@ impl ShellTimelineRegistry {
         event_id: OwnedEventId,
         context_limit: u16,
         limit: u16,
+        page_index: usize,
     ) -> Result<(Vec<RoomTimelineItem>, bool), String> {
         let timeline = self
             .focused_timeline(account_key, room, event_id, context_limit)
             .await?;
         let before_items = timeline.items().await;
+        let loaded_shell_items = before_items
+            .iter()
+            .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
+            .collect::<Vec<_>>();
+
+        if let Some(loaded_page) =
+            loaded_timeline_page(&loaded_shell_items, page_index, usize::from(limit))
+        {
+            return Ok((loaded_page, false));
+        }
+
         let seen_item_ids = before_items
             .iter()
             .filter_map(|item| {
@@ -402,6 +468,34 @@ impl ShellTimelineRegistry {
     }
 }
 
+fn loaded_timeline_page(
+    loaded_items: &[RoomTimelineItem],
+    page_index: usize,
+    limit: usize,
+) -> Option<Vec<RoomTimelineItem>> {
+    if page_index == 0 || limit == 0 {
+        return None;
+    }
+
+    let loaded_offset = page_index.checked_mul(limit)?;
+    let end_index = loaded_items.len().checked_sub(loaded_offset)?;
+    if end_index == 0 {
+        return None;
+    }
+
+    let start_index = end_index.saturating_sub(limit);
+    Some(loaded_items[start_index..end_index].to_vec())
+}
+
+fn timeline_items_to_shell_items<'item>(
+    items: impl IntoIterator<Item = &'item Arc<TimelineItem>>,
+) -> Vec<RoomTimelineItem> {
+    items
+        .into_iter()
+        .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
+        .collect()
+}
+
 fn timeline_item_to_shell_item(
     item: &matrix_sdk_ui::timeline::TimelineItem,
 ) -> Option<RoomTimelineItem> {
@@ -424,6 +518,31 @@ fn timeline_item_to_shell_item(
         is_edited: Some(is_edited),
         is_own_message: event.is_own(),
     })
+}
+
+fn redacted_event_ids_from_timeline_items<'item>(
+    items: impl IntoIterator<Item = &'item Arc<TimelineItem>>,
+) -> Vec<String> {
+    items
+        .into_iter()
+        .filter_map(|item| redacted_event_id_from_timeline_item(item.as_ref()))
+        .collect()
+}
+
+fn redacted_event_id_from_timeline_item(
+    item: &matrix_sdk_ui::timeline::TimelineItem,
+) -> Option<String> {
+    let TimelineItemKind::Event(event) = item.kind() else {
+        return None;
+    };
+    if !event.content().is_redacted() {
+        return None;
+    }
+
+    event.event_id().map_or_else(
+        || Some(event.identifier().to_string()),
+        |event_id| Some(event_id.to_string()),
+    )
 }
 
 fn timeline_event_body(
@@ -460,6 +579,40 @@ impl TimelineItemIdentifierExt for matrix_sdk_ui::timeline::TimelineEventItemId 
                 transaction_id.to_string()
             }
             matrix_sdk_ui::timeline::TimelineEventItemId::EventId(event_id) => event_id.to_string(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn loaded_timeline_page_reveals_existing_older_windows_before_paginating() {
+        let loaded_items = (0..80)
+            .map(|index| test_timeline_item(format!("${index}")))
+            .collect::<Vec<_>>();
+
+        let first_older_page = loaded_timeline_page(&loaded_items, 1, 30).unwrap();
+        assert_eq!(first_older_page.first().unwrap().event_id, "$20");
+        assert_eq!(first_older_page.last().unwrap().event_id, "$49");
+
+        let second_older_page = loaded_timeline_page(&loaded_items, 2, 30).unwrap();
+        assert_eq!(second_older_page.first().unwrap().event_id, "$0");
+        assert_eq!(second_older_page.last().unwrap().event_id, "$19");
+
+        assert!(loaded_timeline_page(&loaded_items, 3, 30).is_none());
+    }
+
+    fn test_timeline_item(event_id: String) -> RoomTimelineItem {
+        RoomTimelineItem {
+            event_id,
+            sender_id: String::from("@alice:example.org"),
+            sender_display_name: None,
+            body: String::from("body"),
+            timestamp_unix_ms: 0,
+            is_edited: Some(false),
+            is_own_message: false,
         }
     }
 }

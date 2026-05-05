@@ -2478,6 +2478,7 @@ dependencies = [
  "matrix-sdk-ui",
  "rand 0.8.6",
  "reqwest 0.12.28",
+ "rusqlite",
  "rust-i18n",
  "serde",
  "serde_json",

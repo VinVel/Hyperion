@@ -35,7 +35,6 @@ mod timeline;
 mod timeline_commands;
 
 use self::{
-    paging::{focused_timeline_page_token, load_live_room_timeline, load_paginated_room_timeline},
     read_state::{mark_room_read_locally, unread_message_count_for_shell},
     room::{
         can_send_messages, homeserver_label, latest_activity_unix_ms, latest_preview_text,
@@ -43,7 +42,8 @@ use self::{
     },
     room_list::snapshot_room_list_for_account,
     search::{
-        first_visible_grapheme, matches_query, normalize_query, now_unix_ms, relative_time_label,
+        SearchBackfillCoordinator, SearchIndexer, first_visible_grapheme, matches_query,
+        normalize_query, now_unix_ms, relative_time_label,
     },
     timeline::{cached_timeline_item_count, cached_timeline_items, warm_room_recent_timeline},
 };
@@ -135,6 +135,7 @@ impl ShellManager {
 
     pub async fn stop_all_accounts(&self) {
         self.stop_all_recent_timeline_warmups().await;
+        self.search_backfill_coordinator.stop_all().await;
         self.sync_manager.stop_all_accounts().await;
         self.timeline_registry.clear_all().await;
         self.clear_all_served_room_thread_caches();

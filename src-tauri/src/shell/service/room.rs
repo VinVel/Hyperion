@@ -244,12 +244,3 @@ pub(super) async fn can_send_messages(room: &Room) -> bool {
 
     member.can_send_message(MessageLikeEventType::RoomMessage)
 }
-
-pub(super) async fn room_is_encrypted(room: &Room) -> bool {
-    let latest_encryption_state = room
-        .latest_encryption_state()
-        .await
-        .map(|state| state.is_encrypted());
-
-    latest_encryption_state.unwrap_or(false)
-}

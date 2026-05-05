@@ -486,8 +486,6 @@ impl AccountManager {
         preferences: &EncryptionPreferences,
     ) -> Result<Client, String> {
         let store_config = SqliteStoreConfig::new(store_dir).key(Some(store_key));
-        let search_index_dir = store_dir.join("search-index");
-        let search_index_password = URL_SAFE_NO_PAD.encode(store_key);
         let room_key_recipient_strategy = room_key_recipient_strategy(preferences);
 
         let client_builder = Client::builder()

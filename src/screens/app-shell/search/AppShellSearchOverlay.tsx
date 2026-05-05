@@ -13,14 +13,16 @@
  * Project home: hyperion.velcore.net
  */
 
-import { Compass, Search, Sparkles } from 'lucide-react';
-import { ToolbarField, Typography } from '../../components/ui';
-import { type AuthenticatedShellView, type SearchResultGroup } from './appShellAdapters';
+import { Blocks, Hash, MessageSquareMore, Search } from 'lucide-react';
+import { ToolbarField, Typography } from '../../../components/ui';
+import type { AuthenticatedShellView } from '../appShellAdapters';
+import type { SearchResultKind, SearchResultGroup } from './types';
 
 type AppShellSearchOverlayProps = {
   globalSearchQuery: string;
   isOpen: boolean;
   results: SearchResultGroup[];
+  statusNotice: string | null;
   onClose: () => void;
   onQueryChange: (value: string) => void;
   onSelectResult: (
@@ -34,6 +36,7 @@ export default function AppShellSearchOverlay({
   globalSearchQuery,
   isOpen,
   results,
+  statusNotice,
   onClose,
   onQueryChange,
   onSelectResult,
@@ -65,10 +68,16 @@ export default function AppShellSearchOverlay({
           onChange={(event) => onQueryChange(event.currentTarget.value)}
         />
 
+        {statusNotice ? (
+          <Typography className="app-shell-search-status" muted variant="body">
+            {statusNotice}
+          </Typography>
+        ) : null}
+
         {results.length > 0 ? (
           <div className="app-shell-search-results">
             {results.map((resultGroup) => (
-              <section key={resultGroup.title} className="app-shell-search-group">
+              <section key={resultGroup.kind} className="app-shell-search-group">
                 <Typography variant="label" className="app-shell-section-label">
                   {resultGroup.title}
                 </Typography>
@@ -83,11 +92,7 @@ export default function AppShellSearchOverlay({
                       }
                     >
                       <span className="app-shell-search-result-icon">
-                        {item.targetView === 'spaces' ? (
-                          <Compass aria-hidden="true" />
-                        ) : (
-                          <Sparkles aria-hidden="true" />
-                        )}
+                        <SearchResultIcon kind={resultGroup.kind} />
                       </span>
                       <span className="app-shell-search-result-copy">
                         <span className="app-shell-search-result-title">{item.title}</span>
@@ -113,4 +118,16 @@ export default function AppShellSearchOverlay({
       </section>
     </div>
   );
+}
+
+function SearchResultIcon({ kind }: { kind: SearchResultKind }) {
+  if (kind === 'room') {
+    return <Hash aria-hidden="true" />;
+  }
+
+  if (kind === 'message') {
+    return <MessageSquareMore aria-hidden="true" />;
+  }
+
+  return <Blocks aria-hidden="true" />;
 }

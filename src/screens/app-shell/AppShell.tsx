@@ -17,9 +17,9 @@ import { ScreenMain, ScreenShell, useFeedbackToast } from '../../components/ui';
 import type { AccountSummary } from './appShellAdapters';
 import AppShellMessagesView from './AppShellMessagesView';
 import AppShellNavigation from './AppShellNavigation';
-import AppShellSearchOverlay from './AppShellSearchOverlay';
 import AppShellSpacesView from './AppShellSpacesView';
 import { SettingsView } from '../Settings';
+import { AppShellSearchOverlay } from './search';
 import useAppShellState from './useAppShellState';
 import './AppShell.css';
 
@@ -127,6 +127,7 @@ export default function AppShell({
           globalSearchQuery={shell.globalSearchQuery}
           isOpen={shell.isGlobalSearchOpen}
           results={shell.globalSearchResults}
+          statusNotice={shell.globalSearchStatusNotice}
           onClose={shell.closeGlobalSearch}
           onQueryChange={shell.setGlobalSearchQuery}
           onSelectResult={shell.handleGlobalSearchResult}

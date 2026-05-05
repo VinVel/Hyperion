@@ -140,9 +140,44 @@ pub struct GlobalSearchMessageHit {
     pub event_id: Option<String>,
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GlobalSearchIndexState {
+    Idle,
+    Indexing,
+    Paused,
+    Degraded,
+    Error,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GlobalSearchIndexStatus {
+    pub state: GlobalSearchIndexState,
+    pub indexed_room_count: u64,
+    pub total_room_count: u64,
+    pub message_count: u64,
+    pub last_indexed_at_unix_ms: Option<u64>,
+    pub notice: Option<String>,
+}
+
+impl Default for GlobalSearchIndexStatus {
+    fn default() -> Self {
+        Self {
+            state: GlobalSearchIndexState::Idle,
+            indexed_room_count: 0,
+            total_room_count: 0,
+            message_count: 0,
+            last_indexed_at_unix_ms: None,
+            notice: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct GlobalSearchResponse {
     pub rooms: Vec<GlobalSearchRoomHit>,
     pub spaces: Vec<GlobalSearchSpaceHit>,
     pub messages: Vec<GlobalSearchMessageHit>,
+    pub status: GlobalSearchIndexStatus,
 }

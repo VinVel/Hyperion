@@ -131,38 +131,6 @@ export type SpaceSummary = {
   isOfficial?: boolean;
 };
 
-export type BackendGlobalSearchResponse = {
-  rooms: Array<{
-    room_id: string;
-    title: string;
-    description: string;
-  }>;
-  spaces: Array<{
-    space_id: string;
-    title: string;
-    description: string;
-  }>;
-  messages: Array<{
-    result_id: string;
-    room_id: string;
-    title: string;
-    description: string;
-    event_id?: string | null;
-  }>;
-};
-
-export type SearchResultGroup = {
-  title: string;
-  items: Array<{
-    id: string;
-    title: string;
-    description: string;
-    targetView: AuthenticatedShellView;
-    threadId?: string;
-    eventId?: string;
-  }>;
-};
-
 export function mapRoomThreadSummary(
   backendThread: BackendRoomThreadSummary,
 ): RoomThreadSummary {
@@ -221,43 +189,6 @@ export function mapSpaceSummary(backendSpace: BackendSpaceSummary): SpaceSummary
     accentLabel: backendSpace.accent_label?.trim() || backendSpace.name.slice(0, 1).toUpperCase() || 'S',
     isOfficial: backendSpace.is_official,
   };
-}
-
-export function mapGlobalSearchResponse(
-  response: BackendGlobalSearchResponse,
-): SearchResultGroup[] {
-  return [
-    {
-      title: 'Rooms',
-      items: response.rooms.map((item) => ({
-        id: item.room_id,
-        title: item.title,
-        description: item.description,
-        targetView: 'messages' as const,
-        threadId: item.room_id,
-      })),
-    },
-    {
-      title: 'Spaces',
-      items: response.spaces.map((item) => ({
-        id: item.space_id,
-        title: item.title,
-        description: item.description,
-        targetView: 'spaces' as const,
-      })),
-    },
-    {
-      title: 'Messages',
-      items: response.messages.map((item) => ({
-        id: item.result_id,
-        title: item.title,
-        description: item.description,
-        targetView: 'messages' as const,
-        threadId: item.room_id,
-        eventId: item.event_id ?? undefined,
-      })),
-    },
-  ].filter((group) => group.items.length > 0);
 }
 
 export function filterAndSortRoomThreads(

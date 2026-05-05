@@ -717,6 +717,10 @@
   margin: 0;
 }
 
+.app-shell-search-status {
+  margin: 0;
+}
+
 @media (max-width: 960px) {
   .app-shell-root,
   .app-shell-screen,

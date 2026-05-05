@@ -7,7 +7,7 @@ import reactPlugin from 'eslint-plugin-react';
 import unusedImports from "eslint-plugin-unused-imports";
 
 export default defineConfig([
-  globalIgnores(["**/node_modules/", "**/dist", "**/target"]),
+  globalIgnores(["**/node_modules/", "**/dist", "**/target", "**/dist-js"]),
   js.configs.recommended,
   ...tseslint.configs.recommended,
 

@@ -28,6 +28,15 @@ export default defineConfig([
     },
     rules: {
       "no-unused-vars": "off", // Disable the default rule
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          vars: "all",
+          varsIgnorePattern: "^_",
+          args: "after-used",
+          argsIgnorePattern: "^_",
+        },
+      ],
       "unused-imports/no-unused-imports": "error", // Detect unused imports
       "unused-imports/no-unused-vars": [
         "warn",

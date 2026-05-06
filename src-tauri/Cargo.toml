@@ -15,29 +15,28 @@ name = "hyperion_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "=2.5.6", features = [] }
+tauri-build = { workspace = true, features = [] }
 
 [dependencies]
-tauri = { version = "=2.10.3", features = ["unstable"] }
-tauri-plugin-opener = "=2.5.3"
-tauri-plugin-dialog = "=2.7.0"
-tauri-plugin-fs = "=2.5.0"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-base64 = "0.22"
-rand = "0.8.6"
-rusqlite = { version = "0.37.0", features = ["bundled"] }
-reqwest = { version = "0.12.28", default-features = false, features = ["json", "rustls-tls"] }
-tauri-plugin-i18n = "2.0.2"
-rust-i18n = "3.1.5"
-futures-util = "0.3"
-eyeball-im = "0.8"
-matrix-sdk-base = { version = "0.16.0", default-features = false, features = ["e2e-encryption"] }
-keyring-core = "1.0.0"
+tauri = { workspace = true, features = ["unstable"] }
+tauri-plugin-opener = { workspace = true }
+tauri-plugin-dialog = { workspace = true }
+tauri-plugin-fs = { workspace = true }
+tauri-plugin-i18n = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+base64 = { workspace = true }
+rand = { workspace = true }
+rusqlite = { workspace = true, features = ["bundled"] }
+reqwest = { workspace = true, features = ["json", "rustls-tls"] }
+rust-i18n = { workspace = true }
+futures-util = { workspace = true }
+eyeball-im = { workspace = true }
+matrix-sdk-base = { workspace = true, features = ["e2e-encryption"] }
+keyring-core = { workspace = true }
 
 [dependencies.matrix-sdk]
-version = "0.16.0"
-default-features = false
+workspace = true
 features = [
     "e2e-encryption", 
     "automatic-room-key-forwarding", 
@@ -47,28 +46,27 @@ features = [
 ]
 
 [dependencies.matrix-sdk-ui]
-version = "0.16.0"
-default-features = false
+workspace = true
 features = [
     "rustls-tls",
     "unstable-msc4274"
 ]
 
 [target.'cfg(target_os = "android")'.dependencies]
-android-native-keyring-store = "1.0.0"
+android-native-keyring-store = { workspace = true }
 tauri-plugin-app-events = { workspace = true }
 tauri-plugin-mobile-webview-overlay = { workspace = true }
 
 [target.'cfg(target_os = "ios")'.dependencies]
-apple-native-keyring-store = { version = "1.0.0", features = ["protected"] }
+apple-native-keyring-store = { workspace = true, features = ["protected"] }
 tauri-plugin-app-events = { workspace = true }
 tauri-plugin-mobile-webview-overlay = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows-native-keyring-store = "1.0.0"
+windows-native-keyring-store = { workspace = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-apple-native-keyring-store = { version = "1.0.0", features = ["keychain"] }
+apple-native-keyring-store = { workspace = true, features = ["keychain"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-linux-keyutils-keyring-store = "1.0.0"
+linux-keyutils-keyring-store = { workspace = true }

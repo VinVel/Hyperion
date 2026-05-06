@@ -5,6 +5,7 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 import tseslint from 'typescript-eslint';
 import reactPlugin from 'eslint-plugin-react';
 import unusedImports from "eslint-plugin-unused-imports";
+import eslintConfigPrettier from "eslint-config-prettier/flat";
 
 export default defineConfig([
   globalIgnores(["**/node_modules/", "**/dist", "**/target", "**/dist-js"]),
@@ -49,4 +50,5 @@ export default defineConfig([
       ],
     },
   },
+  eslintConfigPrettier
 ]);

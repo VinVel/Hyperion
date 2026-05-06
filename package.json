@@ -26,6 +26,7 @@
       "@types/react-dom": "^19.2.3",
       "@vitejs/plugin-react": "^4.7.0",
       "eslint": "9.39.4",
+      "eslint-config-prettier": "^10.1.8",
       "eslint-plugin-react": "^7.37.5",
       "eslint-plugin-unused-imports": "^4.4.1",
       "lucide-react": "^1.11.0",
@@ -37,7 +38,8 @@
       "typescript-eslint": "^8.59.0",
       "@typescript-eslint/parser": "^8.59.0",
       "@typescript-eslint/eslint-plugin": "^8.59.",
-      "vite": "^7.3.2"
+      "vite": "^7.3.2",
+      "prettier": "3.8.3"
     }
   },
   "dependencies": {
@@ -51,18 +53,20 @@
     "tauri-plugin-app-events-api": "workspace:*"
   },
   "devDependencies": {
+    "@eslint/js": "catalog:",
     "@tauri-apps/cli": "catalog:",
     "@types/react": "catalog:",
-    "@types/react-dom": "catalog:",    
+    "@types/react-dom": "catalog:",
+    "@typescript-eslint/eslint-plugin": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "eslint": "catalog:",
+    "eslint-config-prettier": "catalog:",
     "eslint-plugin-react": "catalog:",
     "eslint-plugin-unused-imports": "catalog:",
+    "prettier": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:",
-    "@typescript-eslint/parser": "catalog:",
-    "@typescript-eslint/eslint-plugin": "catalog:",
-    "@eslint/js": "catalog:",
     "vite": "catalog:"
   }
 }

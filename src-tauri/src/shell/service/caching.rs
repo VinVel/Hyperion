@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::{Connection, OptionalExtension, params};
 
 use super::{
-    super::types::{RoomThreadSummary, RoomTimelineItem},
+    super::types::{RoomThreadSummary, RoomTimelineItem, SpaceSummary},
     search::now_unix_ms,
 };
 
@@ -223,6 +223,102 @@ pub(super) fn remember_room_thread_summaries(
     transaction
         .commit()
         .map_err(|error| format!("Failed to commit cached room-list transaction: {error}"))?;
+    Ok(())
+}
+
+pub(super) fn cached_space_summaries(store_dir: &Path) -> Result<Vec<SpaceSummary>, String> {
+    let connection = open_timeline_view_state_connection(store_dir)?;
+    let mut statement = connection
+        .prepare(
+            r"
+            SELECT
+                space_id,
+                name,
+                description,
+                member_label,
+                activity_label,
+                accent_label,
+                is_official
+            FROM cached_spaces
+            ORDER BY name ASC
+            ",
+        )
+        .map_err(|error| format!("Failed to prepare cached spaces query: {error}"))?;
+
+    let rows = statement
+        .query_map([], |row| {
+            Ok(SpaceSummary {
+                space_id: row.get(0)?,
+                name: row.get(1)?,
+                description: row.get(2)?,
+                member_label: row.get(3)?,
+                activity_label: row.get(4)?,
+                accent_label: row.get(5)?,
+                is_official: row.get(6)?,
+            })
+        })
+        .map_err(|error| format!("Failed to read cached spaces rows: {error}"))?;
+
+    let mut summaries = Vec::new();
+    for row in rows {
+        summaries.push(row.map_err(|error| format!("Cached spaces row is invalid: {error}"))?);
+    }
+
+    Ok(summaries)
+}
+
+pub(super) fn remember_space_summaries(
+    store_dir: &Path,
+    summaries: &[SpaceSummary],
+) -> Result<(), String> {
+    let mut connection = open_timeline_view_state_connection(store_dir)?;
+    let transaction = connection
+        .transaction()
+        .map_err(|error| format!("Failed to start cached spaces transaction: {error}"))?;
+    transaction
+        .execute("DELETE FROM cached_spaces", [])
+        .map_err(|error| format!("Failed to clear stale cached spaces rows: {error}"))?;
+
+    let updated_at_unix_ms = i64::try_from(now_unix_ms())
+        .map_err(|error| format!("Current timestamp is too large to persist: {error}"))?;
+    {
+        let mut statement = transaction
+            .prepare(
+                r"
+                INSERT INTO cached_spaces (
+                    space_id,
+                    name,
+                    description,
+                    member_label,
+                    activity_label,
+                    accent_label,
+                    is_official,
+                    updated_at_unix_ms
+                )
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                ",
+            )
+            .map_err(|error| format!("Failed to prepare cached spaces write: {error}"))?;
+
+        for summary in summaries {
+            statement
+                .execute(params![
+                    summary.space_id,
+                    summary.name,
+                    summary.description,
+                    summary.member_label,
+                    summary.activity_label,
+                    summary.accent_label,
+                    summary.is_official,
+                    updated_at_unix_ms,
+                ])
+                .map_err(|error| format!("Failed to write cached spaces row: {error}"))?;
+        }
+    }
+
+    transaction
+        .commit()
+        .map_err(|error| format!("Failed to commit cached spaces transaction: {error}"))?;
     Ok(())
 }
 
@@ -518,6 +614,17 @@ fn initialize_timeline_view_state_schema(connection: &Connection) -> Result<(), 
 
             CREATE INDEX IF NOT EXISTS cached_room_timeline_items_order_idx
                 ON cached_room_timeline_items(account_key, room_id, item_index);
+
+            CREATE TABLE IF NOT EXISTS cached_spaces (
+                space_id TEXT NOT NULL PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL,
+                member_label TEXT NOT NULL,
+                activity_label TEXT NOT NULL,
+                accent_label TEXT,
+                is_official INTEGER,
+                updated_at_unix_ms INTEGER NOT NULL
+            );
             "
         ))
         .map_err(|error| format!("Failed to initialize timeline cache schema: {error}"))?;

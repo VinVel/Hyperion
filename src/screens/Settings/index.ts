@@ -17,7 +17,11 @@ export { default as Account } from "./Account";
 export { default as Appearance } from "./Appearance";
 export { default as Calls } from "./Calls";
 export { default as Chats } from "./Chats";
-export { default as Encryption } from "./Encryption";
+export {
+  default as Encryption,
+  encryptionOverviewStorageKey,
+  type EncryptionOverview,
+} from "./Encryption";
 export { default as HelpAbout } from "./HelpAbout";
 export { default as Hotkeys } from "./Hotkeys";
 export { default as Notifications } from "./Notifications";

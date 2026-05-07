@@ -23,12 +23,17 @@ use std::{
     fs,
     io::Write,
     path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
 };
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, FilePath};
 use tauri_plugin_fs::{FsExt, OpenOptions};
 
-use crate::{account::AccountManager, shell::ShellManager};
+use crate::{
+    account::{AccountClientSnapshot, AccountManager},
+    settings::account as account_settings,
+    shell::ShellManager,
+};
 
 pub use super::types::{
     CryptoIdentityResetOutcome, EncryptionOverview, GeneratedRecoveryKey, RecoveryKeyRequest,
@@ -43,6 +48,7 @@ const BACKUP_DISABLED_EVENT_TYPE: &str = "m.org.matrix.custom.backup_disabled";
 const ROOM_KEY_EXPORT_FILE_NAME: &str = "hyperion-room-keys.txt";
 // App-private staging folder for Matrix SDK room-key import/export, because the SDK requires local paths.
 const ROOM_KEY_TRANSFER_DIRECTORY_NAME: &str = "room-key-transfer";
+pub const ENCRYPTION_OVERVIEW_UPDATED_EVENT: &str = "hyperion://encryption-overview-updated";
 
 #[tauri::command]
 pub async fn get_encryption_overview(
@@ -61,10 +67,41 @@ pub async fn get_encryption_overview(
             backup_state: None,
             server_key_storage_opted_out: false,
             verified_devices_only: false,
+            last_refreshed_at_unix_ms: None,
         });
     };
 
-    let preferences = AccountManager::load_encryption_preferences(&account.client).await?;
+    let cached_overview = account_settings::read_encryption_overview(&account.store_dir)?;
+    schedule_encryption_overview_refresh(app, account.clone());
+    if let Some(overview) = cached_overview {
+        return Ok(overview);
+    }
+
+    let preferences =
+        AccountManager::load_encryption_preferences_for_store(&account.client, &account.store_dir)
+            .await?;
+
+    Ok(EncryptionOverview {
+        has_active_account: true,
+        account_key: Some(account.account_key),
+        user_id: account.client.user_id().map(ToString::to_string),
+        device_id: account.client.device_id().map(ToString::to_string),
+        ed25519_key: None,
+        curve25519_key: None,
+        recovery_state: None,
+        backup_state: None,
+        server_key_storage_opted_out: preferences.server_key_storage_opted_out,
+        verified_devices_only: preferences.verified_devices_only,
+        last_refreshed_at_unix_ms: None,
+    })
+}
+
+async fn refreshed_encryption_overview(
+    account: &AccountClientSnapshot,
+) -> Result<EncryptionOverview, String> {
+    let preferences =
+        AccountManager::load_encryption_preferences_for_store(&account.client, &account.store_dir)
+            .await?;
     let encryption = account.client.encryption();
     let own_device = encryption
         .get_own_device()
@@ -93,7 +130,7 @@ pub async fn get_encryption_overview(
 
     Ok(EncryptionOverview {
         has_active_account: true,
-        account_key: Some(account.account_key),
+        account_key: Some(account.account_key.clone()),
         user_id: account.client.user_id().map(ToString::to_string),
         device_id: account.client.device_id().map(ToString::to_string),
         ed25519_key: own_device
@@ -111,7 +148,30 @@ pub async fn get_encryption_overview(
         )),
         server_key_storage_opted_out: preferences.server_key_storage_opted_out,
         verified_devices_only: preferences.verified_devices_only,
+        last_refreshed_at_unix_ms: Some(now_unix_ms()),
     })
+}
+
+fn schedule_encryption_overview_refresh(app: AppHandle, account: AccountClientSnapshot) {
+    tauri::async_runtime::spawn(async move {
+        let overview = match refreshed_encryption_overview(&account).await {
+            Ok(overview) => overview,
+            Err(error) => {
+                eprintln!("Failed to refresh encryption overview in background: {error}");
+                return;
+            }
+        };
+
+        if let Err(error) =
+            account_settings::write_encryption_overview(&account.store_dir, &overview)
+        {
+            eprintln!("Failed to persist refreshed encryption overview: {error}");
+        }
+
+        if let Err(error) = app.emit(ENCRYPTION_OVERVIEW_UPDATED_EVENT, overview) {
+            eprintln!("Failed to emit encryption overview update: {error}");
+        }
+    });
 }
 
 #[tauri::command]
@@ -123,7 +183,9 @@ pub async fn enable_server_key_storage(
         return Err(String::from("No active account is available"));
     };
 
-    let mut preferences = AccountManager::load_encryption_preferences(&account.client).await?;
+    let mut preferences =
+        AccountManager::load_encryption_preferences_for_store(&account.client, &account.store_dir)
+            .await?;
     let encryption = account.client.encryption();
     let backups = encryption.backups();
     backups
@@ -131,7 +193,7 @@ pub async fn enable_server_key_storage(
         .await
         .map_err(|error| format!("Failed to enable server-side key backup: {error}"))?;
     preferences.server_key_storage_opted_out = false;
-    AccountManager::persist_encryption_preferences(&account.client, &preferences).await
+    AccountManager::persist_encryption_preferences_for_store(&account.store_dir, &preferences)
 }
 
 #[tauri::command]
@@ -143,7 +205,9 @@ pub async fn disable_server_key_storage(
         return Err(String::from("No active account is available"));
     };
 
-    let mut preferences = AccountManager::load_encryption_preferences(&account.client).await?;
+    let mut preferences =
+        AccountManager::load_encryption_preferences_for_store(&account.client, &account.store_dir)
+            .await?;
     let encryption = account.client.encryption();
     let backups = encryption.backups();
     backups
@@ -151,7 +215,7 @@ pub async fn disable_server_key_storage(
         .await
         .map_err(|error| format!("Failed to disable server-side key backup: {error}"))?;
     preferences.server_key_storage_opted_out = true;
-    AccountManager::persist_encryption_preferences(&account.client, &preferences).await
+    AccountManager::persist_encryption_preferences_for_store(&account.store_dir, &preferences)
 }
 
 #[tauri::command]
@@ -348,13 +412,15 @@ pub async fn set_verified_devices_only(
     let Some(account) = account_manager.active_account_client(&app).await? else {
         return Err(String::from("No active account is available"));
     };
-    let mut preferences = AccountManager::load_encryption_preferences(&account.client).await?;
+    let mut preferences =
+        AccountManager::load_encryption_preferences_for_store(&account.client, &account.store_dir)
+            .await?;
     if preferences.verified_devices_only == enabled {
         return Ok(());
     }
 
     preferences.verified_devices_only = enabled;
-    AccountManager::persist_encryption_preferences(&account.client, &preferences).await?;
+    AccountManager::persist_encryption_preferences_for_store(&account.store_dir, &preferences)?;
     shell_manager.stop_account(&account.account_key).await;
     account_manager.rebuild_active_client(&app).await?;
     shell_manager
@@ -586,4 +652,11 @@ fn backup_state_label(server_backup_enabled: bool, server_backup_exists: Option<
     } else {
         String::from("Unknown")
     }
+}
+
+fn now_unix_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX))
+        .unwrap_or_default()
 }

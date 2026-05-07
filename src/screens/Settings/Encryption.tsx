@@ -14,6 +14,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import {
   AlertTriangle,
   Download,
@@ -35,7 +36,7 @@ import {
   useFeedbackToast,
 } from "../../components/ui";
 
-type EncryptionOverview = {
+export type EncryptionOverview = {
   has_active_account: boolean;
   account_key: string | null;
   user_id: string | null;
@@ -46,6 +47,7 @@ type EncryptionOverview = {
   backup_state: string | null;
   server_key_storage_opted_out: boolean;
   verified_devices_only: boolean;
+  last_refreshed_at_unix_ms?: number | null;
 };
 
 type GeneratedRecoveryKey = {
@@ -67,6 +69,74 @@ type EncryptionFeedbackMessage = {
 };
 
 const elementEncryptionHelpUrl = "https://element.io/de/help#encryption5";
+const encryptionOverviewUpdatedEvent = "hyperion://encryption-overview-updated";
+const encryptionOverviewStoragePrefix = "hyperion.settings.encryptionOverview";
+
+type EncryptionProps = {
+  activeAccount: {
+    account_key: string;
+    user_id: string;
+  };
+};
+
+function defaultEncryptionOverview(
+  activeAccount: EncryptionProps["activeAccount"],
+): EncryptionOverview {
+  return {
+    has_active_account: true,
+    account_key: activeAccount.account_key,
+    user_id: activeAccount.user_id,
+    device_id: null,
+    ed25519_key: null,
+    curve25519_key: null,
+    recovery_state: null,
+    backup_state: null,
+    server_key_storage_opted_out: false,
+    verified_devices_only: false,
+    last_refreshed_at_unix_ms: null,
+  };
+}
+
+export function encryptionOverviewStorageKey(accountKey: string): string {
+  return `${encryptionOverviewStoragePrefix}.${accountKey}`;
+}
+
+function readCachedEncryptionOverview(
+  activeAccount: EncryptionProps["activeAccount"],
+): EncryptionOverview {
+  try {
+    const rawValue = window.localStorage.getItem(
+      encryptionOverviewStorageKey(activeAccount.account_key),
+    );
+    if (!rawValue) {
+      return defaultEncryptionOverview(activeAccount);
+    }
+
+    const overview = JSON.parse(rawValue) as EncryptionOverview;
+    return {
+      ...defaultEncryptionOverview(activeAccount),
+      ...overview,
+      has_active_account: true,
+      account_key: activeAccount.account_key,
+      user_id: overview.user_id ?? activeAccount.user_id,
+    };
+  } catch {
+    window.localStorage.removeItem(
+      encryptionOverviewStorageKey(activeAccount.account_key),
+    );
+    return defaultEncryptionOverview(activeAccount);
+  }
+}
+
+function writeCachedEncryptionOverview(
+  accountKey: string,
+  overview: EncryptionOverview,
+) {
+  window.localStorage.setItem(
+    encryptionOverviewStorageKey(accountKey),
+    JSON.stringify({ ...overview, has_active_account: true }),
+  );
+}
 
 type RecoveryConfirmation = {
   expectedKey: string;
@@ -121,8 +191,10 @@ function cryptoIdentityResetMessage(
   };
 }
 
-export default function Encryption() {
-  const [overview, setOverview] = useState<EncryptionOverview | null>(null);
+export default function Encryption({ activeAccount }: EncryptionProps) {
+  const [overview, setOverview] = useState<EncryptionOverview>(() =>
+    readCachedEncryptionOverview(activeAccount),
+  );
   const [recoveryKey, setRecoveryKey] = useState("");
   const [generatedRecoveryKey, setGeneratedRecoveryKey] = useState<
     string | null
@@ -145,14 +217,47 @@ export default function Encryption() {
     const nextOverview = await invoke<EncryptionOverview>(
       "get_encryption_overview",
     );
+    if (!nextOverview.has_active_account) {
+      return;
+    }
+
     setOverview(nextOverview);
+    writeCachedEncryptionOverview(activeAccount.account_key, nextOverview);
   }
 
   useEffect(() => {
     void refreshOverview().catch((loadError) => {
       setError(messageFromError(loadError));
     });
-  }, []);
+  }, [activeAccount.account_key]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const unlistenPromise = listen<EncryptionOverview>(
+      encryptionOverviewUpdatedEvent,
+      (event) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (event.payload.account_key !== activeAccount.account_key) {
+          return;
+        }
+
+        const nextOverview = {
+          ...event.payload,
+          has_active_account: true,
+        };
+        setOverview(nextOverview);
+        writeCachedEncryptionOverview(activeAccount.account_key, nextOverview);
+      },
+    );
+
+    return () => {
+      cancelled = true;
+      void unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, [activeAccount.account_key]);
 
   async function runAction(actionName: string, action: () => Promise<void>) {
     if (pendingAction) {
@@ -247,7 +352,7 @@ export default function Encryption() {
       return;
     }
 
-    if (overview?.recovery_state === "Disabled") {
+    if (overview.recovery_state === "Disabled") {
       throw new Error(
         "Recovery is disabled for this account. Create a new recovery key first.",
       );
@@ -305,24 +410,9 @@ export default function Encryption() {
 
   async function toggleVerifiedDevicesOnly() {
     await invoke("set_verified_devices_only", {
-      enabled: !overview?.verified_devices_only,
+      enabled: !overview.verified_devices_only,
     });
     setMessage({ tone: "success", text: "Device trust preference was saved." });
-  }
-
-  if (!overview?.has_active_account) {
-    return (
-      <div className="settings-view-section-body">
-        <Card className="settings-view-card">
-          <div className="settings-view-card-copy">
-            <Typography variant="h3">Encryption</Typography>
-            <Typography muted variant="bodySmall">
-              Sign in to a Matrix account before changing encryption settings.
-            </Typography>
-          </div>
-        </Card>
-      </div>
-    );
   }
 
   const isBusy = pendingAction !== null;

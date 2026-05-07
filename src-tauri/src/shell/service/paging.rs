@@ -127,7 +127,7 @@ pub(super) fn focused_timeline_page_token(event_id: &str, page_index: usize) -> 
     format!("{TIMELINE_UI_EVENT_PAGE_TOKEN_PREFIX}{encoded_event_id}:{page_index}")
 }
 
-fn parse_timeline_page_token(token: &str) -> Option<usize> {
+pub(super) fn parse_timeline_page_token(token: &str) -> Option<usize> {
     token
         .strip_prefix(TIMELINE_UI_PAGE_TOKEN_PREFIX)
         .and_then(|value| value.parse::<usize>().ok())

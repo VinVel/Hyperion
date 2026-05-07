@@ -13,5 +13,6 @@
  * Project home: hyperion.velcore.net
  */
 
+pub mod account;
 pub mod encryption;
 pub mod theme;

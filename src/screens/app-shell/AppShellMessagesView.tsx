@@ -42,7 +42,6 @@ import {
 type AppShellMessagesViewProps = {
   composerValue: string;
   isLoadingOlderMessages: boolean;
-  isLoadingShell: boolean;
   isSendingMessage: boolean;
   isSortMenuOpen: boolean;
   selectedRoomSummary: RoomSummary | null;
@@ -64,7 +63,6 @@ type AppShellMessagesViewProps = {
 export default function AppShellMessagesView({
   composerValue,
   isLoadingOlderMessages,
-  isLoadingShell,
   isSendingMessage,
   isSortMenuOpen,
   selectedRoomSummary,
@@ -102,14 +100,6 @@ export default function AppShellMessagesView({
   }
 
   function renderThreadList() {
-    if (isLoadingShell && visibleThreads.length === 0) {
-      return (
-        <Typography muted variant="body">
-          Loading conversations...
-        </Typography>
-      );
-    }
-
     if (visibleThreads.length === 0) {
       return (
         <Typography muted variant="body">

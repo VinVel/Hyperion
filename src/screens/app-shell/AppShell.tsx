@@ -14,11 +14,17 @@
  */
 
 import { ScreenMain, ScreenShell, useFeedbackToast } from "../../components/ui";
+import { invoke } from "@tauri-apps/api/core";
+import { useEffect } from "react";
 import type { AccountSummary } from "./appShellAdapters";
 import AppShellMessagesView from "./AppShellMessagesView";
 import AppShellNavigation from "./AppShellNavigation";
 import AppShellSpacesView from "./AppShellSpacesView";
-import { SettingsView } from "../Settings";
+import {
+  SettingsView,
+  encryptionOverviewStorageKey,
+  type EncryptionOverview,
+} from "../Settings";
 import { AppShellSearchOverlay } from "./search";
 import useAppShellState from "./useAppShellState";
 import "./AppShell.css";
@@ -41,6 +47,34 @@ export default function AppShell({
     onActiveAccountChange,
   });
   useFeedbackToast(shell.feedbackMessage);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshEncryptionSettingsSnapshot() {
+      try {
+        const overview = await invoke<EncryptionOverview>(
+          "get_encryption_overview",
+        );
+        if (cancelled || !overview.has_active_account) {
+          return;
+        }
+
+        window.localStorage.setItem(
+          encryptionOverviewStorageKey(activeAccount.account_key),
+          JSON.stringify({ ...overview, has_active_account: true }),
+        );
+      } catch {
+        // Offline startup should keep using the last local settings snapshot.
+      }
+    }
+
+    void refreshEncryptionSettingsSnapshot();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeAccount.account_key]);
 
   return (
     <ScreenShell
@@ -89,7 +123,6 @@ export default function AppShell({
               <AppShellMessagesView
                 composerValue={shell.composerValue}
                 isLoadingOlderMessages={shell.isLoadingOlderMessages}
-                isLoadingShell={shell.isLoadingShell}
                 isSendingMessage={shell.isSendingMessage}
                 isSortMenuOpen={shell.isSortMenuOpen}
                 selectedRoomSummary={shell.selectedRoomSummary}
@@ -121,6 +154,7 @@ export default function AppShell({
 
             {shell.activeView === "settings" ? (
               <SettingsView
+                activeAccount={activeAccount}
                 onAddAccount={onAddAccount}
                 onSignedOut={onSignedOut}
               />

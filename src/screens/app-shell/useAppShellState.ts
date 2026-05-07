@@ -57,12 +57,17 @@ const roomTimelinePageSize = 30;
 const globalSearchDebounceMilliseconds = 150;
 // Each search group is capped to keep the overlay compact.
 const globalSearchLimitPerGroup = 4;
-// The last opened room is UI navigation state, so keep it in browser storage
-// per Matrix account instead of making the backend infer it from activity.
-const appShellSelectionStoragePrefix = "hyperion.appShell.selection";
 // Keep recently opened room views in memory so switching rooms is an immediate
 // render operation while the backend refresh catches up.
 const maximumInMemoryRoomSnapshots = 24;
+const cachedRoomThreadsStoragePrefix = "hyperion.appShell.roomThreads";
+const cachedSpacesStoragePrefix = "hyperion.appShell.spaces";
+const cachedRoomSnapshotsStoragePrefix = "hyperion.appShell.roomSnapshots";
+// Startup retries cover the common mobile flow where the WebView returns before
+// the native Matrix client is ready.
+const shellStartupRetryDelayMilliseconds = [1_000, 3_000, 7_000, 15_000];
+// Keep nudging the cache/live merge path; the SDK still owns the real sync loop.
+const shellCollectionRefreshIntervalMilliseconds = 15_000;
 
 type ShellSyncUpdatedPayload = {
   account_key: string;
@@ -77,19 +82,16 @@ type TimelineJumpTarget = {
 };
 
 type FeedbackMessage = {
-  tone: "success" | "error" | "info";
+  tone: "success" | "error" | "info" | "warning";
   text: string;
-};
-
-type AccountShellSelection = {
-  threadId: string | null;
-  spaceId: string | null;
 };
 
 type SelectedRoomSnapshot = {
   summary: RoomSummary;
   timeline: RoomTimeline;
 };
+
+type RoomThread = ReturnType<typeof mapRoomThreadSummary>;
 
 type UseAppShellStateOptions = {
   activeAccount: AccountSummary;
@@ -146,19 +148,95 @@ export type UseAppShellStateResult = {
   loadOlderMessages: () => Promise<void>;
 };
 
-function getErrorMessage(error: unknown): string {
-  if (typeof error === "string" && error.trim().length > 0) {
-    return error;
-  }
-
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-
-  return "Something went wrong while contacting the native shell service.";
+function accountScopedStorageKey(prefix: string, accountKey: string): string {
+  return `${prefix}.${accountKey}`;
 }
 
-function retainCurrentSelectionOrDefault<T extends { id: string }>(
+function readCachedJson<T>(storageKey: string, fallback: T): T {
+  try {
+    const rawValue = window.localStorage.getItem(storageKey);
+    if (!rawValue) {
+      return fallback;
+    }
+
+    return JSON.parse(rawValue) as T;
+  } catch {
+    window.localStorage.removeItem(storageKey);
+    return fallback;
+  }
+}
+
+function writeCachedJson<T>(storageKey: string, value: T) {
+  window.localStorage.setItem(storageKey, JSON.stringify(value));
+}
+
+function cachedRoomThreadsKey(accountKey: string): string {
+  return accountScopedStorageKey(cachedRoomThreadsStoragePrefix, accountKey);
+}
+
+function cachedSpacesKey(accountKey: string): string {
+  return accountScopedStorageKey(cachedSpacesStoragePrefix, accountKey);
+}
+
+function cachedRoomSnapshotKey(accountKey: string, roomId: string): string {
+  return accountScopedStorageKey(
+    cachedRoomSnapshotsStoragePrefix,
+    `${accountKey}.${roomId}`,
+  );
+}
+
+function setGenericErrorFeedback(
+  setFeedbackMessage: (feedback: FeedbackMessage | null) => void,
+  text: string,
+) {
+  setFeedbackMessage({
+    tone: "error",
+    text,
+  });
+}
+
+function fallbackRoomSummaryFromThread(thread: RoomThread): RoomSummary {
+  return {
+    id: thread.id,
+    title: thread.title,
+    participantLabel: thread.participantLabel,
+    homeserverLabel: thread.homeserverLabel,
+    topic: "",
+    isDirect: thread.isDirect,
+    canSendMessages: false,
+  };
+}
+
+function emptyRoomTimeline(roomId: string): RoomTimeline {
+  return {
+    roomId,
+    items: [],
+    nextBefore: null,
+    focusedEventId: null,
+  };
+}
+
+function readCachedRoomSnapshot(
+  accountKey: string,
+  roomId: string,
+): SelectedRoomSnapshot | null {
+  return readCachedJson<SelectedRoomSnapshot | null>(
+    cachedRoomSnapshotKey(accountKey, roomId),
+    null,
+  );
+}
+
+function writeCachedRoomSnapshot(
+  accountKey: string,
+  roomSnapshot: SelectedRoomSnapshot,
+) {
+  writeCachedJson(
+    cachedRoomSnapshotKey(accountKey, roomSnapshot.timeline.roomId),
+    roomSnapshot,
+  );
+}
+
+function retainCurrentSelection<T extends { id: string }>(
   currentId: string | null,
   items: T[],
 ): string | null {
@@ -166,42 +244,7 @@ function retainCurrentSelectionOrDefault<T extends { id: string }>(
     return currentId;
   }
 
-  return items[0]?.id ?? null;
-}
-
-function storedSelectionKey(accountKey: string): string {
-  return `${appShellSelectionStoragePrefix}.${accountKey}`;
-}
-
-function readStoredSelection(accountKey: string): AccountShellSelection {
-  try {
-    const rawValue = window.localStorage.getItem(
-      storedSelectionKey(accountKey),
-    );
-    if (!rawValue) {
-      return { threadId: null, spaceId: null };
-    }
-
-    const parsedValue = JSON.parse(rawValue) as Partial<AccountShellSelection>;
-    return {
-      threadId:
-        typeof parsedValue.threadId === "string" ? parsedValue.threadId : null,
-      spaceId:
-        typeof parsedValue.spaceId === "string" ? parsedValue.spaceId : null,
-    };
-  } catch {
-    return { threadId: null, spaceId: null };
-  }
-}
-
-function writeStoredSelection(
-  accountKey: string,
-  selection: AccountShellSelection,
-) {
-  window.localStorage.setItem(
-    storedSelectionKey(accountKey),
-    JSON.stringify(selection),
-  );
+  return null;
 }
 
 function timelineAnchorForRoom(
@@ -275,17 +318,14 @@ export default function useAppShellState({
   const [knownAccounts, setKnownAccounts] = useState<AccountSummary[]>([
     activeAccount,
   ]);
-  const [roomThreads, setRoomThreads] = useState<
-    ReturnType<typeof mapRoomThreadSummary>[]
-  >([]);
-  const [spaces, setSpaces] = useState<SpaceSummary[]>([]);
-  const initialSelection = readStoredSelection(activeAccount.account_key);
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(
-    initialSelection.threadId,
+  const [roomThreads, setRoomThreads] = useState<RoomThread[]>(() =>
+    readCachedJson(cachedRoomThreadsKey(activeAccount.account_key), []),
   );
-  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(
-    initialSelection.spaceId,
+  const [spaces, setSpaces] = useState<SpaceSummary[]>(() =>
+    readCachedJson(cachedSpacesKey(activeAccount.account_key), []),
   );
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
   const [selectionAccountKey, setSelectionAccountKey] = useState(
     activeAccount.account_key,
   );
@@ -323,35 +363,72 @@ export default function useAppShellState({
   const [isLoadingShell, setIsLoadingShell] = useState(true);
   const activeAccountKeyRef = useRef(activeAccount.account_key);
 
+  const clearAccountRestoringFeedback = useCallback(() => {
+    setFeedbackMessage(null);
+  }, []);
+
   const refreshRoomCollections = useCallback(async () => {
     const backendThreads =
       await invoke<BackendRoomThreadSummary[]>("list_room_threads");
+    clearAccountRestoringFeedback();
     const mappedThreads = backendThreads.map(mapRoomThreadSummary);
     setRoomThreads(mappedThreads);
+    writeCachedJson(
+      cachedRoomThreadsKey(activeAccount.account_key),
+      mappedThreads,
+    );
     setSelectedThreadId((currentThreadId) =>
-      retainCurrentSelectionOrDefault(currentThreadId, mappedThreads),
+      retainCurrentSelection(currentThreadId, mappedThreads),
     );
 
     void invoke<BackendSpaceSummary[]>("list_spaces")
       .then((backendSpaces) => {
         const mappedSpaces = backendSpaces.map(mapSpaceSummary);
         setSpaces(mappedSpaces);
+        writeCachedJson(
+          cachedSpacesKey(activeAccount.account_key),
+          mappedSpaces,
+        );
         setSelectedSpaceId((currentSpaceId) =>
-          retainCurrentSelectionOrDefault(currentSpaceId, mappedSpaces),
+          retainCurrentSelection(currentSpaceId, mappedSpaces),
         );
       })
-      .catch((error) => {
-        setFeedbackMessage({
-          tone: "error",
-          text: getErrorMessage(error),
-        });
-      });
-  }, []);
+      .catch(() => {});
+  }, [activeAccount.account_key, clearAccountRestoringFeedback]);
 
   const refreshShellSnapshot = useCallback(async () => {
-    const accounts = await invoke<AccountSummary[]>("list_accounts");
-    setKnownAccounts(accounts);
+    try {
+      const accounts = await invoke<AccountSummary[]>("list_accounts");
+      setKnownAccounts(accounts);
+    } catch {
+      // Account-list refresh is best-effort; cached account data remains usable.
+    }
     await refreshRoomCollections();
+  }, [refreshRoomCollections]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timeoutIds = shellStartupRetryDelayMilliseconds.map((delay) =>
+      window.setTimeout(() => {
+        if (cancelled) {
+          return;
+        }
+
+        void refreshRoomCollections().catch(() => {});
+      }, delay),
+    );
+
+    const intervalId = window.setInterval(() => {
+      void refreshRoomCollections().catch(() => {});
+    }, shellCollectionRefreshIntervalMilliseconds);
+
+    return () => {
+      cancelled = true;
+      for (const timeoutId of timeoutIds) {
+        window.clearTimeout(timeoutId);
+      }
+      window.clearInterval(intervalId);
+    };
   }, [refreshRoomCollections]);
 
   const selectedThreadIdRef = useRef(selectedThreadId);
@@ -393,35 +470,18 @@ export default function useAppShellState({
   );
 
   useEffect(() => {
-    if (
-      activeAccountKeyRef.current !== activeAccount.account_key ||
-      selectionAccountKey !== activeAccount.account_key
-    ) {
-      return;
-    }
-
-    writeStoredSelection(activeAccount.account_key, {
-      threadId: selectedThreadId,
-      spaceId: selectedSpaceId,
-    });
-  }, [
-    activeAccount.account_key,
-    selectedSpaceId,
-    selectedThreadId,
-    selectionAccountKey,
-  ]);
-
-  useEffect(() => {
     if (activeAccountKeyRef.current === activeAccount.account_key) {
       return;
     }
 
-    const nextSelection = readStoredSelection(activeAccount.account_key);
-
     activeAccountKeyRef.current = activeAccount.account_key;
     setSelectionAccountKey(activeAccount.account_key);
-    setSelectedThreadId(nextSelection.threadId);
-    setSelectedSpaceId(nextSelection.spaceId);
+    setRoomThreads(
+      readCachedJson(cachedRoomThreadsKey(activeAccount.account_key), []),
+    );
+    setSpaces(readCachedJson(cachedSpacesKey(activeAccount.account_key), []));
+    setSelectedThreadId(null);
+    setSelectedSpaceId(null);
     setSelectedRoomSummary(null);
     setSelectedTimeline(null);
     setRoomSnapshotsByRoomId({});
@@ -443,15 +503,8 @@ export default function useAppShellState({
           return;
         }
         setFeedbackMessage(null);
-      } catch (error) {
-        if (!cancelled) {
-          setFeedbackMessage({
-            tone: "error",
-            text: getErrorMessage(error),
-          });
-          setRoomThreads([]);
-          setSpaces([]);
-        }
+      } catch {
+        // Shell startup refresh is best-effort; cached room data remains usable.
       } finally {
         if (!cancelled) {
           setIsLoadingShell(false);
@@ -502,28 +555,20 @@ export default function useAppShellState({
         setRoomSnapshotsByRoomId((currentSnapshots) =>
           rememberRoomSnapshot(currentSnapshots, roomSnapshot),
         );
+        writeCachedRoomSnapshot(activeAccount.account_key, roomSnapshot);
         if (!anchoredEventId) {
-          void refreshRoomCollections().catch((error) => {
-            if (!cancelled) {
-              setFeedbackMessage({
-                tone: "error",
-                text: getErrorMessage(error),
-              });
-            }
-          });
+          void refreshRoomCollections().catch(() => {});
         }
 
         if (cancelled) {
           return;
         }
-      } catch (error) {
+      } catch {
         if (!cancelled) {
-          setFeedbackMessage({
-            tone: "error",
-            text: getErrorMessage(error),
-          });
-          setSelectedRoomSummary(null);
-          setSelectedTimeline(null);
+          setGenericErrorFeedback(
+            setFeedbackMessage,
+            "Could not load this conversation.",
+          );
         }
       }
     }
@@ -560,14 +605,8 @@ export default function useAppShellState({
       setRoomSnapshotsByRoomId((currentSnapshots) =>
         rememberRoomSnapshot(currentSnapshots, roomSnapshot),
       );
-      void refreshRoomCollections().catch((error) => {
-        if (!cancelled) {
-          setFeedbackMessage({
-            tone: "error",
-            text: getErrorMessage(error),
-          });
-        }
-      });
+      writeCachedRoomSnapshot(activeAccount.account_key, roomSnapshot);
+      void refreshRoomCollections().catch(() => {});
     }
 
     const unlistenPromise = listen<ShellSyncUpdatedPayload>(
@@ -594,14 +633,7 @@ export default function useAppShellState({
           }
 
           collectionRefreshTimeoutId = window.setTimeout(() => {
-            void refreshRoomCollections().catch((error) => {
-              if (!cancelled) {
-                setFeedbackMessage({
-                  tone: "error",
-                  text: getErrorMessage(error),
-                });
-              }
-            });
+            void refreshRoomCollections().catch(() => {});
           }, shellSyncCollectionRefreshDebounceMilliseconds);
         }
 
@@ -632,14 +664,7 @@ export default function useAppShellState({
             return;
           }
 
-          void refreshSelectedRoomAfterSync(selectedThreadId).catch((error) => {
-            if (!cancelled) {
-              setFeedbackMessage({
-                tone: "error",
-                text: getErrorMessage(error),
-              });
-            }
-          });
+          void refreshSelectedRoomAfterSync(selectedThreadId).catch(() => {});
         }, shellSyncTimelineRefreshDebounceMilliseconds);
       },
     );
@@ -694,15 +719,12 @@ export default function useAppShellState({
 
         setGlobalSearchResults(mapGlobalSearchResponse(response));
         setGlobalSearchNotice(globalSearchStatusNotice(response));
-      } catch (error) {
+      } catch {
         if (cancelled) {
           return;
         }
 
-        setFeedbackMessage({
-          tone: "error",
-          text: getErrorMessage(error),
-        });
+        setGenericErrorFeedback(setFeedbackMessage, "Search failed.");
         setGlobalSearchResults([]);
         setGlobalSearchNotice(null);
       }
@@ -760,20 +782,25 @@ export default function useAppShellState({
 
   const openRoomAtLatest = useCallback(
     (roomId: string) => {
-      const cachedRoomSnapshot = roomSnapshotsByRoomId[roomId];
+      const cachedRoomSnapshot =
+        roomSnapshotsByRoomId[roomId] ??
+        readCachedRoomSnapshot(activeAccount.account_key, roomId);
       if (cachedRoomSnapshot) {
         setSelectedRoomSummary(cachedRoomSnapshot.summary);
         setSelectedTimeline(cachedRoomSnapshot.timeline);
       } else {
-        setSelectedRoomSummary(null);
-        setSelectedTimeline(null);
+        const thread = roomThreads.find((candidate) => candidate.id === roomId);
+        setSelectedRoomSummary(
+          thread ? fallbackRoomSummaryFromThread(thread) : null,
+        );
+        setSelectedTimeline(emptyRoomTimeline(roomId));
       }
 
       setTimelineJumpTarget(null);
       setSelectedThreadId(roomId);
       setActiveView("messages");
     },
-    [roomSnapshotsByRoomId],
+    [activeAccount.account_key, roomSnapshotsByRoomId, roomThreads],
   );
 
   const openRoomAtEvent = useCallback((roomId: string, eventId: string) => {
@@ -794,8 +821,9 @@ export default function useAppShellState({
       setRoomSnapshotsByRoomId((currentSnapshots) =>
         rememberRoomSnapshot(currentSnapshots, roomSnapshot),
       );
+      writeCachedRoomSnapshot(activeAccount.account_key, roomSnapshot);
     },
-    [loadSelectedRoomSnapshot],
+    [activeAccount.account_key, loadSelectedRoomSnapshot],
   );
 
   const switchAccount = useCallback(
@@ -821,11 +849,11 @@ export default function useAppShellState({
         setGlobalSearchNotice(null);
         setTimelineJumpTarget(null);
         setComposerValue("");
-      } catch (error) {
-        setFeedbackMessage({
-          tone: "error",
-          text: getErrorMessage(error),
-        });
+      } catch {
+        setGenericErrorFeedback(
+          setFeedbackMessage,
+          "Could not switch account.",
+        );
       } finally {
         setSwitchingAccountKey(null);
       }
@@ -859,11 +887,8 @@ export default function useAppShellState({
         reloadSelectedTimeline(selectedThreadId),
         refreshRoomThreadsAfterSend(),
       ]);
-    } catch (error) {
-      setFeedbackMessage({
-        tone: "error",
-        text: getErrorMessage(error),
-      });
+    } catch {
+      setGenericErrorFeedback(setFeedbackMessage, "Message could not be sent.");
     } finally {
       setIsSendingMessage(false);
     }
@@ -903,20 +928,22 @@ export default function useAppShellState({
           !currentTimeline ||
           currentTimeline.roomId !== olderTimeline.roomId
         ) {
+          const roomSnapshot = {
+            summary: selectedRoomSummaryForSelectedThread ?? {
+              id: olderTimeline.roomId,
+              title: selectedThread?.title ?? "",
+              participantLabel: selectedThread?.participantLabel ?? "",
+              homeserverLabel: selectedThread?.homeserverLabel ?? "",
+              topic: "",
+              isDirect: selectedThread?.isDirect ?? false,
+              canSendMessages: true,
+            },
+            timeline: olderTimeline,
+          };
           setRoomSnapshotsByRoomId((currentSnapshots) =>
-            rememberRoomSnapshot(currentSnapshots, {
-              summary: selectedRoomSummaryForSelectedThread ?? {
-                id: olderTimeline.roomId,
-                title: selectedThread?.title ?? "",
-                participantLabel: selectedThread?.participantLabel ?? "",
-                homeserverLabel: selectedThread?.homeserverLabel ?? "",
-                topic: "",
-                isDirect: selectedThread?.isDirect ?? false,
-                canSendMessages: true,
-              },
-              timeline: olderTimeline,
-            }),
+            rememberRoomSnapshot(currentSnapshots, roomSnapshot),
           );
+          writeCachedRoomSnapshot(activeAccount.account_key, roomSnapshot);
           return olderTimeline;
         }
 
@@ -928,32 +955,35 @@ export default function useAppShellState({
           ),
           nextBefore: olderTimeline.nextBefore,
         };
+        const roomSnapshot = {
+          summary: selectedRoomSummaryForSelectedThread ?? {
+            id: mergedTimeline.roomId,
+            title: selectedThread?.title ?? "",
+            participantLabel: selectedThread?.participantLabel ?? "",
+            homeserverLabel: selectedThread?.homeserverLabel ?? "",
+            topic: "",
+            isDirect: selectedThread?.isDirect ?? false,
+            canSendMessages: true,
+          },
+          timeline: mergedTimeline,
+        };
         setRoomSnapshotsByRoomId((currentSnapshots) =>
-          rememberRoomSnapshot(currentSnapshots, {
-            summary: selectedRoomSummaryForSelectedThread ?? {
-              id: mergedTimeline.roomId,
-              title: selectedThread?.title ?? "",
-              participantLabel: selectedThread?.participantLabel ?? "",
-              homeserverLabel: selectedThread?.homeserverLabel ?? "",
-              topic: "",
-              isDirect: selectedThread?.isDirect ?? false,
-              canSendMessages: true,
-            },
-            timeline: mergedTimeline,
-          }),
+          rememberRoomSnapshot(currentSnapshots, roomSnapshot),
         );
+        writeCachedRoomSnapshot(activeAccount.account_key, roomSnapshot);
         return mergedTimeline;
       });
-    } catch (error) {
-      setFeedbackMessage({
-        tone: "error",
-        text: getErrorMessage(error),
-      });
+    } catch {
+      setGenericErrorFeedback(
+        setFeedbackMessage,
+        "Could not load older messages.",
+      );
     } finally {
       setIsLoadingOlderMessages(false);
     }
   }, [
     isLoadingOlderMessages,
+    activeAccount.account_key,
     selectedRoomSummaryForSelectedThread,
     selectedThread,
     selectedThreadId,

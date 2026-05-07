@@ -51,7 +51,7 @@ pub struct RoomSummary {
     pub can_send_messages: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct GetRoomTimelineRequest {
     pub room_id: String,
     pub before: Option<String>,

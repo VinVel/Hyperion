@@ -18,9 +18,13 @@ use matrix_sdk::{Room, ruma::EventId};
 use crate::account::{AccountClientSnapshot, AccountManager};
 
 use super::{
+    super::sync::emit_shell_room_updated,
     DEFAULT_EVENT_CONTEXT_LIMIT, DEFAULT_TIMELINE_LIMIT, MAX_RESTORED_TIMELINE_ITEMS, ShellManager,
     caching::restored_timeline_limit,
-    paging::{focused_timeline_page_token, load_live_room_timeline, load_paginated_room_timeline},
+    paging::{
+        focused_timeline_page_token, load_live_room_timeline, load_paginated_room_timeline,
+        parse_timeline_page_token,
+    },
     read_state::mark_room_read_locally,
     room::{resolve_room, room_title},
 };
@@ -37,7 +41,9 @@ impl ShellManager {
             return Err(String::from("No active account is available"));
         };
 
-        if let Some(cached_timeline) = self.cached_timeline_response(&account, &request) {
+        if let Some(cached_timeline) =
+            self.cached_timeline_response(app, account_manager, &account, &request)
+        {
             return Ok(cached_timeline);
         }
 
@@ -112,25 +118,76 @@ impl ShellManager {
 
     fn cached_timeline_response(
         &self,
+        app: &tauri::AppHandle,
+        account_manager: &AccountManager,
         account: &AccountClientSnapshot,
         request: &GetRoomTimelineRequest,
     ) -> Option<RoomTimeline> {
-        if request.before.is_some()
-            || self.room_timeline_cache_was_served(&account.account_key, &request.room_id)
+        if self.room_timeline_cache_was_served(&account.account_key, &request.room_id)
+            && request.before.is_none()
         {
             return None;
         }
 
         let (items, next_before) =
             Self::cached_room_timeline(&account.account_key, &account.store_dir, &request.room_id)?;
+        let (items, next_before) = cached_timeline_window(&items, next_before, request)?;
 
-        self.mark_room_timeline_cache_served(&account.account_key, &request.room_id);
+        self.mark_room_focused(&account.account_key, &request.room_id);
+        if request.before.is_none() {
+            self.mark_room_timeline_cache_served(&account.account_key, &request.room_id);
+        }
+        self.refresh_room_timeline_in_background(app, account_manager, request.clone());
         Some(RoomTimeline {
             room_id: request.room_id.clone(),
             items,
             next_before,
             focused_event_id: None,
         })
+    }
+
+    fn refresh_room_timeline_in_background(
+        &self,
+        app: &tauri::AppHandle,
+        account_manager: &AccountManager,
+        request: GetRoomTimelineRequest,
+    ) {
+        let shell_manager = self.clone();
+        let app = app.clone();
+        let account_manager = account_manager.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(error) = shell_manager
+                .refresh_room_timeline_after_cached_response(&app, &account_manager, request)
+                .await
+            {
+                eprintln!("Failed to refresh cached room timeline in background: {error}");
+            }
+        });
+    }
+
+    async fn refresh_room_timeline_after_cached_response(
+        &self,
+        app: &tauri::AppHandle,
+        account_manager: &AccountManager,
+        request: GetRoomTimelineRequest,
+    ) -> Result<(), String> {
+        self.sync_manager
+            .ensure_started_for_manager(account_manager, app)
+            .await?;
+
+        let Some(account) = account_manager.active_account_client(app).await? else {
+            return Ok(());
+        };
+        let room = resolve_room(&account.client, &request.room_id)?;
+        self.prepare_room_timeline_load(&account, &room);
+        let (items, next_before) = self
+            .load_room_timeline_items(app, &account, &room, &request)
+            .await?;
+        self.after_room_timeline_load(&account, &room, &request, &items, next_before.as_deref())
+            .await?;
+        emit_shell_room_updated(app, &account.account_key, room.room_id().as_str(), false);
+
+        Ok(())
     }
 
     fn prepare_room_timeline_load(&self, account: &AccountClientSnapshot, room: &Room) {
@@ -257,4 +314,41 @@ impl ShellManager {
             next_before,
         );
     }
+}
+
+fn cached_timeline_window(
+    items: &[crate::shell::types::RoomTimelineItem],
+    next_before: Option<String>,
+    request: &GetRoomTimelineRequest,
+) -> Option<(Vec<crate::shell::types::RoomTimelineItem>, Option<String>)> {
+    let Some(before) = request.before.as_deref() else {
+        return Some((items.to_vec(), next_before));
+    };
+    let page_index = parse_timeline_page_token(before)?;
+    let page_limit = usize::from(request.limit.unwrap_or(DEFAULT_TIMELINE_LIMIT));
+    if page_limit == 0 {
+        return None;
+    }
+
+    let visible_count = page_index.saturating_mul(page_limit);
+    if items.len() <= visible_count {
+        return None;
+    }
+
+    let older_end = items.len().saturating_sub(visible_count);
+    let older_start = older_end.saturating_sub(page_limit);
+    let cached_items = items[older_start..older_end].to_vec();
+    if cached_items.is_empty() {
+        return None;
+    }
+
+    let next_before = if older_start == 0 {
+        None
+    } else {
+        Some(crate::shell::service::paging::timeline_page_token(
+            page_index + 1,
+        ))
+    };
+
+    Some((cached_items, next_before))
 }

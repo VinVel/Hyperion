@@ -20,7 +20,7 @@ use std::{
 };
 
 use futures_util::{StreamExt, pin_mut};
-use matrix_sdk::{Client, ruma::RoomId, sync::RoomUpdates};
+use matrix_sdk::{Client, SessionChange, ruma::RoomId, sync::RoomUpdates};
 use matrix_sdk_ui::room_list_service::{RoomListItem, RoomListService, filters};
 use matrix_sdk_ui::sync_service::{State as SyncServiceState, SyncService};
 use serde::Serialize;
@@ -30,6 +30,7 @@ use crate::account::{AccountClientSnapshot, AccountManager};
 
 pub const SHELL_SYNC_UPDATED_EVENT: &str = "hyperion://shell-sync-updated";
 pub const SHELL_SYNC_STATUS_EVENT: &str = "hyperion://shell-sync-status";
+pub const SHELL_SESSION_DEAUTHORIZED_EVENT: &str = "hyperion://session-deauthorized";
 
 // Focus subscriptions are additive, so keep a short debounce window to avoid
 // repeatedly issuing the same room subscription while a user is already there.
@@ -66,6 +67,7 @@ struct RunningAccountSync {
     state_listener_handle: JoinHandle<()>,
     room_update_listener_handle: JoinHandle<()>,
     room_list_observer_handle: JoinHandle<()>,
+    session_change_listener_handle: JoinHandle<()>,
 }
 
 #[derive(Clone, Default)]
@@ -90,7 +92,8 @@ impl ShellSyncManager {
         };
 
         self.stop_other_accounts(&active_account.account_key).await;
-        self.ensure_started(app, active_account).await
+        self.ensure_started(app, manager.clone(), active_account)
+            .await
     }
 
     pub fn touch_focused_room(&self, account_key: &str, room_id: &str) {
@@ -162,6 +165,7 @@ impl ShellSyncManager {
     async fn ensure_started(
         &self,
         app: &tauri::AppHandle,
+        account_manager: AccountManager,
         account: AccountClientSnapshot,
     ) -> Result<(), String> {
         let existing_sync_service = {
@@ -199,6 +203,8 @@ impl ShellSyncManager {
             account.account_key.clone(),
             sync_service.clone(),
         );
+        let session_change_listener_handle =
+            Self::spawn_session_change_listener_task(app.clone(), account_manager, account.clone());
 
         sync_service.start().await;
 
@@ -217,6 +223,7 @@ impl ShellSyncManager {
                 state_listener_handle,
                 room_update_listener_handle,
                 room_list_observer_handle,
+                session_change_listener_handle,
             },
         );
 
@@ -289,6 +296,42 @@ impl ShellSyncManager {
 
                 let changed_room_ids = room_ids_from_room_list_diffs(&diffs);
                 emit_shell_room_list_updated(&app, &account_key, changed_room_ids);
+            }
+        })
+    }
+
+    fn spawn_session_change_listener_task(
+        app: tauri::AppHandle,
+        account_manager: AccountManager,
+        account: AccountClientSnapshot,
+    ) -> JoinHandle<()> {
+        tauri::async_runtime::spawn(async move {
+            let mut session_changes = account.client.subscribe_to_session_changes();
+
+            loop {
+                match session_changes.recv().await {
+                    Ok(SessionChange::UnknownToken { soft_logout: _ }) => {
+                        if let Err(error) = account_manager
+                            .deauthorize_account_store(&app, &account.store_dir)
+                            .await
+                        {
+                            eprintln!(
+                                "Failed to remove externally deauthorized account {}: {error}",
+                                account.account_key
+                            );
+                        }
+                        emit_session_deauthorized(&app, &account.account_key);
+                        break;
+                    }
+                    Ok(SessionChange::TokensRefreshed) => {}
+                    Err(error) => {
+                        eprintln!(
+                            "Shell session-change listener for account {} stopped with error: {error}",
+                            account.account_key
+                        );
+                        break;
+                    }
+                }
             }
         })
     }
@@ -369,9 +412,11 @@ impl ShellSyncManager {
         running_account.state_listener_handle.abort();
         running_account.room_update_listener_handle.abort();
         running_account.room_list_observer_handle.abort();
+        running_account.session_change_listener_handle.abort();
         drop(running_account.state_listener_handle.await);
         drop(running_account.room_update_listener_handle.await);
         drop(running_account.room_list_observer_handle.await);
+        drop(running_account.session_change_listener_handle.await);
 
         let mut focused_rooms = self
             .focused_rooms
@@ -417,6 +462,9 @@ fn shell_sync_error_status(detail: &str) -> &'static str {
     if is_unsupported_sync_error(detail) {
         return "unsupported";
     }
+    if is_network_unavailable_error(detail) {
+        return "offline";
+    }
 
     "error"
 }
@@ -424,6 +472,17 @@ fn shell_sync_error_status(detail: &str) -> &'static str {
 fn is_unsupported_sync_error(error: &str) -> bool {
     error.contains("M_UNRECOGNIZED")
         || (error.contains("404") && error.to_ascii_lowercase().contains("sliding"))
+}
+
+fn is_network_unavailable_error(error: &str) -> bool {
+    let error = error.to_ascii_lowercase();
+    error.contains("offline")
+        || error.contains("network")
+        || error.contains("dns")
+        || error.contains("timed out")
+        || error.contains("timeout")
+        || error.contains("connection")
+        || error.contains("unavailable")
 }
 
 fn emit_shell_sync_status(
@@ -441,6 +500,19 @@ fn emit_shell_sync_status(
 
     if let Err(error) = app.emit(SHELL_SYNC_STATUS_EVENT, payload) {
         eprintln!("Failed to emit shell sync status event: {error}");
+    }
+}
+
+fn emit_session_deauthorized(app: &tauri::AppHandle, account_key: &str) {
+    let payload = ShellSyncStatusPayload {
+        account_key: account_key.to_owned(),
+        state: String::from("deauthorized"),
+        detail: None,
+        updated_at_unix_ms: now_unix_ms(),
+    };
+
+    if let Err(error) = app.emit(SHELL_SESSION_DEAUTHORIZED_EVENT, payload) {
+        eprintln!("Failed to emit shell session deauthorization event: {error}");
     }
 }
 

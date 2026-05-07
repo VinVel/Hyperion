@@ -36,6 +36,7 @@ import {
 import "./SettingsView.css";
 
 type SettingsViewProps = {
+  activeAccount: AccountSummary;
   onAddAccount: () => void;
   onSignedOut: (nextAccount: AccountSummary | null) => void;
 };
@@ -54,12 +55,14 @@ function getIsMobileViewport() {
 }
 
 type SettingsSectionContentProps = {
+  activeAccount: AccountSummary;
   onAddAccount: () => void;
   onSignOut: () => Promise<void>;
   sectionId: SettingsSectionId;
 };
 
 function SettingsSectionContent({
+  activeAccount,
   onAddAccount,
   onSignOut,
   sectionId,
@@ -82,13 +85,14 @@ function SettingsSectionContent({
     case "security":
       return <Security />;
     case "encryption":
-      return <Encryption />;
+      return <Encryption activeAccount={activeAccount} />;
     case "help-about":
       return <HelpAbout />;
   }
 }
 
 export default function SettingsView({
+  activeAccount,
   onAddAccount,
   onSignedOut,
 }: SettingsViewProps) {
@@ -161,6 +165,7 @@ export default function SettingsView({
           </header>
 
           <SettingsSectionContent
+            activeAccount={activeAccount}
             onAddAccount={onAddAccount}
             onSignOut={handleSignOut}
             sectionId={mobileSection.id}
@@ -221,6 +226,7 @@ export default function SettingsView({
           {!isMobile ? (
             <div className="settings-view-detail">
               <SettingsSectionContent
+                activeAccount={activeAccount}
                 onAddAccount={onAddAccount}
                 onSignOut={handleSignOut}
                 sectionId={activeSection.id}

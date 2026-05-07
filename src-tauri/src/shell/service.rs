@@ -92,6 +92,7 @@ pub struct ShellManager {
     recent_timeline_warm_handles: Arc<RwLock<HashMap<String, JoinHandle<()>>>>,
     locally_read_room_state: Arc<RwLock<HashMap<String, String>>>,
     room_thread_cache_served_accounts: Arc<RwLock<HashSet<String>>>,
+    space_cache_served_accounts: Arc<RwLock<HashSet<String>>>,
     room_timeline_cache_served_keys: Arc<RwLock<HashSet<String>>>,
     search_indexer: SearchIndexer,
     search_backfill_coordinator: SearchBackfillCoordinator,
@@ -106,6 +107,7 @@ impl ShellManager {
             recent_timeline_warm_handles: Arc::new(RwLock::new(HashMap::new())),
             locally_read_room_state: Arc::new(RwLock::new(HashMap::new())),
             room_thread_cache_served_accounts: Arc::new(RwLock::new(HashSet::new())),
+            space_cache_served_accounts: Arc::new(RwLock::new(HashSet::new())),
             room_timeline_cache_served_keys: Arc::new(RwLock::new(HashSet::new())),
             search_indexer: SearchIndexer::new(),
             search_backfill_coordinator: SearchBackfillCoordinator::new(),
@@ -130,6 +132,7 @@ impl ShellManager {
         self.sync_manager.stop_account(account_key).await;
         self.timeline_registry.clear_account(account_key).await;
         self.clear_served_room_thread_cache(account_key);
+        self.clear_served_space_cache(account_key);
         self.clear_served_room_timeline_caches(account_key);
     }
 
@@ -139,6 +142,7 @@ impl ShellManager {
         self.sync_manager.stop_all_accounts().await;
         self.timeline_registry.clear_all().await;
         self.clear_all_served_room_thread_caches();
+        self.clear_all_served_space_caches();
         self.clear_all_served_room_timeline_caches();
     }
 
@@ -149,7 +153,7 @@ impl ShellManager {
         request: ListRoomThreadsRequest,
     ) -> Result<Vec<RoomThreadSummary>, String> {
         let Some(account) = account_manager.active_account_client(app).await? else {
-            return Ok(Vec::new());
+            return Err(String::from("No active account is available"));
         };
 
         if !self.room_thread_cache_was_served(&account.account_key)
@@ -171,10 +175,20 @@ impl ShellManager {
         let mut recent_room_candidates = Vec::new();
         let mut active_room_ids = HashSet::new();
 
-        for room in self
+        let room_list_snapshot = self
             .snapshot_room_list(&account.account_key, ShellRoomListKind::Conversations)
-            .await?
+            .await?;
+        if room_list_snapshot.is_empty()
+            && request.search_query.as_deref().is_none_or(str::is_empty)
+            && let Some(cached_rooms) =
+                Self::cached_room_threads(&account.account_key, &account.store_dir, &request)
+            && !cached_rooms.is_empty()
         {
+            self.ensure_sync_in_background(app, account_manager);
+            return Ok(cached_rooms);
+        }
+
+        for room in room_list_snapshot {
             let summary = self
                 .build_room_thread_summary(&account.account_key, &room)
                 .await?;
@@ -230,7 +244,6 @@ impl ShellManager {
         request: GetRoomSummaryRequest,
     ) -> Result<RoomSummary, String> {
         if let Some(account) = account_manager.active_account_client(app).await?
-            && self.room_thread_cache_was_served(&account.account_key)
             && let Some(summary) = Self::cached_room_summary(
                 &account.account_key,
                 &account.store_dir,
@@ -339,27 +352,46 @@ impl ShellManager {
         account_manager: &AccountManager,
         request: ListSpacesRequest,
     ) -> Result<Vec<SpaceSummary>, String> {
+        let Some(account) = account_manager.active_account_client(app).await? else {
+            return Err(String::from("No active account is available"));
+        };
+
+        if !self.space_cache_was_served(&account.account_key)
+            && let Some(cached_spaces) = Self::cached_spaces(&account.store_dir, &request)
+        {
+            self.mark_space_cache_served(&account.account_key);
+            self.ensure_sync_in_background(app, account_manager);
+            return Ok(cached_spaces);
+        }
+
         self.sync_manager
             .ensure_started_for_manager(account_manager, app)
             .await?;
 
-        let Some(account) = account_manager.active_account_client(app).await? else {
-            return Ok(Vec::new());
-        };
-
         let query = normalize_query(request.search_query.as_deref());
         let mut spaces = Vec::new();
+        let mut all_space_summaries = Vec::new();
         let mut active_space_ids = HashSet::new();
-        for room in self
+        let space_list_snapshot = self
             .snapshot_room_list(&account.account_key, ShellRoomListKind::Spaces)
-            .await?
+            .await?;
+        if space_list_snapshot.is_empty()
+            && request.search_query.as_deref().is_none_or(str::is_empty)
+            && let Some(cached_spaces) = Self::cached_spaces(&account.store_dir, &request)
+            && !cached_spaces.is_empty()
         {
+            self.ensure_sync_in_background(app, account_manager);
+            return Ok(cached_spaces);
+        }
+
+        for room in space_list_snapshot {
             let summary = self
                 .build_space_summary(&room, &account.homeserver_url)
                 .await?;
             active_space_ids.insert(summary.space_id.clone());
             self.index_space_summary(&account.account_key, &account.store_dir, &summary)
                 .await;
+            all_space_summaries.push(summary.clone());
             if matches_query(query.as_deref(), &[&summary.name, &summary.description]) {
                 spaces.push(summary);
             }
@@ -371,6 +403,7 @@ impl ShellManager {
             &active_space_ids,
         )
         .await;
+        Self::remember_spaces(&account.store_dir, &all_space_summaries);
 
         Ok(spaces)
     }

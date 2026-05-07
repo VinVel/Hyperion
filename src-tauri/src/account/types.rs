@@ -60,7 +60,7 @@ pub(super) struct StoredAccountMetadata {
     pub is_active: bool,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EncryptionPreferences {
     #[serde(default)]
     pub server_key_storage_opted_out: bool,

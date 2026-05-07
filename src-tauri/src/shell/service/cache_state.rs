@@ -16,14 +16,17 @@
 use super::{
     ShellManager,
     caching::{
-        cached_room_thread_summaries, cached_room_timeline, prepend_cached_room_timeline_items,
-        remember_room_thread_summaries, remember_room_timeline, remember_room_timeline_item_count,
+        cached_room_thread_summaries, cached_room_timeline, cached_space_summaries,
+        prepend_cached_room_timeline_items, remember_room_thread_summaries, remember_room_timeline,
+        remember_room_timeline_item_count, remember_space_summaries,
         remembered_room_timeline_item_count,
     },
     paging::visible_count_after_live_page,
     search::{matches_query, normalize_query},
 };
-use crate::shell::types::{ListRoomThreadsRequest, RoomSummary, RoomThreadSummary};
+use crate::shell::types::{
+    ListRoomThreadsRequest, ListSpacesRequest, RoomSummary, RoomThreadSummary, SpaceSummary,
+};
 
 impl ShellManager {
     pub(super) fn room_thread_cache_was_served(&self, account_key: &str) -> bool {
@@ -55,6 +58,38 @@ impl ShellManager {
             .room_thread_cache_served_accounts
             .write()
             .expect("shell manager room-cache-served lock poisoned");
+        served_accounts.clear();
+    }
+
+    pub(super) fn space_cache_was_served(&self, account_key: &str) -> bool {
+        let served_accounts = self
+            .space_cache_served_accounts
+            .read()
+            .expect("shell manager space-cache-served lock poisoned");
+        served_accounts.contains(account_key)
+    }
+
+    pub(super) fn mark_space_cache_served(&self, account_key: &str) {
+        let mut served_accounts = self
+            .space_cache_served_accounts
+            .write()
+            .expect("shell manager space-cache-served lock poisoned");
+        served_accounts.insert(account_key.to_owned());
+    }
+
+    pub(super) fn clear_served_space_cache(&self, account_key: &str) {
+        let mut served_accounts = self
+            .space_cache_served_accounts
+            .write()
+            .expect("shell manager space-cache-served lock poisoned");
+        served_accounts.remove(account_key);
+    }
+
+    pub(super) fn clear_all_served_space_caches(&self) {
+        let mut served_accounts = self
+            .space_cache_served_accounts
+            .write()
+            .expect("shell manager space-cache-served lock poisoned");
         served_accounts.clear();
     }
 
@@ -155,6 +190,38 @@ impl ShellManager {
     ) {
         if let Err(error) = remember_room_thread_summaries(account_key, store_dir, summaries) {
             eprintln!("Failed to persist cached room list: {error}");
+        }
+    }
+
+    pub(super) fn cached_spaces(
+        store_dir: &std::path::Path,
+        request: &ListSpacesRequest,
+    ) -> Option<Vec<SpaceSummary>> {
+        let cached_spaces = match cached_space_summaries(store_dir) {
+            Ok(cached_spaces) => cached_spaces,
+            Err(error) => {
+                eprintln!("Failed to read cached spaces: {error}");
+                return None;
+            }
+        };
+        if cached_spaces.is_empty() {
+            return None;
+        }
+
+        let query = normalize_query(request.search_query.as_deref());
+        Some(
+            cached_spaces
+                .into_iter()
+                .filter(|summary| {
+                    matches_query(query.as_deref(), &[&summary.name, &summary.description])
+                })
+                .collect(),
+        )
+    }
+
+    pub(super) fn remember_spaces(store_dir: &std::path::Path, summaries: &[SpaceSummary]) {
+        if let Err(error) = remember_space_summaries(store_dir, summaries) {
+            eprintln!("Failed to persist cached spaces: {error}");
         }
     }
 

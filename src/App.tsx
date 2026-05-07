@@ -15,6 +15,7 @@
 
 import "./App.css";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
 import { ScreenMain, ScreenShell, Typography } from "./components/ui";
 import { AppShell, type AccountSummary } from "./screens/app-shell";
@@ -31,6 +32,11 @@ type LoginLaunchState = {
 
 const ACTIVE_ACCOUNT_CACHE_KEY = "hyperion.activeAccountSummary";
 const APP_BOOTSTRAP_FALLBACK_DELAY_MS = 1200;
+const SHELL_SESSION_DEAUTHORIZED_EVENT = "hyperion://session-deauthorized";
+
+type SessionDeauthorizedPayload = {
+  account_key: string;
+};
 
 function loadCachedActiveAccount(): AccountSummary | null {
   if (typeof window === "undefined") {
@@ -83,6 +89,37 @@ function App() {
 
   useEffect(() => {
     let cancelled = false;
+    const unlistenPromise = listen<SessionDeauthorizedPayload>(
+      SHELL_SESSION_DEAUTHORIZED_EVENT,
+      (event) => {
+        if (cancelled) {
+          return;
+        }
+
+        setActiveAccount((currentAccount) => {
+          if (currentAccount?.account_key !== event.payload.account_key) {
+            return currentAccount;
+          }
+
+          setAppStage("unauthenticated");
+          setActiveScreen("login");
+          setLoginLaunchState({
+            tone: "error",
+            text: "This Matrix session was deauthorized by the server.",
+          });
+          return null;
+        });
+      },
+    );
+
+    return () => {
+      cancelled = true;
+      void unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
     const fallbackTimer = window.setTimeout(() => {
       if (!cancelled) {
         setAppStage((currentStage) =>
@@ -106,10 +143,19 @@ function App() {
           return;
         }
 
+        if (activeAccount) {
+          setAppStage("authenticated");
+          return;
+        }
+
         setActiveAccount(null);
       } catch {
-        // Fall through to the unauthenticated entry flow when the native layer
-        // cannot restore an active account yet.
+        // Native restore can fail while the device is offline. Keep the cached
+        // account mounted so cached rooms and messages remain available.
+        if (!cancelled && activeAccount) {
+          setAppStage("authenticated");
+          return;
+        }
       }
 
       if (!cancelled) {

@@ -34,6 +34,21 @@ use crate::account::{
     secure_storage,
     types::{EncryptionPreferences, StoredAccountMetadata},
 };
+use crate::settings::account as account_settings;
+
+struct AccountRestoreState {
+    retry_needed: bool,
+}
+
+enum DiscoveredAccountRestore {
+    Restored {
+        account_key: String,
+        account: ManagedAccount,
+        is_active: bool,
+    },
+    SkippedIncomplete,
+    RetryNeeded,
+}
 
 impl AccountManager {
     pub(super) fn account_storage(
@@ -120,63 +135,86 @@ impl AccountManager {
     }
 
     pub(super) async fn ensure_loaded(&self, app: &AppHandle) -> Result<(), String> {
-        let is_restore_completed = {
-            let restore_completed = self
-                .restore_completed
-                .read()
-                .expect("account manager restore flag lock poisoned");
-            *restore_completed
-        };
-        if is_restore_completed {
+        if self.restore_is_completed_and_usable(app)? {
             return Ok(());
         }
 
         let _guard = self.restore_lock.lock().await;
-        let is_restore_completed = {
-            let restore_completed = self
-                .restore_completed
-                .read()
-                .expect("account manager restore flag lock poisoned");
-            *restore_completed
-        };
-        if is_restore_completed {
+        if self.restore_is_completed_and_usable(app)? {
             return Ok(());
         }
 
-        self.restore_accounts_state(app).await?;
+        let restore_state = self.restore_accounts_state(app).await?;
         {
             let mut restore_completed = self
                 .restore_completed
                 .write()
                 .expect("account manager restore flag lock poisoned");
-            *restore_completed = true;
+            *restore_completed = !restore_state.retry_needed;
         }
 
         Ok(())
     }
 
-    async fn restore_accounts_state(&self, app: &AppHandle) -> Result<(), String> {
+    fn restore_is_completed_and_usable(&self, app: &AppHandle) -> Result<bool, String> {
+        let is_restore_completed = {
+            let restore_completed = self
+                .restore_completed
+                .read()
+                .expect("account manager restore flag lock poisoned");
+            *restore_completed
+        };
+        if !is_restore_completed {
+            return Ok(false);
+        }
+
+        if self.has_restored_accounts() {
+            return Ok(true);
+        }
+
+        Ok(Self::discover_account_stores(app)?.is_empty())
+    }
+
+    fn has_restored_accounts(&self) -> bool {
+        let accounts = self
+            .accounts
+            .read()
+            .expect("account manager accounts lock poisoned");
+
+        !accounts.is_empty()
+    }
+
+    async fn restore_accounts_state(&self, app: &AppHandle) -> Result<AccountRestoreState, String> {
         let discovered_stores = Self::discover_account_stores(app)?;
         let mut restored_accounts = HashMap::new();
         let mut active_account_key = None;
+        let mut retry_needed = false;
 
         for storage in discovered_stores {
-            let Some((account_key, account, is_active)) =
-                Self::restore_discovered_account_store(app, storage).await?
-            else {
-                continue;
-            };
+            match Self::restore_discovered_account_store(app, storage).await? {
+                DiscoveredAccountRestore::Restored {
+                    account_key,
+                    account,
+                    is_active,
+                } => {
+                    if is_active && active_account_key.is_none() {
+                        active_account_key = Some(account_key.clone());
+                    }
 
-            if is_active && active_account_key.is_none() {
-                active_account_key = Some(account_key.clone());
+                    restored_accounts.insert(account_key, account);
+                }
+                DiscoveredAccountRestore::SkippedIncomplete => {}
+                DiscoveredAccountRestore::RetryNeeded => {
+                    retry_needed = true;
+                }
             }
-
-            restored_accounts.insert(account_key, account);
         }
 
         if active_account_key.is_none() {
             active_account_key = restored_accounts.keys().next().cloned();
         }
+
+        let has_restored_accounts = !restored_accounts.is_empty();
 
         {
             let mut accounts = self
@@ -194,30 +232,34 @@ impl AccountManager {
             *active_account = active_account_key;
         }
 
-        self.persist_account_store_metadata().await?;
-        Ok(())
+        if has_restored_accounts {
+            self.persist_account_store_metadata().await?;
+        }
+
+        Ok(AccountRestoreState { retry_needed })
     }
 
     async fn restore_discovered_account_store(
         app: &AppHandle,
         storage: AccountStorageLocation,
-    ) -> Result<Option<(String, ManagedAccount, bool)>, String> {
+    ) -> Result<DiscoveredAccountRestore, String> {
         let Some(store_key) = Self::load_store_key(app, &storage.store_id)? else {
             eprintln!(
                 "Skipping persisted account store {} because its secure encryption key is missing",
                 storage.store_id
             );
             Self::prune_incomplete_store(app, &storage, "its secure encryption key is missing");
-            return Ok(None);
+            return Ok(DiscoveredAccountRestore::SkippedIncomplete);
         };
 
         let Some((client, metadata, session)) =
             Self::restore_account_client_and_metadata(app, &storage, &store_key).await?
         else {
-            return Ok(None);
+            return Ok(DiscoveredAccountRestore::RetryNeeded);
         };
 
-        let preferences = Self::load_encryption_preferences(&client).await?;
+        let preferences =
+            Self::load_encryption_preferences_for_store(&client, &storage.store_dir).await?;
         let client = Self::rebuild_restored_client_if_needed(
             client,
             &storage,
@@ -236,7 +278,11 @@ impl AccountManager {
             store_dir: storage.store_dir,
         };
 
-        Ok(Some((account_key, account, is_active)))
+        Ok(DiscoveredAccountRestore::Restored {
+            account_key,
+            account,
+            is_active,
+        })
     }
 
     async fn restore_account_client_and_metadata(
@@ -255,13 +301,9 @@ impl AccountManager {
             Ok(client) => client,
             Err(error) => {
                 eprintln!(
-                    "Skipping persisted account store {} because the Matrix client could not be rebuilt: {error}",
+                    "Deferring persisted account store {} because the Matrix client could not be rebuilt yet: {error}",
                     storage.store_id
                 );
-                drop(secure_storage::delete_secret(
-                    app,
-                    &Self::store_key_entry_id(&storage.store_id),
-                ));
                 return Ok(None);
             }
         };
@@ -280,7 +322,7 @@ impl AccountManager {
 
         if let Err(error) = client.restore_session(session.clone()).await {
             eprintln!(
-                "Skipping persisted account {} because the Matrix session could not be restored: {error}",
+                "Deferring persisted account {} because the Matrix session could not be restored yet: {error}",
                 metadata.user_id
             );
             return Ok(None);
@@ -461,7 +503,31 @@ impl AccountManager {
             .map_err(|error| format!("Failed to parse persisted account metadata: {error}"))
     }
 
-    pub async fn load_encryption_preferences(
+    pub async fn load_encryption_preferences_for_store(
+        client: &Client,
+        store_dir: &Path,
+    ) -> Result<EncryptionPreferences, String> {
+        let local_preferences = account_settings::read_encryption_preferences(store_dir)?;
+        if local_preferences != EncryptionPreferences::default() {
+            return Ok(local_preferences);
+        }
+
+        let legacy_preferences = Self::load_legacy_encryption_preferences(client).await?;
+        if legacy_preferences != EncryptionPreferences::default() {
+            account_settings::write_encryption_preferences(store_dir, &legacy_preferences)?;
+        }
+
+        Ok(legacy_preferences)
+    }
+
+    pub fn persist_encryption_preferences_for_store(
+        store_dir: &Path,
+        preferences: &EncryptionPreferences,
+    ) -> Result<(), String> {
+        account_settings::write_encryption_preferences(store_dir, preferences)
+    }
+
+    async fn load_legacy_encryption_preferences(
         client: &Client,
     ) -> Result<EncryptionPreferences, String> {
         let state_store = client.state_store();
@@ -475,20 +541,6 @@ impl AccountManager {
 
         serde_json::from_slice(&value)
             .map_err(|error| format!("Failed to parse encryption preferences: {error}"))
-    }
-
-    pub async fn persist_encryption_preferences(
-        client: &Client,
-        preferences: &EncryptionPreferences,
-    ) -> Result<(), String> {
-        let value = serde_json::to_vec(preferences)
-            .map_err(|error| format!("Failed to serialize encryption preferences: {error}"))?;
-
-        let state_store = client.state_store();
-        state_store
-            .set_custom_value_no_read(super::ENCRYPTION_PREFERENCES_CUSTOM_VALUE_KEY, value)
-            .await
-            .map_err(|error| format!("Failed to persist encryption preferences: {error}"))
     }
 
     fn discover_account_stores(app: &AppHandle) -> Result<Vec<AccountStorageLocation>, String> {

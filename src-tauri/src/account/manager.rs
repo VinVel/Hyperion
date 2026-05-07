@@ -220,32 +220,45 @@ impl AccountManager {
         app: &AppHandle,
     ) -> Result<Option<AccountSummary>, String> {
         self.ensure_loaded(app).await?;
-
-        let Some((account_summary, client, store_dir)) = self.active_account_snapshot() else {
-            return Ok(None);
-        };
-
-        match client.whoami().await {
-            Ok(account_identity) => {
-                drop(account_identity);
-                Ok(Some(account_summary))
-            }
-            Err(error) if Self::is_invalid_session_error(&error.to_string()) => {
-                drop(client);
-                self.release_deauthorized_account_store(&store_dir);
-                self.persist_account_store_metadata().await?;
-                Ok(None)
-            }
-            Err(error) => Err(format!(
-                "Failed to validate active account session: {error}"
-            )),
-        }
+        self.active_account(app).await
     }
 
-    fn release_deauthorized_account_store(&self, store_dir: &Path) {
-        self.release_accounts_for_store_dir(store_dir);
+    pub async fn deauthorize_account_store(
+        &self,
+        app: &AppHandle,
+        store_dir: &Path,
+    ) -> Result<Option<AccountSummary>, String> {
+        self.ensure_loaded(app).await?;
+        self.release_deauthorized_account_store(app, store_dir);
+        self.persist_account_store_metadata().await?;
+        self.active_account(app).await
+    }
 
-        if let Err(cleanup_error) = Self::reset_store_dir(store_dir) {
+    fn release_deauthorized_account_store(&self, app: &AppHandle, store_dir: &Path) {
+        let Some(store_root_dir) = store_dir.parent().map(Path::to_owned) else {
+            eprintln!("Failed to clean up a deauthorized account: store path has no parent");
+            return;
+        };
+        let Some(store_id) = store_root_dir
+            .file_name()
+            .and_then(|value| value.to_str())
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned)
+        else {
+            eprintln!("Failed to clean up a deauthorized account: account root has no store id");
+            return;
+        };
+
+        self.release_accounts_for_store_dir(store_dir);
+        drop(secure_storage::delete_secret(
+            app,
+            &Self::store_key_entry_id(&store_id),
+        ));
+
+        if let Err(cleanup_error) = Self::remove_dir_with_retries(
+            &store_root_dir,
+            "Failed to remove deauthorized account store directory",
+        ) {
             eprintln!(
                 "Failed to clean up the local store for a deauthorized account: \
                  {cleanup_error}"
@@ -291,7 +304,8 @@ impl AccountManager {
             return Ok(false);
         };
 
-        let preferences = Self::load_encryption_preferences(&current_client).await?;
+        let preferences =
+            Self::load_encryption_preferences_for_store(&current_client, &store_dir).await?;
         let Some(session) = Self::load_session(&current_client).await? else {
             return Err(String::from("The active account session is not available"));
         };
@@ -552,12 +566,6 @@ impl AccountManager {
 
     fn is_stale_crypto_store_error(error_message: &str) -> bool {
         error_message.contains("account in the store doesn't match the account in the constructor")
-    }
-
-    fn is_invalid_session_error(error_message: &str) -> bool {
-        error_message.contains("M_UNKNOWN_TOKEN")
-            || error_message.contains("UnknownToken")
-            || error_message.contains("unknown token")
     }
 
     pub(super) fn client_homeserver_url(client: &Client) -> String {

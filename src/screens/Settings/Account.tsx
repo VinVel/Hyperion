@@ -13,9 +13,14 @@
  * Project home: hyperion.velcore.net
  */
 
-import { UserRoundPlus, LogOut } from 'lucide-react';
-import { useState } from 'react';
-import { Button, Card, Typography, useFeedbackToast } from '../../components/ui';
+import { UserRoundPlus, LogOut } from "lucide-react";
+import { useState } from "react";
+import {
+  Button,
+  Card,
+  Typography,
+  useFeedbackToast,
+} from "../../components/ui";
 
 type AccountProps = {
   onAddAccount: () => void;
@@ -23,7 +28,7 @@ type AccountProps = {
 };
 
 function getErrorMessage(error: unknown): string {
-  if (typeof error === 'string' && error.trim().length > 0) {
+  if (typeof error === "string" && error.trim().length > 0) {
     return error;
   }
 
@@ -31,13 +36,13 @@ function getErrorMessage(error: unknown): string {
     return error.message;
   }
 
-  return 'The account action could not be completed.';
+  return "The account action could not be completed.";
 }
 
 export default function Account({ onAddAccount, onSignOut }: AccountProps) {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
-  useFeedbackToast(signOutError ? { tone: 'error', text: signOutError } : null);
+  useFeedbackToast(signOutError ? { tone: "error", text: signOutError } : null);
 
   async function handleSignOut() {
     if (isSigningOut) {
@@ -62,8 +67,8 @@ export default function Account({ onAddAccount, onSignOut }: AccountProps) {
         <div className="settings-view-card-copy">
           <Typography variant="h3">Account access</Typography>
           <Typography muted variant="bodySmall">
-            Open the existing login and registration flow to add another account, or sign out of
-            the current one.
+            Open the existing login and registration flow to add another
+            account, or sign out of the current one.
           </Typography>
         </div>
 
@@ -73,12 +78,15 @@ export default function Account({ onAddAccount, onSignOut }: AccountProps) {
             Add account
           </Button>
 
-          <Button disabled={isSigningOut} onClick={() => void handleSignOut()} variant="destructive">
+          <Button
+            disabled={isSigningOut}
+            onClick={() => void handleSignOut()}
+            variant="destructive"
+          >
             <LogOut aria-hidden="true" />
-            {isSigningOut ? 'Signing out...' : 'Sign out'}
+            {isSigningOut ? "Signing out..." : "Sign out"}
           </Button>
         </div>
-
       </Card>
     </div>
   );

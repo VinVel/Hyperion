@@ -61,7 +61,8 @@
   justify-content: space-between;
   gap: var(--spacing-gap-large);
   padding-bottom: var(--spacing-gap-large);
-  border-bottom: var(--shape-border-width-thin) solid color-mix(in srgb, var(--outline-variant) 82%, transparent);
+  border-bottom: var(--shape-border-width-thin) solid
+    color-mix(in srgb, var(--outline-variant) 82%, transparent);
 }
 
 .registration-webview-copy {

@@ -13,5 +13,5 @@
  * Project home: hyperion.velcore.net
  */
 
-export { default as AppShell } from './AppShell';
-export type { AccountSummary } from './appShellAdapters';
+export { default as AppShell } from "./AppShell";
+export type { AccountSummary } from "./appShellAdapters";

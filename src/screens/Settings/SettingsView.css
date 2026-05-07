@@ -113,7 +113,11 @@
 
 .settings-view-nav-item:hover,
 .settings-view-nav-item--active {
-  background: color-mix(in srgb, var(--primary-container) 36%, var(--surface-container-high));
+  background: color-mix(
+    in srgb,
+    var(--primary-container) 36%,
+    var(--surface-container-high)
+  );
 }
 
 .settings-view-nav-item--active {
@@ -233,7 +237,11 @@
   align-items: center;
   flex-wrap: wrap;
   border-radius: var(--shape-radius-small);
-  background: color-mix(in srgb, var(--error-container) 48%, var(--surface-container));
+  background: color-mix(
+    in srgb,
+    var(--error-container) 48%,
+    var(--surface-container)
+  );
   padding: var(--spacing-card-padding);
 }
 
@@ -254,12 +262,17 @@
   justify-content: center;
   border-radius: var(--shape-radius-small);
   color: var(--on-surface-variant);
-  padding: var(--spacing-button-padding-block) var(--spacing-button-padding-inline);
+  padding: var(--spacing-button-padding-block)
+    var(--spacing-button-padding-inline);
   text-decoration: none;
 }
 
 .settings-view-link-button:hover {
-  background: color-mix(in srgb, var(--surface-container-high) 70%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--surface-container-high) 70%,
+    transparent
+  );
   color: var(--on-surface);
 }
 
@@ -284,7 +297,11 @@
   padding: var(--spacing-panel-padding);
   border: 1px solid color-mix(in srgb, var(--outline-variant) 78%, transparent);
   border-radius: var(--shape-radius-small);
-  background: color-mix(in srgb, var(--surface-container-high) 88%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--surface-container-high) 88%,
+    transparent
+  );
   color: var(--on-surface);
   cursor: pointer;
   text-align: left;
@@ -293,7 +310,11 @@
 .settings-view-theme-preset:hover:not(:disabled),
 .settings-view-theme-preset--active {
   border-color: color-mix(in srgb, var(--primary) 52%, var(--outline-variant));
-  background: color-mix(in srgb, var(--primary-container) 34%, var(--surface-container-high));
+  background: color-mix(
+    in srgb,
+    var(--primary-container) 34%,
+    var(--surface-container-high)
+  );
 }
 
 .settings-view-theme-preset:disabled {
@@ -310,7 +331,8 @@
   width: 2rem;
   height: 2rem;
   border-radius: var(--shape-radius-round);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--inverse-surface) 14%, transparent);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--inverse-surface) 14%, transparent);
 }
 
 .settings-view-theme-preset-copy {

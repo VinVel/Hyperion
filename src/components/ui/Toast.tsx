@@ -13,10 +13,16 @@
  * Project home: hyperion.velcore.net
  */
 
-import { X } from 'lucide-react';
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { classNames } from './classNames';
-import type { FeedbackTone } from './FeedbackMessage';
+import { X } from "lucide-react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { classNames } from "./classNames";
+import type { FeedbackTone } from "./FeedbackMessage";
 
 export type ToastFeedback = {
   tone: FeedbackTone;
@@ -38,7 +44,8 @@ let lastToastTimeMilliseconds = 0;
 const toastDismissDelayMilliseconds = 5200;
 // React StrictMode can replay effects in development; this prevents duplicate visual toasts.
 const duplicateToastSuppressionWindowMilliseconds = 750;
-export const toastVisibilityChangedEvent = 'hyperion://toast-visibility-changed';
+export const toastVisibilityChangedEvent =
+  "hyperion://toast-visibility-changed";
 
 export function notifyFeedback(feedback: ToastFeedback) {
   const trimmedText = feedback.text.trim();
@@ -97,11 +104,11 @@ export function ToastProvider({ children }: ToastProviderProps) {
 
   useEffect(() => {
     const toastIsVisible = notifications.length > 0;
-    document.body.classList.toggle('hyperion-toast-visible', toastIsVisible);
+    document.body.classList.toggle("hyperion-toast-visible", toastIsVisible);
     window.dispatchEvent(new Event(toastVisibilityChangedEvent));
 
     return () => {
-      document.body.classList.remove('hyperion-toast-visible');
+      document.body.classList.remove("hyperion-toast-visible");
       window.dispatchEvent(new Event(toastVisibilityChangedEvent));
     };
   }, [notifications]);
@@ -126,7 +133,11 @@ export function ToastProvider({ children }: ToastProviderProps) {
   return (
     <>
       {children}
-      <div className="ui-toast-region" aria-live="polite" aria-relevant="additions text">
+      <div
+        className="ui-toast-region"
+        aria-live="polite"
+        aria-relevant="additions text"
+      >
         {notifications.map((notification) => (
           <ToastItem
             key={notification.id}
@@ -158,11 +169,11 @@ function ToastItem({ notification, onClose }: ToastItemProps) {
   return (
     <div
       className={classNames(
-        'ui-feedback',
-        'ui-toast',
+        "ui-feedback",
+        "ui-toast",
         `ui-feedback--${notification.tone}`,
       )}
-      role={notification.tone === 'error' ? 'alert' : 'status'}
+      role={notification.tone === "error" ? "alert" : "status"}
     >
       <span className="ui-toast__text">{notification.text}</span>
       <button

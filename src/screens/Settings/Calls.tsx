@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-import PlaceholderSection from './PlaceholderSection';
+import PlaceholderSection from "./PlaceholderSection";
 
 export default function Calls() {
   return <PlaceholderSection sectionId="calls" />;

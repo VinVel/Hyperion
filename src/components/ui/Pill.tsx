@@ -13,19 +13,27 @@
  * Project home: hyperion.velcore.net
  */
 
-import type { HTMLAttributes, ReactNode } from 'react';
-import { classNames } from './classNames';
+import type { HTMLAttributes, ReactNode } from "react";
+import { classNames } from "./classNames";
 
-type PillTone = 'neutral' | 'primary' | 'secondary';
+type PillTone = "neutral" | "primary" | "secondary";
 
 type PillProps = HTMLAttributes<HTMLSpanElement> & {
   tone?: PillTone;
   children: ReactNode;
 };
 
-export function Pill({ tone = 'neutral', className, children, ...props }: PillProps) {
+export function Pill({
+  tone = "neutral",
+  className,
+  children,
+  ...props
+}: PillProps) {
   return (
-    <span className={classNames('ui-pill', `ui-pill--${tone}`, className)} {...props}>
+    <span
+      className={classNames("ui-pill", `ui-pill--${tone}`, className)}
+      {...props}
+    >
       {children}
     </span>
   );

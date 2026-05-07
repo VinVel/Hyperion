@@ -13,13 +13,13 @@
  * Project home: hyperion.velcore.net
  */
 
-import type { BackendGlobalSearchResponse, SearchResultGroup } from './types';
+import type { BackendGlobalSearchResponse, SearchResultGroup } from "./types";
 
 export function globalSearchStatusNotice(
   response: BackendGlobalSearchResponse,
 ): string | null {
   const status = response.status;
-  if (!status || status.state === 'idle') {
+  if (!status || status.state === "idle") {
     return null;
   }
 
@@ -27,12 +27,12 @@ export function globalSearchStatusNotice(
     return status.notice;
   }
 
-  if (status.state === 'indexing') {
-    return 'Older history is still being indexed.';
+  if (status.state === "indexing") {
+    return "Older history is still being indexed.";
   }
 
-  if (status.state === 'degraded' || status.state === 'error') {
-    return 'Search results may be incomplete while the index is rebuilt.';
+  if (status.state === "degraded" || status.state === "error") {
+    return "Search results may be incomplete while the index is rebuilt.";
   }
 
   return null;
@@ -43,34 +43,34 @@ export function mapGlobalSearchResponse(
 ): SearchResultGroup[] {
   return [
     {
-      kind: 'room' as const,
-      title: 'Rooms',
+      kind: "room" as const,
+      title: "Rooms",
       items: response.rooms.map((item) => ({
         id: item.room_id,
         title: item.title,
         description: item.description,
-        targetView: 'messages' as const,
+        targetView: "messages" as const,
         threadId: item.room_id,
       })),
     },
     {
-      kind: 'space' as const,
-      title: 'Spaces',
+      kind: "space" as const,
+      title: "Spaces",
       items: response.spaces.map((item) => ({
         id: item.space_id,
         title: item.title,
         description: item.description,
-        targetView: 'spaces' as const,
+        targetView: "spaces" as const,
       })),
     },
     {
-      kind: 'message' as const,
-      title: 'Messages',
+      kind: "message" as const,
+      title: "Messages",
       items: response.messages.map((item) => ({
         id: item.result_id,
         title: item.title,
         description: item.description,
-        targetView: 'messages' as const,
+        targetView: "messages" as const,
         threadId: item.room_id,
         eventId: item.event_id ?? undefined,
       })),

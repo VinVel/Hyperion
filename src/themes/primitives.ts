@@ -13,13 +13,13 @@
  * Project home: hyperion.velcore.net
  */
 
-import { elevation } from './elevation';
-import { layout } from './layout';
-import { motion } from './motion';
-import { shape } from './shape';
-import { sizing } from './sizing';
-import { spacing } from './spacing';
-import { typography } from './typography';
+import { elevation } from "./elevation";
+import { layout } from "./layout";
+import { motion } from "./motion";
+import { shape } from "./shape";
+import { sizing } from "./sizing";
+import { spacing } from "./spacing";
+import { typography } from "./typography";
 
 export const primitives = {
   typography,

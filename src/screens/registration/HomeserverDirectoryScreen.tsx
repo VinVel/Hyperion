@@ -16,7 +16,12 @@
 import { Search } from "lucide-react";
 import { BackButton, Button, Pill, Typography } from "../../components/ui";
 import type { HomeserverDirectoryEntry } from "./registrationShared";
-import { flowLabel, homeserverCopy, homeserverHost, homeserverTitle } from "./registrationShared";
+import {
+  flowLabel,
+  homeserverCopy,
+  homeserverHost,
+  homeserverTitle,
+} from "./registrationShared";
 import "./HomeserverDirectoryScreen.css";
 
 type HomeserverDirectoryScreenProps = {
@@ -41,7 +46,10 @@ export function HomeserverDirectoryScreen({
   onSearchQueryChange,
 }: HomeserverDirectoryScreenProps) {
   return (
-    <section className="registration-screen--directory" aria-labelledby="registration-directory-title">
+    <section
+      className="registration-screen--directory"
+      aria-labelledby="registration-directory-title"
+    >
       <div className="registration-heading-row">
         <BackButton onClick={onBack} />
         <Typography variant="h1" id="registration-directory-title">
@@ -128,9 +136,7 @@ export function HomeserverDirectoryScreen({
                       : homeserver.software}
                   </Pill>
                 ) : null}
-                {homeserver.longstanding ? (
-                  <Pill>Established</Pill>
-                ) : null}
+                {homeserver.longstanding ? <Pill>Established</Pill> : null}
               </div>
             </Button>
           ))}

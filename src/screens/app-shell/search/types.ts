@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-import type { AuthenticatedShellView } from '../appShellAdapters';
+import type { AuthenticatedShellView } from "../appShellAdapters";
 
 export type BackendGlobalSearchResponse = {
   rooms: Array<{
@@ -34,7 +34,7 @@ export type BackendGlobalSearchResponse = {
     event_id?: string | null;
   }>;
   status?: {
-    state: 'idle' | 'indexing' | 'paused' | 'degraded' | 'error';
+    state: "idle" | "indexing" | "paused" | "degraded" | "error";
     indexed_room_count: number;
     total_room_count: number;
     message_count: number;
@@ -43,7 +43,7 @@ export type BackendGlobalSearchResponse = {
   };
 };
 
-export type SearchResultKind = 'room' | 'space' | 'message';
+export type SearchResultKind = "room" | "space" | "message";
 
 export type SearchResultGroup = {
   kind: SearchResultKind;

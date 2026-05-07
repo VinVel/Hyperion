@@ -1,9 +1,9 @@
 // @ts-check
 
-import js from '@eslint/js';
-import { defineConfig, globalIgnores } from 'eslint/config';
-import tseslint from 'typescript-eslint';
-import reactPlugin from 'eslint-plugin-react';
+import js from "@eslint/js";
+import { defineConfig, globalIgnores } from "eslint/config";
+import tseslint from "typescript-eslint";
+import reactPlugin from "eslint-plugin-react";
 import unusedImports from "eslint-plugin-unused-imports";
 import eslintConfigPrettier from "eslint-config-prettier/flat";
 
@@ -16,14 +16,14 @@ export default defineConfig([
     ...reactPlugin.configs.flat.recommended,
     settings: {
       react: {
-        version: 'detect',
+        version: "detect",
       },
     },
   },
 
-  reactPlugin.configs.flat['jsx-runtime'], // Add this if you are using React 17+
+  reactPlugin.configs.flat["jsx-runtime"], // Add this if you are using React 17+
 
-   {
+  {
     plugins: {
       "unused-imports": unusedImports,
     },
@@ -50,5 +50,5 @@ export default defineConfig([
       ],
     },
   },
-  eslintConfigPrettier
+  eslintConfigPrettier,
 ]);

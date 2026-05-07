@@ -16,7 +16,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { Webview } from "@tauri-apps/api/webview";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { LogicalPosition, LogicalSize, getCurrentWindow } from "@tauri-apps/api/window";
+import {
+  LogicalPosition,
+  LogicalSize,
+  getCurrentWindow,
+} from "@tauri-apps/api/window";
 import {
   type RefObject,
   type SyntheticEvent,
@@ -142,14 +146,17 @@ const defaultFormValues: RegistrationFormValues = {
 };
 
 function isMobileWebviewUnavailableError(error: unknown): boolean {
-  return getErrorMessage(error).toLowerCase().includes("webview api not available on mobile");
+  return getErrorMessage(error)
+    .toLowerCase()
+    .includes("webview api not available on mobile");
 }
 
 function compareHomeservers(
   left: HomeserverDirectoryEntry,
   right: HomeserverDirectoryEntry,
 ): number {
-  const officialOrder = Number(right.is_official === true) - Number(left.is_official === true);
+  const officialOrder =
+    Number(right.is_official === true) - Number(left.is_official === true);
   if (officialOrder !== 0) {
     return officialOrder;
   }
@@ -219,9 +226,15 @@ function getWebviewBounds(element: HTMLElement): WebviewBounds {
   const toastIsInTopHalf = toastRect.top < window.innerHeight / 2;
 
   if (toastIsInTopHalf) {
-    clippedTop = Math.min(rect.bottom - 1, toastRect.bottom + webviewToastGapPixels);
+    clippedTop = Math.min(
+      rect.bottom - 1,
+      toastRect.bottom + webviewToastGapPixels,
+    );
   } else {
-    clippedBottom = Math.max(rect.top + 1, toastRect.top - webviewToastGapPixels);
+    clippedBottom = Math.max(
+      rect.top + 1,
+      toastRect.top - webviewToastGapPixels,
+    );
   }
 
   return roundedWebviewBounds(rect.left, clippedTop, rect.right, clippedBottom);
@@ -283,20 +296,28 @@ function registrationReturnStage(stage: RegistrationStage): NonWebviewStage {
 export default function RegistrationScreen({
   onBackToLogin,
 }: RegistrationScreenProps) {
-  const [homeservers, setHomeservers] = useState<HomeserverDirectoryEntry[]>([]);
+  const [homeservers, setHomeservers] = useState<HomeserverDirectoryEntry[]>(
+    [],
+  );
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
   const [stage, setStage] = useState<RegistrationStage>("directory");
   const [searchQuery, setSearchQuery] = useState("");
-  const [formValues, setFormValues] = useState<RegistrationFormValues>(defaultFormValues);
-  const [feedback, setFeedback] = useState<RegistrationFeedbackMessage | null>(null);
+  const [formValues, setFormValues] =
+    useState<RegistrationFormValues>(defaultFormValues);
+  const [feedback, setFeedback] = useState<RegistrationFeedbackMessage | null>(
+    null,
+  );
   const [validationRequested, setValidationRequested] = useState(false);
   const [isLoadingHomeservers, setIsLoadingHomeservers] = useState(true);
   const [isRefreshingHomeservers, setIsRefreshingHomeservers] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [embeddedWebview, setEmbeddedWebview] = useState<EmbeddedWebviewState | null>(null);
+  const [embeddedWebview, setEmbeddedWebview] =
+    useState<EmbeddedWebviewState | null>(null);
   const webviewHostRef = useRef<HTMLDivElement | null>(null);
   const latestHomeserverRequestIdRef = useRef(0);
-  const deferredSearchQuery = useDeferredValue(searchQuery.trim().toLowerCase());
+  const deferredSearchQuery = useDeferredValue(
+    searchQuery.trim().toLowerCase(),
+  );
 
   useFeedbackToast(feedback);
 
@@ -311,7 +332,9 @@ export default function RegistrationScreen({
     }
 
     try {
-      const directory = await invoke<HomeserverDirectory>("list_registration_homeservers");
+      const directory = await invoke<HomeserverDirectory>(
+        "list_registration_homeservers",
+      );
       const nextHomeservers = normalizeHomeservers(directory.public_servers)
         .filter((homeserver) => homeserver.server_id.trim().length > 0)
         .sort(compareHomeservers);
@@ -321,7 +344,9 @@ export default function RegistrationScreen({
       }
 
       setHomeservers(nextHomeservers);
-      setSelectedServerId((current) => findRetainedHomeserverId(current, nextHomeservers));
+      setSelectedServerId((current) =>
+        findRetainedHomeserverId(current, nextHomeservers),
+      );
 
       if (reason === "initial" || reason === "refresh") {
         setFeedback((currentFeedback) =>
@@ -372,7 +397,9 @@ export default function RegistrationScreen({
         currentWebview.setPosition(
           new LogicalPosition(nextBounds.x, nextBounds.y),
         ),
-        currentWebview.setSize(new LogicalSize(nextBounds.width, nextBounds.height)),
+        currentWebview.setSize(
+          new LogicalSize(nextBounds.width, nextBounds.height),
+        ),
       ]);
     };
 
@@ -425,10 +452,12 @@ export default function RegistrationScreen({
         });
       }
 
-      removeWindowResizeListener = await appWindow.onResized(handleLayoutChange);
+      removeWindowResizeListener =
+        await appWindow.onResized(handleLayoutChange);
       window.addEventListener("scroll", handleLayoutChange, true);
       window.addEventListener(toastVisibilityChangedEvent, handleLayoutChange);
-      removeScrollListener = () => window.removeEventListener("scroll", handleLayoutChange, true);
+      removeScrollListener = () =>
+        window.removeEventListener("scroll", handleLayoutChange, true);
 
       await syncBounds();
     };
@@ -437,16 +466,18 @@ export default function RegistrationScreen({
       if (disposed) return;
 
       if (isMobileWebviewUnavailableError(error)) {
-        void fallbackToMobileOverlayOrBrowser(embeddedWebview).catch((fallbackError) => {
-          if (disposed) return;
+        void fallbackToMobileOverlayOrBrowser(embeddedWebview).catch(
+          (fallbackError) => {
+            if (disposed) return;
 
-          setEmbeddedWebview(null);
-          setStage(embeddedWebview.returnStage);
-          setFeedback({
-            tone: "error",
-            text: `Failed to open the browser fallback: ${getErrorMessage(fallbackError)}`,
-          });
-        });
+            setEmbeddedWebview(null);
+            setStage(embeddedWebview.returnStage);
+            setFeedback({
+              tone: "error",
+              text: `Failed to open the browser fallback: ${getErrorMessage(fallbackError)}`,
+            });
+          },
+        );
         return;
       }
 
@@ -464,7 +495,10 @@ export default function RegistrationScreen({
       bodyClassObserver?.disconnect();
       removeWindowResizeListener?.();
       removeScrollListener?.();
-      window.removeEventListener(toastVisibilityChangedEvent, handleLayoutChange);
+      window.removeEventListener(
+        toastVisibilityChangedEvent,
+        handleLayoutChange,
+      );
 
       void (async () => {
         const existingWebview =
@@ -479,11 +513,18 @@ export default function RegistrationScreen({
   );
 
   const selectedHomeserver =
-    homeservers.find((homeserver) => homeserver.server_id === selectedServerId) ?? null;
-  const usernameMissing = validationRequested && formValues.username.trim().length === 0;
-  const passwordMissing = validationRequested && formValues.password.length === 0;
+    homeservers.find(
+      (homeserver) => homeserver.server_id === selectedServerId,
+    ) ?? null;
+  const usernameMissing =
+    validationRequested && formValues.username.trim().length === 0;
+  const passwordMissing =
+    validationRequested && formValues.password.length === 0;
   const emailRequired = selectedHomeserver?.email === true;
-  const emailMissing = validationRequested && emailRequired && formValues.email.trim().length === 0;
+  const emailMissing =
+    validationRequested &&
+    emailRequired &&
+    formValues.email.trim().length === 0;
 
   function resetTransientState() {
     setFeedback(null);
@@ -517,7 +558,9 @@ export default function RegistrationScreen({
     });
   }
 
-  async function fallbackToMobileOverlayOrBrowser(nextWebview: EmbeddedWebviewState) {
+  async function fallbackToMobileOverlayOrBrowser(
+    nextWebview: EmbeddedWebviewState,
+  ) {
     try {
       await invoke("open_mobile_overlay_webview", {
         url: nextWebview.url,
@@ -592,7 +635,9 @@ export default function RegistrationScreen({
     }
 
     setStage(
-      selectedHomeserver && shouldSkipDetails(selectedHomeserver) ? "directory" : "details",
+      selectedHomeserver && shouldSkipDetails(selectedHomeserver)
+        ? "directory"
+        : "details",
     );
     resetTransientState();
   }
@@ -605,7 +650,11 @@ export default function RegistrationScreen({
   }
 
   function openForm() {
-    if (!selectedHomeserver || selectedHomeserver.registration_flow !== "matrix_sdk") return;
+    if (
+      !selectedHomeserver ||
+      selectedHomeserver.registration_flow !== "matrix_sdk"
+    )
+      return;
     setEmbeddedWebview(null);
     setStage("form");
     resetTransientState();
@@ -667,7 +716,9 @@ export default function RegistrationScreen({
     }
   }
 
-  async function handleSubmit(event: SyntheticEvent<HTMLFormElement, SubmitEvent>) {
+  async function handleSubmit(
+    event: SyntheticEvent<HTMLFormElement, SubmitEvent>,
+  ) {
     event.preventDefault();
     if (!selectedHomeserver) return;
     setValidationRequested(true);
@@ -707,10 +758,18 @@ export default function RegistrationScreen({
     }
   }
 
-  const captchaWarningText = selectedHomeserver ? captchaWarning(selectedHomeserver) : "";
-  const selectedHomepage = selectedHomeserver ? safeLink(selectedHomeserver.homepage) : null;
-  const selectedRules = selectedHomeserver ? safeLink(selectedHomeserver.rules) : null;
-  const selectedPrivacy = selectedHomeserver ? safeLink(selectedHomeserver.privacy) : null;
+  const captchaWarningText = selectedHomeserver
+    ? captchaWarning(selectedHomeserver)
+    : "";
+  const selectedHomepage = selectedHomeserver
+    ? safeLink(selectedHomeserver.homepage)
+    : null;
+  const selectedRules = selectedHomeserver
+    ? safeLink(selectedHomeserver.rules)
+    : null;
+  const selectedPrivacy = selectedHomeserver
+    ? safeLink(selectedHomeserver.privacy)
+    : null;
 
   function handleLoginAfterEmbeddedRegistration() {
     if (!selectedHomeserver) {
@@ -826,8 +885,13 @@ function RegistrationFormStage({
       </Typography>
 
       <div className="registration-detail-tags">
-        {selectedHomeserver.is_official ? <Pill tone="primary">Official</Pill> : null}
-        <Pill>{selectedHomeserver.homeserver_url ?? homeserverHost(selectedHomeserver)}</Pill>
+        {selectedHomeserver.is_official ? (
+          <Pill tone="primary">Official</Pill>
+        ) : null}
+        <Pill>
+          {selectedHomeserver.homeserver_url ??
+            homeserverHost(selectedHomeserver)}
+        </Pill>
       </div>
 
       <form className="registration-form" noValidate onSubmit={onSubmit}>
@@ -838,7 +902,9 @@ function RegistrationFormStage({
           isRequiredVisible
           label="Username"
           name="username"
-          onChange={(event) => onFieldChange("username", event.currentTarget.value)}
+          onChange={(event) =>
+            onFieldChange("username", event.currentTarget.value)
+          }
           spellCheck={false}
           type="text"
           value={formValues.username}
@@ -849,7 +915,9 @@ function RegistrationFormStage({
             autoComplete="nickname"
             label="Display name"
             name="display-name"
-            onChange={(event) => onFieldChange("displayName", event.currentTarget.value)}
+            onChange={(event) =>
+              onFieldChange("displayName", event.currentTarget.value)
+            }
             type="text"
             value={formValues.displayName}
           />
@@ -861,7 +929,9 @@ function RegistrationFormStage({
           isRequiredVisible
           label="Password"
           name="password"
-          onChange={(event) => onFieldChange("password", event.currentTarget.value)}
+          onChange={(event) =>
+            onFieldChange("password", event.currentTarget.value)
+          }
           type="password"
           value={formValues.password}
         />
@@ -874,7 +944,9 @@ function RegistrationFormStage({
           isRequiredVisible={emailRequired}
           label="Email"
           name="email"
-          onChange={(event) => onFieldChange("email", event.currentTarget.value)}
+          onChange={(event) =>
+            onFieldChange("email", event.currentTarget.value)
+          }
           required={emailRequired}
           type="email"
           value={formValues.email}
@@ -905,7 +977,9 @@ function EmbeddedWebviewStage({
   onGoToLogin,
 }: EmbeddedWebviewStageProps) {
   const webviewKindLabel =
-    embeddedWebview.kind === "registration" ? "Registration page" : "Published homeserver link";
+    embeddedWebview.kind === "registration"
+      ? "Registration page"
+      : "Published homeserver link";
 
   useEffect(() => {
     document.body.classList.add(nativeWebviewActiveClassName);
@@ -926,13 +1000,21 @@ function EmbeddedWebviewStage({
       <div className="registration-webview-bar">
         <BackButton onClick={onBack} />
         <div className="registration-webview-copy">
-          <Typography as="span" variant="label" className="registration-webview-eyebrow">
+          <Typography
+            as="span"
+            variant="label"
+            className="registration-webview-eyebrow"
+          >
             {webviewKindLabel}
           </Typography>
           <Typography variant="h2" className="registration-webview-title">
             {embeddedWebview.title}
           </Typography>
-          <Typography variant="bodySmall" muted className="registration-webview-url">
+          <Typography
+            variant="bodySmall"
+            muted
+            className="registration-webview-url"
+          >
             {formatWebviewUrl(embeddedWebview.url)}
           </Typography>
         </div>

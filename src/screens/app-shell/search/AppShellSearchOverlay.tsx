@@ -13,10 +13,10 @@
  * Project home: hyperion.velcore.net
  */
 
-import { Blocks, Hash, MessageSquareMore, Search } from 'lucide-react';
-import { ToolbarField, Typography } from '../../../components/ui';
-import type { AuthenticatedShellView } from '../appShellAdapters';
-import type { SearchResultKind, SearchResultGroup } from './types';
+import { Blocks, Hash, MessageSquareMore, Search } from "lucide-react";
+import { ToolbarField, Typography } from "../../../components/ui";
+import type { AuthenticatedShellView } from "../appShellAdapters";
+import type { SearchResultKind, SearchResultGroup } from "./types";
 
 type AppShellSearchOverlayProps = {
   globalSearchQuery: string;
@@ -77,7 +77,10 @@ export default function AppShellSearchOverlay({
         {results.length > 0 ? (
           <div className="app-shell-search-results">
             {results.map((resultGroup) => (
-              <section key={resultGroup.kind} className="app-shell-search-group">
+              <section
+                key={resultGroup.kind}
+                className="app-shell-search-group"
+              >
                 <Typography variant="label" className="app-shell-section-label">
                   {resultGroup.title}
                 </Typography>
@@ -88,14 +91,20 @@ export default function AppShellSearchOverlay({
                       className="app-shell-search-result"
                       type="button"
                       onClick={() =>
-                        onSelectResult(item.threadId, item.targetView, item.eventId)
+                        onSelectResult(
+                          item.threadId,
+                          item.targetView,
+                          item.eventId,
+                        )
                       }
                     >
                       <span className="app-shell-search-result-icon">
                         <SearchResultIcon kind={resultGroup.kind} />
                       </span>
                       <span className="app-shell-search-result-copy">
-                        <span className="app-shell-search-result-title">{item.title}</span>
+                        <span className="app-shell-search-result-title">
+                          {item.title}
+                        </span>
                         <span className="app-shell-search-result-description">
                           {item.description}
                         </span>
@@ -121,11 +130,11 @@ export default function AppShellSearchOverlay({
 }
 
 function SearchResultIcon({ kind }: { kind: SearchResultKind }) {
-  if (kind === 'room') {
+  if (kind === "room") {
     return <Hash aria-hidden="true" />;
   }
 
-  if (kind === 'message') {
+  if (kind === "message") {
     return <MessageSquareMore aria-hidden="true" />;
   }
 

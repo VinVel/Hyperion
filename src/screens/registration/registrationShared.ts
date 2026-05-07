@@ -13,11 +13,16 @@
  * Project home: hyperion.velcore.net
  */
 
-export type FeedbackMessage = { tone: "error" | "success" | "info"; text: string };
+export type FeedbackMessage = {
+  tone: "error" | "success" | "info";
+  text: string;
+};
 
 export type RegistrationFlow = "matrix_sdk" | "external_link" | "info_only";
 
-export type HomeserverDirectory = { public_servers: HomeserverDirectoryEntry[] };
+export type HomeserverDirectory = {
+  public_servers: HomeserverDirectoryEntry[];
+};
 
 export type HomeserverDirectoryEntry = {
   server_id: string;
@@ -59,7 +64,8 @@ const officialMatrixHomeserver: HomeserverDirectoryEntry = {
   name: "matrix.org",
   client_domain: "matrix.org",
   homepage: "https://matrix.org",
-  description: "The official Matrix homeserver and the default registration target.",
+  description:
+    "The official Matrix homeserver and the default registration target.",
   software: "Synapse",
   longstanding: true,
   languages: [],
@@ -104,9 +110,13 @@ export function flowLabel(flow: RegistrationFlow): string {
   return "Manual guidance";
 }
 
-export function boolLabel(value?: boolean | null, trueLabel = "Available"): string {
+export function boolLabel(
+  value?: boolean | null,
+  trueLabel = "Available",
+): string {
   if (value === true) return trueLabel;
-  if (value === false) return trueLabel === "Required" ? "Not required" : "Unavailable";
+  if (value === false)
+    return trueLabel === "Required" ? "Not required" : "Unavailable";
   return "Unknown";
 }
 
@@ -145,7 +155,9 @@ export function normalizeHomeservers(
           ...officialMatrixHomeserver,
           ...homeserver,
           server_id: "matrix.org",
-          homeserver_url: homeserver.homeserver_url ?? officialMatrixHomeserver.homeserver_url,
+          homeserver_url:
+            homeserver.homeserver_url ??
+            officialMatrixHomeserver.homeserver_url,
           client_domain: homeserver.client_domain ?? "matrix.org",
           is_official: true,
         }
@@ -153,8 +165,13 @@ export function normalizeHomeservers(
   );
 }
 
-export function shouldSkipDetails(homeserver: HomeserverDirectoryEntry): boolean {
-  return homeserver.is_official === true && homeserver.registration_flow === "matrix_sdk";
+export function shouldSkipDetails(
+  homeserver: HomeserverDirectoryEntry,
+): boolean {
+  return (
+    homeserver.is_official === true &&
+    homeserver.registration_flow === "matrix_sdk"
+  );
 }
 
 export function captchaWarning(homeserver: HomeserverDirectoryEntry): string {

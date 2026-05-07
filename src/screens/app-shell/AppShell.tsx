@@ -13,15 +13,15 @@
  * Project home: hyperion.velcore.net
  */
 
-import { ScreenMain, ScreenShell, useFeedbackToast } from '../../components/ui';
-import type { AccountSummary } from './appShellAdapters';
-import AppShellMessagesView from './AppShellMessagesView';
-import AppShellNavigation from './AppShellNavigation';
-import AppShellSpacesView from './AppShellSpacesView';
-import { SettingsView } from '../Settings';
-import { AppShellSearchOverlay } from './search';
-import useAppShellState from './useAppShellState';
-import './AppShell.css';
+import { ScreenMain, ScreenShell, useFeedbackToast } from "../../components/ui";
+import type { AccountSummary } from "./appShellAdapters";
+import AppShellMessagesView from "./AppShellMessagesView";
+import AppShellNavigation from "./AppShellNavigation";
+import AppShellSpacesView from "./AppShellSpacesView";
+import { SettingsView } from "../Settings";
+import { AppShellSearchOverlay } from "./search";
+import useAppShellState from "./useAppShellState";
+import "./AppShell.css";
 
 type AppShellProps = {
   activeAccount: AccountSummary;
@@ -45,17 +45,20 @@ export default function AppShell({
   return (
     <ScreenShell
       className={`app-shell-root${
-        shell.isThreadOpen ? ' app-shell-root--thread-selected' : ''
+        shell.isThreadOpen ? " app-shell-root--thread-selected" : ""
       }`}
     >
       <ScreenMain
         className={`app-shell-screen${
-          shell.isThreadOpen ? ' app-shell-screen--thread-selected' : ''
+          shell.isThreadOpen ? " app-shell-screen--thread-selected" : ""
         }`}
         largeBlockPadding
         wide
       >
-        <section className="app-shell-layout" aria-label="Authenticated application shell">
+        <section
+          className="app-shell-layout"
+          aria-label="Authenticated application shell"
+        >
           <AppShellNavigation
             activeAccount={activeAccount}
             activeView={shell.activeView}
@@ -73,14 +76,16 @@ export default function AppShell({
 
           <div
             className={`app-shell-workspace${
-              shell.activeView ? ` app-shell-workspace--${shell.activeView}` : ''
+              shell.activeView
+                ? ` app-shell-workspace--${shell.activeView}`
+                : ""
             }${
-              shell.activeView === 'messages' && shell.selectedThread
-                ? ' app-shell-workspace--thread-selected'
-                : ''
+              shell.activeView === "messages" && shell.selectedThread
+                ? " app-shell-workspace--thread-selected"
+                : ""
             }`}
           >
-            {shell.activeView === 'messages' ? (
+            {shell.activeView === "messages" ? (
               <AppShellMessagesView
                 composerValue={shell.composerValue}
                 isLoadingOlderMessages={shell.isLoadingOlderMessages}
@@ -104,7 +109,7 @@ export default function AppShell({
               />
             ) : null}
 
-            {shell.activeView === 'spaces' ? (
+            {shell.activeView === "spaces" ? (
               <AppShellSpacesView
                 selectedSpace={shell.selectedSpace}
                 spaceSearchQuery={shell.spaceSearchQuery}
@@ -114,7 +119,7 @@ export default function AppShell({
               />
             ) : null}
 
-            {shell.activeView === 'settings' ? (
+            {shell.activeView === "settings" ? (
               <SettingsView
                 onAddAccount={onAddAccount}
                 onSignedOut={onSignedOut}

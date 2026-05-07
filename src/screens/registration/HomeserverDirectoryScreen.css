@@ -56,7 +56,10 @@
 
 .registration-directory-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(var(--layout-directory-card-min-width), 1fr));
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(var(--layout-directory-card-min-width), 1fr)
+  );
   gap: var(--spacing-gap-large);
   margin-top: var(--spacing-margin-top-large);
 }
@@ -108,7 +111,8 @@
 }
 
 .registration-server-description {
-  margin: var(--spacing-margin-top-medium) 0 var(--spacing-margin-bottom-section);
+  margin: var(--spacing-margin-top-medium) 0
+    var(--spacing-margin-bottom-section);
 }
 
 @media (max-width: 760px) {

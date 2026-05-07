@@ -21,16 +21,23 @@ import {
   Plus,
   Search,
   SendHorizontal,
-} from 'lucide-react';
-import { type KeyboardEvent, useLayoutEffect, useRef } from 'react';
-import { BackButton, Button, EmptyState, Pill, ToolbarField, Typography } from '../../components/ui';
+} from "lucide-react";
+import { type KeyboardEvent, useLayoutEffect, useRef } from "react";
+import {
+  BackButton,
+  Button,
+  EmptyState,
+  Pill,
+  ToolbarField,
+  Typography,
+} from "../../components/ui";
 import {
   type RoomSummary,
   type RoomThreadSort,
   type RoomThreadSummary,
   type RoomTimeline,
   roomThreadSortLabels,
-} from './appShellAdapters';
+} from "./appShellAdapters";
 
 type AppShellMessagesViewProps = {
   composerValue: string;
@@ -81,12 +88,12 @@ export default function AppShellMessagesView({
   const composerIsEmpty = composerValue.trim().length === 0;
   const composerPlaceholder =
     selectedRoomSummary?.canSendMessages === false
-      ? 'You cannot send messages in this room'
-      : 'Send a message';
+      ? "You cannot send messages in this room"
+      : "Send a message";
   const messageCount = selectedTimeline?.items.length ?? 0;
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key !== 'Enter') {
+    if (event.key !== "Enter") {
       return;
     }
 
@@ -115,7 +122,9 @@ export default function AppShellMessagesView({
       <button
         key={thread.id}
         className={`app-shell-thread-row${
-          selectedThread?.id === thread.id ? ' app-shell-thread-row--active' : ''
+          selectedThread?.id === thread.id
+            ? " app-shell-thread-row--active"
+            : ""
         }`}
         type="button"
         onClick={() => onOpenThread(thread.id)}
@@ -125,7 +134,9 @@ export default function AppShellMessagesView({
           <span className="app-shell-thread-title-row">
             <span className="app-shell-thread-title">{thread.title}</span>
             {thread.unreadCount > 0 ? (
-              <span className="app-shell-thread-unread">{thread.unreadCount}</span>
+              <span className="app-shell-thread-unread">
+                {thread.unreadCount}
+              </span>
             ) : null}
           </span>
           <span className="app-shell-thread-meta">
@@ -152,20 +163,20 @@ export default function AppShellMessagesView({
       <div
         key={item.id}
         className={`app-shell-timeline-item${
-          item.isOwnMessage ? ' app-shell-timeline-item--own' : ''
+          item.isOwnMessage ? " app-shell-timeline-item--own" : ""
         }${
           selectedTimeline.focusedEventId === item.id
-            ? ' app-shell-timeline-item--highlighted'
-            : ''
+            ? " app-shell-timeline-item--highlighted"
+            : ""
         }`}
       >
         <Typography variant="label">
           {item.senderDisplayName}
-          {item.timeLabel ? ` · ${item.timeLabel}` : ''}
+          {item.timeLabel ? ` · ${item.timeLabel}` : ""}
         </Typography>
         <Typography variant="body">
           {item.body}
-          {item.isEdited ? ' (edited)' : ''}
+          {item.isEdited ? " (edited)" : ""}
         </Typography>
       </div>
     ));
@@ -178,14 +189,19 @@ export default function AppShellMessagesView({
       return;
     }
 
-    const roomChanged = previousTimelineRoomIdRef.current !== selectedTimeline.roomId;
+    const roomChanged =
+      previousTimelineRoomIdRef.current !== selectedTimeline.roomId;
     previousTimelineRoomIdRef.current = selectedTimeline.roomId;
     if (!roomChanged || selectedTimeline.focusedEventId) {
       return;
     }
 
     timelineElement.scrollTop = timelineElement.scrollHeight;
-  }, [selectedTimeline?.focusedEventId, selectedTimeline?.items.length, selectedTimeline?.roomId]);
+  }, [
+    selectedTimeline?.focusedEventId,
+    selectedTimeline?.items.length,
+    selectedTimeline?.roomId,
+  ]);
 
   return (
     <>
@@ -211,7 +227,9 @@ export default function AppShellMessagesView({
             icon={<Search aria-hidden="true" />}
             placeholder="Search conversations"
             value={threadSearchQuery}
-            onChange={(event) => onThreadSearchChange(event.currentTarget.value)}
+            onChange={(event) =>
+              onThreadSearchChange(event.currentTarget.value)
+            }
           />
 
           <div className="app-shell-sort-menu">
@@ -230,19 +248,25 @@ export default function AppShellMessagesView({
 
             {isSortMenuOpen ? (
               <div className="app-shell-sort-menu-popover">
-                {Object.entries(roomThreadSortLabels).map(([sortKey, sortLabel]) => (
-                  <button
-                    key={sortKey}
-                    className={`app-shell-sort-option${
-                      threadSort === sortKey ? ' app-shell-sort-option--active' : ''
-                    }`}
-                    type="button"
-                    onClick={() => onSelectSort(sortKey as RoomThreadSort)}
-                  >
-                    <span>{sortLabel}</span>
-                    {threadSort === sortKey ? <Check aria-hidden="true" /> : null}
-                  </button>
-                ))}
+                {Object.entries(roomThreadSortLabels).map(
+                  ([sortKey, sortLabel]) => (
+                    <button
+                      key={sortKey}
+                      className={`app-shell-sort-option${
+                        threadSort === sortKey
+                          ? " app-shell-sort-option--active"
+                          : ""
+                      }`}
+                      type="button"
+                      onClick={() => onSelectSort(sortKey as RoomThreadSort)}
+                    >
+                      <span>{sortLabel}</span>
+                      {threadSort === sortKey ? (
+                        <Check aria-hidden="true" />
+                      ) : null}
+                    </button>
+                  ),
+                )}
               </div>
             ) : null}
           </div>
@@ -256,15 +280,20 @@ export default function AppShellMessagesView({
           <div className="app-shell-room">
             <header className="app-shell-room-head">
               <div className="app-shell-room-title-row">
-                <BackButton className="app-shell-mobile-back-button" onClick={onCloseThread} />
+                <BackButton
+                  className="app-shell-mobile-back-button"
+                  onClick={onCloseThread}
+                />
 
                 <Typography as="h2" variant="h2">
                   {selectedRoomSummary?.title ?? selectedThread.title}
                 </Typography>
                 <Typography variant="bodySmall" muted>
-                  {(selectedRoomSummary?.participantLabel ?? selectedThread.participantLabel)}
-                  {' · '}
-                  {(selectedRoomSummary?.homeserverLabel ?? selectedThread.homeserverLabel)}
+                  {selectedRoomSummary?.participantLabel ??
+                    selectedThread.participantLabel}
+                  {" · "}
+                  {selectedRoomSummary?.homeserverLabel ??
+                    selectedThread.homeserverLabel}
                 </Typography>
                 {selectedRoomSummary?.topic ? (
                   <Typography variant="bodySmall" muted>
@@ -283,7 +312,9 @@ export default function AppShellMessagesView({
                     variant="secondary"
                     onClick={onLoadOlderMessages}
                   >
-                    {isLoadingOlderMessages ? 'Loading older messages...' : 'Load older messages'}
+                    {isLoadingOlderMessages
+                      ? "Loading older messages..."
+                      : "Load older messages"}
                   </Button>
                 </div>
               ) : null}
@@ -300,14 +331,18 @@ export default function AppShellMessagesView({
                     placeholder={composerPlaceholder}
                     type="text"
                     value={composerValue}
-                    onChange={(event) => onComposerChange(event.currentTarget.value)}
+                    onChange={(event) =>
+                      onComposerChange(event.currentTarget.value)
+                    }
                     onKeyDown={handleComposerKeyDown}
                   />
                 </div>
                 <Button
                   aria-label="Send message"
                   className="app-shell-composer-send"
-                  disabled={isSendingMessage || !canSendMessages || composerIsEmpty}
+                  disabled={
+                    isSendingMessage || !canSendMessages || composerIsEmpty
+                  }
                   iconOnly
                   variant="primary"
                   onClick={onSendMessage}

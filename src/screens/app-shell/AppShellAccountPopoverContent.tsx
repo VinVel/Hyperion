@@ -13,9 +13,9 @@
  * Project home: hyperion.velcore.net
  */
 
-import { Cog } from 'lucide-react';
-import { Button, Typography } from '../../components/ui';
-import { type AccountSummary, accountInitials } from './appShellAdapters';
+import { Cog } from "lucide-react";
+import { Button, Typography } from "../../components/ui";
+import { type AccountSummary, accountInitials } from "./appShellAdapters";
 
 type AppShellAccountPopoverContentProps = {
   activeAccount: AccountSummary;
@@ -68,10 +68,12 @@ export default function AppShellAccountPopoverContent({
                   {accountInitials(account)}
                 </span>
                 <span className="app-shell-account-option-copy">
-                  <span className="app-shell-account-option-title">{account.user_id}</span>
+                  <span className="app-shell-account-option-title">
+                    {account.user_id}
+                  </span>
                   <span className="app-shell-account-option-meta">
                     {switchingAccountKey === account.account_key
-                      ? 'Switching...'
+                      ? "Switching..."
                       : account.homeserver_url}
                   </span>
                 </span>

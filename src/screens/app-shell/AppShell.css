@@ -45,8 +45,10 @@
   align-self: start;
   min-height: var(--layout-viewport-min-height);
   justify-content: space-between;
-  padding-block: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-bottom));
-  border-right: 1px solid color-mix(in srgb, var(--outline-variant) 68%, transparent);
+  padding-block: max(1rem, env(safe-area-inset-top))
+    max(1rem, env(safe-area-inset-bottom));
+  border-right: 1px solid
+    color-mix(in srgb, var(--outline-variant) 68%, transparent);
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -98,9 +100,7 @@
   padding: var(--spacing-panel-padding);
   border-radius: var(--shape-radius-small);
   background: var(--surface-container);
-  box-shadow:
-    var(--elevation-panel-raised),
-    var(--elevation-outline-subtle);
+  box-shadow: var(--elevation-panel-raised), var(--elevation-outline-subtle);
   z-index: 3;
 }
 
@@ -138,7 +138,11 @@
   padding: var(--spacing-card-padding);
   border: none;
   border-radius: var(--shape-radius-small);
-  background: color-mix(in srgb, var(--surface-container-high) 86%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--surface-container-high) 86%,
+    transparent
+  );
   color: var(--on-surface);
   cursor: pointer;
   text-align: left;
@@ -207,7 +211,9 @@
   min-height: 0;
   overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(18rem, var(--layout-shell-sidebar-width)) minmax(0, 1fr);
+  grid-template-columns:
+    minmax(18rem, var(--layout-shell-sidebar-width))
+    minmax(0, 1fr);
   gap: var(--spacing-gap-extra-large);
 }
 
@@ -232,12 +238,10 @@
 
 .app-shell-sidebar {
   gap: var(--spacing-gap-extra-large);
-  padding:
-    max(1rem, env(safe-area-inset-top))
-    var(--spacing-panel-padding)
-    max(1rem, env(safe-area-inset-bottom))
-    var(--spacing-panel-padding);
-  border-right: 1px solid color-mix(in srgb, var(--outline-variant) 68%, transparent);
+  padding: max(1rem, env(safe-area-inset-top)) var(--spacing-panel-padding)
+    max(1rem, env(safe-area-inset-bottom)) var(--spacing-panel-padding);
+  border-right: 1px solid
+    color-mix(in srgb, var(--outline-variant) 68%, transparent);
   overflow: hidden;
 }
 
@@ -280,9 +284,7 @@
   border-radius: var(--shape-radius-small);
   background: var(--surface-container-high);
   padding: 0 var(--spacing-control-padding-inline);
-  box-shadow:
-    var(--elevation-outline-strong),
-    var(--elevation-surface-raised);
+  box-shadow: var(--elevation-outline-strong), var(--elevation-surface-raised);
   color: var(--on-surface-variant);
   cursor: pointer;
 }
@@ -310,9 +312,7 @@
   padding: var(--spacing-card-padding);
   border-radius: var(--shape-radius-small);
   background: var(--surface-container);
-  box-shadow:
-    var(--elevation-panel-raised),
-    var(--elevation-outline-subtle);
+  box-shadow: var(--elevation-panel-raised), var(--elevation-outline-subtle);
   z-index: 3;
 }
 
@@ -333,7 +333,11 @@
 
 .app-shell-sort-option:hover,
 .app-shell-sort-option--active {
-  background: color-mix(in srgb, var(--surface-container-high) 88%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--surface-container-high) 88%,
+    transparent
+  );
 }
 
 .app-shell-thread-list {
@@ -365,7 +369,11 @@
 .app-shell-thread-row:hover,
 .app-shell-space-card:hover,
 .app-shell-search-result:hover {
-  background: color-mix(in srgb, var(--surface-container-high) 88%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--surface-container-high) 88%,
+    transparent
+  );
 }
 
 .app-shell-thread-row--active {
@@ -437,11 +445,8 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding:
-    max(1rem, env(safe-area-inset-top))
-    var(--spacing-panel-padding)
-    max(1rem, env(safe-area-inset-bottom))
-    var(--spacing-panel-padding);
+  padding: max(1rem, env(safe-area-inset-top)) var(--spacing-panel-padding)
+    max(1rem, env(safe-area-inset-bottom)) var(--spacing-panel-padding);
 }
 
 .app-shell-main-pane--full {
@@ -501,7 +506,11 @@
 }
 
 .app-shell-timeline-item--own {
-  background: color-mix(in srgb, var(--surface-container-high) 88%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--surface-container-high) 88%,
+    transparent
+  );
 }
 
 .app-shell-timeline-item--highlighted {
@@ -528,9 +537,7 @@
   min-height: 2.85rem;
   border-radius: var(--shape-radius-small);
   background: var(--surface-container-high);
-  box-shadow:
-    var(--elevation-outline-strong),
-    var(--elevation-surface-raised);
+  box-shadow: var(--elevation-outline-strong), var(--elevation-surface-raised);
 }
 
 .app-shell-composer:focus-within {
@@ -581,7 +588,11 @@
   gap: var(--spacing-gap-large);
   padding: var(--spacing-panel-padding);
   border-radius: var(--shape-radius-small);
-  background: color-mix(in srgb, var(--surface-container-high) 88%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--surface-container-high) 88%,
+    transparent
+  );
   box-shadow: var(--elevation-outline-subtle);
 }
 
@@ -658,9 +669,7 @@
   padding: var(--spacing-panel-padding-large);
   border-radius: var(--shape-radius-small);
   background: var(--surface-container);
-  box-shadow:
-    var(--elevation-panel-raised),
-    var(--elevation-outline-subtle);
+  box-shadow: var(--elevation-panel-raised), var(--elevation-outline-subtle);
 }
 
 .app-shell-search-head {
@@ -746,7 +755,8 @@
   .app-shell-root--thread-selected,
   .app-shell-root--thread-selected .app-shell-screen,
   .app-shell-root--thread-selected .app-shell-layout,
-  .app-shell-root--thread-selected .app-shell-workspace--messages.app-shell-workspace--thread-selected {
+  .app-shell-root--thread-selected
+    .app-shell-workspace--messages.app-shell-workspace--thread-selected {
     height: 100dvh;
     min-height: 100dvh;
     overflow: hidden;
@@ -772,13 +782,16 @@
     align-items: center;
     gap: 0;
     min-height: var(--layout-mobile-bottom-bar-height);
-    padding:
-      var(--spacing-gap-medium)
-      max(1rem, env(safe-area-inset-right))
+    padding: var(--spacing-gap-medium) max(1rem, env(safe-area-inset-right))
       max(1rem, env(safe-area-inset-bottom))
       max(1rem, env(safe-area-inset-left));
-    background: color-mix(in srgb, var(--surface-container-low) 96%, transparent);
-    box-shadow: 0 -1px 0 color-mix(in srgb, var(--outline-variant) 68%, transparent);
+    background: color-mix(
+      in srgb,
+      var(--surface-container-low) 96%,
+      transparent
+    );
+    box-shadow: 0 -1px 0
+      color-mix(in srgb, var(--outline-variant) 68%, transparent);
   }
 
   .app-shell-mobile-nav-button {
@@ -816,7 +829,7 @@
     right: max(0.75rem, env(safe-area-inset-right));
     bottom: calc(
       var(--layout-mobile-bottom-bar-height) +
-      max(0.5rem, env(safe-area-inset-bottom))
+        max(0.5rem, env(safe-area-inset-bottom))
     );
     width: auto;
     z-index: 16;
@@ -831,11 +844,13 @@
     display: none;
   }
 
-  .app-shell-workspace--messages.app-shell-workspace--thread-selected .app-shell-sidebar {
+  .app-shell-workspace--messages.app-shell-workspace--thread-selected
+    .app-shell-sidebar {
     display: none;
   }
 
-  .app-shell-workspace--messages.app-shell-workspace--thread-selected .app-shell-main-pane {
+  .app-shell-workspace--messages.app-shell-workspace--thread-selected
+    .app-shell-main-pane {
     display: flex;
   }
 
@@ -846,13 +861,17 @@
 
   .app-shell-sidebar {
     padding-right: var(--spacing-panel-padding);
-    padding-bottom: calc(var(--layout-mobile-bottom-bar-height) + var(--spacing-gap-large));
+    padding-bottom: calc(
+      var(--layout-mobile-bottom-bar-height) + var(--spacing-gap-large)
+    );
   }
 
   .app-shell-main-pane {
     min-height: calc(100dvh - var(--layout-mobile-bottom-bar-height));
     overflow: hidden;
-    padding-bottom: calc(var(--layout-mobile-bottom-bar-height) + var(--spacing-gap-large));
+    padding-bottom: calc(
+      var(--layout-mobile-bottom-bar-height) + var(--spacing-gap-large)
+    );
   }
 
   .app-shell-room-head {
@@ -860,7 +879,10 @@
   }
 
   .app-shell-room {
-    min-height: calc(100dvh - var(--layout-mobile-bottom-bar-height) - (2 * var(--spacing-panel-padding)));
+    min-height: calc(
+      100dvh - var(--layout-mobile-bottom-bar-height) -
+        (2 * var(--spacing-panel-padding))
+    );
   }
 
   .app-shell-room-timeline {
@@ -902,5 +924,4 @@
   .app-shell-heading-row {
     align-items: flex-start;
   }
-
 }

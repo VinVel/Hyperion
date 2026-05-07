@@ -13,20 +13,33 @@
  * Project home: hyperion.velcore.net
  */
 
-import type { ButtonHTMLAttributes } from 'react';
-import { classNames } from './classNames';
+import type { ButtonHTMLAttributes } from "react";
+import { classNames } from "./classNames";
 
-type ToggleProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-pressed'> & {
+type ToggleProps = Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "aria-pressed"
+> & {
   checked: boolean;
   label: string;
 };
 
-export function Toggle({ checked, label, className, type = 'button', ...props }: ToggleProps) {
+export function Toggle({
+  checked,
+  label,
+  className,
+  type = "button",
+  ...props
+}: ToggleProps) {
   return (
     <button
       aria-label={label}
       aria-pressed={checked}
-      className={classNames('ui-toggle', checked && 'ui-toggle--checked', className)}
+      className={classNames(
+        "ui-toggle",
+        checked && "ui-toggle--checked",
+        className,
+      )}
       type={type}
       {...props}
     >

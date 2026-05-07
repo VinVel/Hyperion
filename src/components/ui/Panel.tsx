@@ -13,17 +13,17 @@
  * Project home: hyperion.velcore.net
  */
 
-import type { HTMLAttributes, ReactNode } from 'react';
-import { classNames } from './classNames';
+import type { HTMLAttributes, ReactNode } from "react";
+import { classNames } from "./classNames";
 
 type PanelProps = HTMLAttributes<HTMLElement> & {
   children: ReactNode;
   narrow?: boolean;
-  as?: 'section' | 'article' | 'div';
+  as?: "section" | "article" | "div";
 };
 
 export function Panel({
-  as: Element = 'section',
+  as: Element = "section",
   narrow = false,
   className,
   children,
@@ -31,7 +31,11 @@ export function Panel({
 }: PanelProps) {
   return (
     <Element
-      className={classNames('ui-panel', narrow && 'ui-panel--narrow', className)}
+      className={classNames(
+        "ui-panel",
+        narrow && "ui-panel--narrow",
+        className,
+      )}
       {...props}
     >
       {children}
@@ -39,9 +43,13 @@ export function Panel({
   );
 }
 
-export function Card({ className, children, ...props }: HTMLAttributes<HTMLElement>) {
+export function Card({
+  className,
+  children,
+  ...props
+}: HTMLAttributes<HTMLElement>) {
   return (
-    <article className={classNames('ui-card', className)} {...props}>
+    <article className={classNames("ui-card", className)} {...props}>
       {children}
     </article>
   );

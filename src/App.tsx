@@ -56,7 +56,10 @@ function persistCachedActiveAccount(nextAccount: AccountSummary | null) {
   }
 
   if (nextAccount) {
-    window.localStorage.setItem(ACTIVE_ACCOUNT_CACHE_KEY, JSON.stringify(nextAccount));
+    window.localStorage.setItem(
+      ACTIVE_ACCOUNT_CACHE_KEY,
+      JSON.stringify(nextAccount),
+    );
     return;
   }
 
@@ -64,14 +67,15 @@ function persistCachedActiveAccount(nextAccount: AccountSummary | null) {
 }
 
 function App() {
-  const [activeAccount, setActiveAccount] = useState<AccountSummary | null>(() =>
-    loadCachedActiveAccount(),
+  const [activeAccount, setActiveAccount] = useState<AccountSummary | null>(
+    () => loadCachedActiveAccount(),
   );
   const [appStage, setAppStage] = useState<AppStage>(() =>
     loadCachedActiveAccount() ? "authenticated" : "loading",
   );
   const [activeScreen, setActiveScreen] = useState<EntryScreen>("login");
-  const [loginLaunchState, setLoginLaunchState] = useState<LoginLaunchState | null>(null);
+  const [loginLaunchState, setLoginLaunchState] =
+    useState<LoginLaunchState | null>(null);
 
   useEffect(() => {
     persistCachedActiveAccount(activeAccount);
@@ -89,7 +93,9 @@ function App() {
 
     async function bootstrapAuthenticatedState() {
       try {
-        const currentAccount = await invoke<AccountSummary | null>("active_account");
+        const currentAccount = await invoke<AccountSummary | null>(
+          "active_account",
+        );
         if (cancelled) {
           return;
         }
@@ -142,7 +148,9 @@ function App() {
     return (
       <ScreenShell>
         <ScreenMain largeBlockPadding>
-          <Typography variant="body">Loading the application shell...</Typography>
+          <Typography variant="body">
+            Loading the application shell...
+          </Typography>
         </ScreenMain>
       </ScreenShell>
     );

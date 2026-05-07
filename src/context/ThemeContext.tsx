@@ -1,21 +1,27 @@
 /*
  * Copyright (c) 2026 VinVel
- * 
+ *
  * SPDX-License-Identifier: AGPL-3.0-only
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, version 3 only.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
- * 
+ *
  * Project home: hyperion.velcore.net
  */
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { primitives, type ThemePrimitives } from '../themes/primitives';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  type ReactNode,
+} from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { primitives, type ThemePrimitives } from "../themes/primitives";
 import {
   DEFAULT_THEME_PRESET,
   isThemePresetName,
@@ -23,8 +29,8 @@ import {
   type ThemeColors,
   type ThemeMode,
   type ThemePresetName,
-} from '../themes/colorpalette';
-import { useColorScheme } from '../hooks/useColorScheme';
+} from "../themes/colorpalette";
+import { useColorScheme } from "../hooks/useColorScheme";
 
 interface ThemeContextType {
   theme: ThemeMode;
@@ -53,11 +59,12 @@ function exposeTokenGroup(
 }
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
-  const [theme, setTheme] = useState<ThemeMode>('system');
-  const [themePreset, setThemePresetState] = useState<ThemePresetName>(DEFAULT_THEME_PRESET);
-  const systemPrefersDark = useColorScheme() === 'dark';
-  const isDark = theme === 'system' ? systemPrefersDark : theme === 'dark';
-  const currentColors = themePalettes[themePreset][isDark ? 'dark' : 'light'];
+  const [theme, setTheme] = useState<ThemeMode>("system");
+  const [themePreset, setThemePresetState] =
+    useState<ThemePresetName>(DEFAULT_THEME_PRESET);
+  const systemPrefersDark = useColorScheme() === "dark";
+  const isDark = theme === "system" ? systemPrefersDark : theme === "dark";
+  const currentColors = themePalettes[themePreset][isDark ? "dark" : "light"];
 
   useEffect(() => {
     let cancelled = false;
@@ -65,8 +72,8 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     async function loadThemePreferences() {
       try {
         const [savedMode, savedPreset] = await Promise.all([
-          invoke<string>('get_theme_mode'),
-          invoke<string>('get_theme_preset', {
+          invoke<string>("get_theme_mode"),
+          invoke<string>("get_theme_preset", {
             supportedPresets: supportedThemePresets,
             defaultPreset: DEFAULT_THEME_PRESET,
           }),
@@ -74,7 +81,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 
         if (
           !cancelled &&
-          (savedMode === 'system' || savedMode === 'light' || savedMode === 'dark')
+          (savedMode === "system" ||
+            savedMode === "light" ||
+            savedMode === "dark")
         ) {
           setTheme(savedMode);
         }
@@ -83,7 +92,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
           setThemePresetState(savedPreset);
         }
       } catch (error) {
-        console.error('Failed to load saved theme preferences.', error);
+        console.error("Failed to load saved theme preferences.", error);
       }
     }
 
@@ -99,12 +108,18 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     setTheme(nextTheme);
 
     try {
-      const savedTheme = await invoke<string>('set_theme_mode', {
+      const savedTheme = await invoke<string>("set_theme_mode", {
         mode: nextTheme,
       });
 
-      if (savedTheme !== 'system' && savedTheme !== 'light' && savedTheme !== 'dark') {
-        throw new Error(`Unsupported theme mode returned from native settings: ${savedTheme}`);
+      if (
+        savedTheme !== "system" &&
+        savedTheme !== "light" &&
+        savedTheme !== "dark"
+      ) {
+        throw new Error(
+          `Unsupported theme mode returned from native settings: ${savedTheme}`,
+        );
       }
 
       setTheme(savedTheme);
@@ -119,14 +134,16 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     setThemePresetState(nextPreset);
 
     try {
-      const savedPreset = await invoke<string>('set_theme_preset', {
+      const savedPreset = await invoke<string>("set_theme_preset", {
         preset: nextPreset,
         supportedPresets: supportedThemePresets,
         defaultPreset: DEFAULT_THEME_PRESET,
       });
 
       if (!isThemePresetName(savedPreset)) {
-        throw new Error(`Unsupported theme preset returned from native settings: ${savedPreset}`);
+        throw new Error(
+          `Unsupported theme preset returned from native settings: ${savedPreset}`,
+        );
       }
 
       setThemePresetState(savedPreset);
@@ -139,7 +156,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   // Apply active theme and expose palette and primitive values as CSS variables.
   useEffect(() => {
     const root = document.documentElement;
-    root.dataset.theme = isDark ? 'dark' : 'light';
+    root.dataset.theme = isDark ? "dark" : "light";
     root.dataset.themePreset = themePreset;
 
     for (const [token, value] of Object.entries(currentColors)) {
@@ -147,13 +164,13 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       root.style.setProperty(`--${cssToken}`, value);
     }
 
-    exposeTokenGroup(root, 'typography', primitives.typography);
-    exposeTokenGroup(root, 'spacing', primitives.spacing);
-    exposeTokenGroup(root, 'sizing', primitives.sizing);
-    exposeTokenGroup(root, 'shape', primitives.shape);
-    exposeTokenGroup(root, 'elevation', primitives.elevation);
-    exposeTokenGroup(root, 'motion', primitives.motion);
-    exposeTokenGroup(root, 'layout', primitives.layout);
+    exposeTokenGroup(root, "typography", primitives.typography);
+    exposeTokenGroup(root, "spacing", primitives.spacing);
+    exposeTokenGroup(root, "sizing", primitives.sizing);
+    exposeTokenGroup(root, "shape", primitives.shape);
+    exposeTokenGroup(root, "elevation", primitives.elevation);
+    exposeTokenGroup(root, "motion", primitives.motion);
+    exposeTokenGroup(root, "layout", primitives.layout);
   }, [isDark, currentColors, themePreset]);
 
   return (
@@ -174,6 +191,6 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 
 export const useTheme = () => {
   const context = useContext(ThemeContext);
-  if (!context) throw new Error('useTheme must be used within ThemeProvider');
+  if (!context) throw new Error("useTheme must be used within ThemeProvider");
   return context;
-};     
+};

@@ -13,27 +13,27 @@
  * Project home: hyperion.velcore.net
  */
 
-import { invoke } from '@tauri-apps/api/core';
-import { ChevronRight } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { BackButton, Card, Typography } from '../../components/ui';
-import Account from './Account';
-import Appearance from './Appearance';
-import Calls from './Calls';
-import Chats from './Chats';
-import Encryption from './Encryption';
-import HelpAbout from './HelpAbout';
-import Hotkeys from './Hotkeys';
-import Notifications from './Notifications';
-import Security from './Security';
-import Sessions from './Sessions';
+import { invoke } from "@tauri-apps/api/core";
+import { ChevronRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { BackButton, Card, Typography } from "../../components/ui";
+import Account from "./Account";
+import Appearance from "./Appearance";
+import Calls from "./Calls";
+import Chats from "./Chats";
+import Encryption from "./Encryption";
+import HelpAbout from "./HelpAbout";
+import Hotkeys from "./Hotkeys";
+import Notifications from "./Notifications";
+import Security from "./Security";
+import Sessions from "./Sessions";
 import {
   defaultSettingsSectionId,
   sectionDescriptions,
   settingsSections,
   type SettingsSectionId,
-} from './settingsSections';
-import './SettingsView.css';
+} from "./settingsSections";
+import "./SettingsView.css";
 
 type SettingsViewProps = {
   onAddAccount: () => void;
@@ -65,25 +65,25 @@ function SettingsSectionContent({
   sectionId,
 }: SettingsSectionContentProps) {
   switch (sectionId) {
-    case 'account':
+    case "account":
       return <Account onAddAccount={onAddAccount} onSignOut={onSignOut} />;
-    case 'sessions':
+    case "sessions":
       return <Sessions />;
-    case 'appearance':
+    case "appearance":
       return <Appearance />;
-    case 'notifications':
+    case "notifications":
       return <Notifications />;
-    case 'chats':
+    case "chats":
       return <Chats />;
-    case 'hotkeys':
+    case "hotkeys":
       return <Hotkeys />;
-    case 'calls':
+    case "calls":
       return <Calls />;
-    case 'security':
+    case "security":
       return <Security />;
-    case 'encryption':
+    case "encryption":
       return <Encryption />;
-    case 'help-about':
+    case "help-about":
       return <HelpAbout />;
   }
 }
@@ -92,12 +92,12 @@ export default function SettingsView({
   onAddAccount,
   onSignedOut,
 }: SettingsViewProps) {
-  const [activeSectionId, setActiveSectionId] =
-    useState<SettingsSectionId>(defaultSettingsSectionId);
-  const [isMobile, setIsMobile] = useState(getIsMobileViewport);
-  const [mobileOpenedSectionId, setMobileOpenedSectionId] = useState<SettingsSectionId | null>(
-    null,
+  const [activeSectionId, setActiveSectionId] = useState<SettingsSectionId>(
+    defaultSettingsSectionId,
   );
+  const [isMobile, setIsMobile] = useState(getIsMobileViewport);
+  const [mobileOpenedSectionId, setMobileOpenedSectionId] =
+    useState<SettingsSectionId | null>(null);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(`(max-width: ${mobileBreakpoint}px)`);
@@ -107,9 +107,9 @@ export default function SettingsView({
     };
 
     setIsMobile(mediaQuery.matches);
-    mediaQuery.addEventListener('change', handleViewportChange);
+    mediaQuery.addEventListener("change", handleViewportChange);
 
-    return () => mediaQuery.removeEventListener('change', handleViewportChange);
+    return () => mediaQuery.removeEventListener("change", handleViewportChange);
   }, []);
 
   useEffect(() => {
@@ -119,11 +119,14 @@ export default function SettingsView({
   }, [isMobile]);
 
   const activeSection =
-    settingsSections.find((section) => section.id === activeSectionId) ?? settingsSections[0];
+    settingsSections.find((section) => section.id === activeSectionId) ??
+    settingsSections[0];
   const showMobileSectionDetail = isMobile && mobileOpenedSectionId !== null;
 
   async function handleSignOut() {
-    const nextAccount = await invoke<AccountSummary | null>('sign_out_active_account');
+    const nextAccount = await invoke<AccountSummary | null>(
+      "sign_out_active_account",
+    );
     onSignedOut(nextAccount);
   }
 
@@ -137,8 +140,9 @@ export default function SettingsView({
 
   if (showMobileSectionDetail && mobileOpenedSectionId) {
     const mobileSection =
-      settingsSections.find((section) => section.id === mobileOpenedSectionId) ??
-      settingsSections[0];
+      settingsSections.find(
+        (section) => section.id === mobileOpenedSectionId,
+      ) ?? settingsSections[0];
 
     return (
       <section
@@ -176,11 +180,11 @@ export default function SettingsView({
           <div className="settings-view-title">
             <Typography variant="eyebrow">Settings</Typography>
             <Typography variant="h2">
-              {isMobile ? 'Choose a section' : activeSection.label}
+              {isMobile ? "Choose a section" : activeSection.label}
             </Typography>
             <Typography muted variant="body">
               {isMobile
-                ? 'Select a settings area to drill into its detailed controls.'
+                ? "Select a settings area to drill into its detailed controls."
                 : sectionDescriptions[activeSection.id]}
             </Typography>
           </div>
@@ -196,9 +200,9 @@ export default function SettingsView({
                   return (
                     <button
                       key={section.id}
-                      aria-current={isActive ? 'page' : undefined}
+                      aria-current={isActive ? "page" : undefined}
                       className={`settings-view-nav-item${
-                        isActive ? ' settings-view-nav-item--active' : ''
+                        isActive ? " settings-view-nav-item--active" : ""
                       }`}
                       onClick={() => openSection(section.id)}
                       type="button"

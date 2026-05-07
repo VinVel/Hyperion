@@ -13,9 +13,9 @@
  * Project home: hyperion.velcore.net
  */
 
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type AccountSummary,
   type AuthenticatedShellView,
@@ -33,15 +33,15 @@ import {
   mapRoomThreadSummary,
   mapRoomTimeline,
   mapSpaceSummary,
-} from './appShellAdapters';
+} from "./appShellAdapters";
 import {
   type BackendGlobalSearchResponse,
   type SearchResultGroup,
   globalSearchStatusNotice,
   mapGlobalSearchResponse,
-} from './search';
+} from "./search";
 
-const SHELL_SYNC_UPDATED_EVENT = 'hyperion://shell-sync-updated';
+const SHELL_SYNC_UPDATED_EVENT = "hyperion://shell-sync-updated";
 
 // Room-list sync can arrive in bursts, so collection refreshes need a modest
 // debounce to avoid rebuilding the whole shell too often.
@@ -59,7 +59,7 @@ const globalSearchDebounceMilliseconds = 150;
 const globalSearchLimitPerGroup = 4;
 // The last opened room is UI navigation state, so keep it in browser storage
 // per Matrix account instead of making the backend infer it from activity.
-const appShellSelectionStoragePrefix = 'hyperion.appShell.selection';
+const appShellSelectionStoragePrefix = "hyperion.appShell.selection";
 // Keep recently opened room views in memory so switching rooms is an immediate
 // render operation while the backend refresh catches up.
 const maximumInMemoryRoomSnapshots = 24;
@@ -77,7 +77,7 @@ type TimelineJumpTarget = {
 };
 
 type FeedbackMessage = {
-  tone: 'success' | 'error' | 'info';
+  tone: "success" | "error" | "info";
   text: string;
 };
 
@@ -147,7 +147,7 @@ export type UseAppShellStateResult = {
 };
 
 function getErrorMessage(error: unknown): string {
-  if (typeof error === 'string' && error.trim().length > 0) {
+  if (typeof error === "string" && error.trim().length > 0) {
     return error;
   }
 
@@ -155,7 +155,7 @@ function getErrorMessage(error: unknown): string {
     return error.message;
   }
 
-  return 'Something went wrong while contacting the native shell service.';
+  return "Something went wrong while contacting the native shell service.";
 }
 
 function retainCurrentSelectionOrDefault<T extends { id: string }>(
@@ -175,23 +175,33 @@ function storedSelectionKey(accountKey: string): string {
 
 function readStoredSelection(accountKey: string): AccountShellSelection {
   try {
-    const rawValue = window.localStorage.getItem(storedSelectionKey(accountKey));
+    const rawValue = window.localStorage.getItem(
+      storedSelectionKey(accountKey),
+    );
     if (!rawValue) {
       return { threadId: null, spaceId: null };
     }
 
     const parsedValue = JSON.parse(rawValue) as Partial<AccountShellSelection>;
     return {
-      threadId: typeof parsedValue.threadId === 'string' ? parsedValue.threadId : null,
-      spaceId: typeof parsedValue.spaceId === 'string' ? parsedValue.spaceId : null,
+      threadId:
+        typeof parsedValue.threadId === "string" ? parsedValue.threadId : null,
+      spaceId:
+        typeof parsedValue.spaceId === "string" ? parsedValue.spaceId : null,
     };
   } catch {
     return { threadId: null, spaceId: null };
   }
 }
 
-function writeStoredSelection(accountKey: string, selection: AccountShellSelection) {
-  window.localStorage.setItem(storedSelectionKey(accountKey), JSON.stringify(selection));
+function writeStoredSelection(
+  accountKey: string,
+  selection: AccountShellSelection,
+) {
+  window.localStorage.setItem(
+    storedSelectionKey(accountKey),
+    JSON.stringify(selection),
+  );
 }
 
 function timelineAnchorForRoom(
@@ -226,7 +236,9 @@ function mergeOlderTimelineItems(
   olderItems: RoomTimelineItem[],
 ): RoomTimelineItem[] {
   const seenItemIds = new Set(currentItems.map((item) => item.id));
-  const uniqueOlderItems = olderItems.filter((item) => !seenItemIds.has(item.id));
+  const uniqueOlderItems = olderItems.filter(
+    (item) => !seenItemIds.has(item.id),
+  );
 
   return [...uniqueOlderItems, ...currentItems];
 }
@@ -258,9 +270,14 @@ export default function useAppShellState({
   activeAccount,
   onActiveAccountChange,
 }: UseAppShellStateOptions): UseAppShellStateResult {
-  const [activeView, setActiveView] = useState<AuthenticatedShellView>('messages');
-  const [knownAccounts, setKnownAccounts] = useState<AccountSummary[]>([activeAccount]);
-  const [roomThreads, setRoomThreads] = useState<ReturnType<typeof mapRoomThreadSummary>[]>([]);
+  const [activeView, setActiveView] =
+    useState<AuthenticatedShellView>("messages");
+  const [knownAccounts, setKnownAccounts] = useState<AccountSummary[]>([
+    activeAccount,
+  ]);
+  const [roomThreads, setRoomThreads] = useState<
+    ReturnType<typeof mapRoomThreadSummary>[]
+  >([]);
   const [spaces, setSpaces] = useState<SpaceSummary[]>([]);
   const initialSelection = readStoredSelection(activeAccount.account_key);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(
@@ -269,39 +286,53 @@ export default function useAppShellState({
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(
     initialSelection.spaceId,
   );
-  const [selectionAccountKey, setSelectionAccountKey] = useState(activeAccount.account_key);
-  const [selectedRoomSummary, setSelectedRoomSummary] = useState<RoomSummary | null>(null);
-  const [selectedTimeline, setSelectedTimeline] = useState<RoomTimeline | null>(null);
+  const [selectionAccountKey, setSelectionAccountKey] = useState(
+    activeAccount.account_key,
+  );
+  const [selectedRoomSummary, setSelectedRoomSummary] =
+    useState<RoomSummary | null>(null);
+  const [selectedTimeline, setSelectedTimeline] = useState<RoomTimeline | null>(
+    null,
+  );
   const [roomSnapshotsByRoomId, setRoomSnapshotsByRoomId] = useState<
     Record<string, SelectedRoomSnapshot>
   >({});
-  const [timelineJumpTarget, setTimelineJumpTarget] = useState<TimelineJumpTarget | null>(null);
-  const [composerValue, setComposerValue] = useState('');
+  const [timelineJumpTarget, setTimelineJumpTarget] =
+    useState<TimelineJumpTarget | null>(null);
+  const [composerValue, setComposerValue] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
-  const [threadSearchQuery, setThreadSearchQuery] = useState('');
-  const [threadSort, setThreadSort] = useState<RoomThreadSort>('newest');
+  const [threadSearchQuery, setThreadSearchQuery] = useState("");
+  const [threadSort, setThreadSort] = useState<RoomThreadSort>("newest");
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
-  const [spaceSearchQuery, setSpaceSearchQuery] = useState('');
-  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [spaceSearchQuery, setSpaceSearchQuery] = useState("");
+  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
-  const [globalSearchResults, setGlobalSearchResults] = useState<SearchResultGroup[]>([]);
-  const [globalSearchNotice, setGlobalSearchNotice] = useState<string | null>(null);
+  const [globalSearchResults, setGlobalSearchResults] = useState<
+    SearchResultGroup[]
+  >([]);
+  const [globalSearchNotice, setGlobalSearchNotice] = useState<string | null>(
+    null,
+  );
   const [isAccountCenterOpen, setIsAccountCenterOpen] = useState(false);
-  const [feedbackMessage, setFeedbackMessage] = useState<FeedbackMessage | null>(null);
-  const [switchingAccountKey, setSwitchingAccountKey] = useState<string | null>(null);
+  const [feedbackMessage, setFeedbackMessage] =
+    useState<FeedbackMessage | null>(null);
+  const [switchingAccountKey, setSwitchingAccountKey] = useState<string | null>(
+    null,
+  );
   const [isLoadingShell, setIsLoadingShell] = useState(true);
   const activeAccountKeyRef = useRef(activeAccount.account_key);
 
   const refreshRoomCollections = useCallback(async () => {
-    const backendThreads = await invoke<BackendRoomThreadSummary[]>('list_room_threads');
+    const backendThreads =
+      await invoke<BackendRoomThreadSummary[]>("list_room_threads");
     const mappedThreads = backendThreads.map(mapRoomThreadSummary);
     setRoomThreads(mappedThreads);
     setSelectedThreadId((currentThreadId) =>
       retainCurrentSelectionOrDefault(currentThreadId, mappedThreads),
     );
 
-    void invoke<BackendSpaceSummary[]>('list_spaces')
+    void invoke<BackendSpaceSummary[]>("list_spaces")
       .then((backendSpaces) => {
         const mappedSpaces = backendSpaces.map(mapSpaceSummary);
         setSpaces(mappedSpaces);
@@ -311,14 +342,14 @@ export default function useAppShellState({
       })
       .catch((error) => {
         setFeedbackMessage({
-          tone: 'error',
+          tone: "error",
           text: getErrorMessage(error),
         });
       });
   }, []);
 
   const refreshShellSnapshot = useCallback(async () => {
-    const accounts = await invoke<AccountSummary[]>('list_accounts');
+    const accounts = await invoke<AccountSummary[]>("list_accounts");
     setKnownAccounts(accounts);
     await refreshRoomCollections();
   }, [refreshRoomCollections]);
@@ -336,18 +367,18 @@ export default function useAppShellState({
     ): Promise<SelectedRoomSnapshot> => {
       const timelineRequest =
         anchoredEventId && anchoredEventId.trim().length > 0
-          ? invoke<BackendRoomTimeline>('get_room_event_context', {
+          ? invoke<BackendRoomTimeline>("get_room_event_context", {
               request: {
                 room_id: roomId,
                 event_id: anchoredEventId,
                 context_limit: roomEventContextLimit,
               },
             })
-          : invoke<BackendRoomTimeline>('get_room_timeline', {
+          : invoke<BackendRoomTimeline>("get_room_timeline", {
               request: { room_id: roomId, limit: roomTimelinePageSize },
             });
       const [backendSummary, backendTimeline] = await Promise.all([
-        invoke<BackendRoomSummary>('get_room_summary', {
+        invoke<BackendRoomSummary>("get_room_summary", {
           request: { room_id: roomId },
         }),
         timelineRequest,
@@ -373,7 +404,12 @@ export default function useAppShellState({
       threadId: selectedThreadId,
       spaceId: selectedSpaceId,
     });
-  }, [activeAccount.account_key, selectedSpaceId, selectedThreadId, selectionAccountKey]);
+  }, [
+    activeAccount.account_key,
+    selectedSpaceId,
+    selectedThreadId,
+    selectionAccountKey,
+  ]);
 
   useEffect(() => {
     if (activeAccountKeyRef.current === activeAccount.account_key) {
@@ -390,7 +426,7 @@ export default function useAppShellState({
     setSelectedTimeline(null);
     setRoomSnapshotsByRoomId({});
     setTimelineJumpTarget(null);
-    setComposerValue('');
+    setComposerValue("");
     setIsLoadingOlderMessages(false);
   }, [activeAccount.account_key]);
 
@@ -410,7 +446,7 @@ export default function useAppShellState({
       } catch (error) {
         if (!cancelled) {
           setFeedbackMessage({
-            tone: 'error',
+            tone: "error",
             text: getErrorMessage(error),
           });
           setRoomThreads([]);
@@ -439,7 +475,7 @@ export default function useAppShellState({
       setSelectedRoomSummary(null);
       setSelectedTimeline(null);
       setTimelineJumpTarget(null);
-      setComposerValue('');
+      setComposerValue("");
       setIsLoadingOlderMessages(false);
       return;
     }
@@ -449,8 +485,14 @@ export default function useAppShellState({
 
     async function loadSelectedRoom() {
       try {
-        const anchoredEventId = timelineAnchorForRoom(roomId, timelineJumpTarget);
-        const roomSnapshot = await loadSelectedRoomSnapshot(roomId, anchoredEventId);
+        const anchoredEventId = timelineAnchorForRoom(
+          roomId,
+          timelineJumpTarget,
+        );
+        const roomSnapshot = await loadSelectedRoomSnapshot(
+          roomId,
+          anchoredEventId,
+        );
         if (cancelled || selectedThreadIdRef.current !== roomId) {
           return;
         }
@@ -464,7 +506,7 @@ export default function useAppShellState({
           void refreshRoomCollections().catch((error) => {
             if (!cancelled) {
               setFeedbackMessage({
-                tone: 'error',
+                tone: "error",
                 text: getErrorMessage(error),
               });
             }
@@ -477,7 +519,7 @@ export default function useAppShellState({
       } catch (error) {
         if (!cancelled) {
           setFeedbackMessage({
-            tone: 'error',
+            tone: "error",
             text: getErrorMessage(error),
           });
           setSelectedRoomSummary(null);
@@ -492,12 +534,12 @@ export default function useAppShellState({
       cancelled = true;
     };
   }, [
-        activeAccount.account_key,
-        loadSelectedRoomSnapshot,
-        refreshRoomCollections,
-        selectionAccountKey,
-        selectedThreadId,
-        timelineJumpTarget,
+    activeAccount.account_key,
+    loadSelectedRoomSnapshot,
+    refreshRoomCollections,
+    selectionAccountKey,
+    selectedThreadId,
+    timelineJumpTarget,
   ]);
 
   useEffect(() => {
@@ -521,7 +563,7 @@ export default function useAppShellState({
       void refreshRoomCollections().catch((error) => {
         if (!cancelled) {
           setFeedbackMessage({
-            tone: 'error',
+            tone: "error",
             text: getErrorMessage(error),
           });
         }
@@ -531,7 +573,10 @@ export default function useAppShellState({
     const unlistenPromise = listen<ShellSyncUpdatedPayload>(
       SHELL_SYNC_UPDATED_EVENT,
       (event) => {
-        if (cancelled || event.payload.account_key !== activeAccount.account_key) {
+        if (
+          cancelled ||
+          event.payload.account_key !== activeAccount.account_key
+        ) {
           return;
         }
 
@@ -552,7 +597,7 @@ export default function useAppShellState({
             void refreshRoomCollections().catch((error) => {
               if (!cancelled) {
                 setFeedbackMessage({
-                  tone: 'error',
+                  tone: "error",
                   text: getErrorMessage(error),
                 });
               }
@@ -579,7 +624,7 @@ export default function useAppShellState({
           pendingAmbiguousRoomListUpdate = false;
 
           if (
-            activeView !== 'messages' ||
+            activeView !== "messages" ||
             !selectedRoomMayHaveChanged ||
             timelineJumpTarget !== null ||
             !selectedThreadId
@@ -590,7 +635,7 @@ export default function useAppShellState({
           void refreshSelectedRoomAfterSync(selectedThreadId).catch((error) => {
             if (!cancelled) {
               setFeedbackMessage({
-                tone: 'error',
+                tone: "error",
                 text: getErrorMessage(error),
               });
             }
@@ -636,9 +681,12 @@ export default function useAppShellState({
 
     async function runGlobalSearch() {
       try {
-        const response = await invoke<BackendGlobalSearchResponse>('global_search', {
-          request: { query, limit_per_group: globalSearchLimitPerGroup },
-        });
+        const response = await invoke<BackendGlobalSearchResponse>(
+          "global_search",
+          {
+            request: { query, limit_per_group: globalSearchLimitPerGroup },
+          },
+        );
 
         if (cancelled) {
           return;
@@ -652,7 +700,7 @@ export default function useAppShellState({
         }
 
         setFeedbackMessage({
-          tone: 'error',
+          tone: "error",
           text: getErrorMessage(error),
         });
         setGlobalSearchResults([]);
@@ -689,42 +737,49 @@ export default function useAppShellState({
     }
 
     return spaces.filter((space) =>
-      [space.name, space.description].join(' ').toLowerCase().includes(normalizedQuery),
+      [space.name, space.description]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedQuery),
     );
   }, [spaces, spaceSearchQuery]);
   const selectedSpace =
     visibleSpaces.find((space) => space.id === selectedSpaceId) ??
     spaces.find((space) => space.id === selectedSpaceId) ??
     null;
-  const isThreadOpen = activeView === 'messages' && selectedThread !== null;
+  const isThreadOpen = activeView === "messages" && selectedThread !== null;
   const switchableAccounts = knownAccounts
     .filter((account) => account.account_key !== activeAccount.account_key)
     .sort((left, right) => left.user_id.localeCompare(right.user_id));
 
   const refreshRoomThreadsAfterSend = useCallback(async () => {
-    const backendThreads = await invoke<BackendRoomThreadSummary[]>('list_room_threads');
+    const backendThreads =
+      await invoke<BackendRoomThreadSummary[]>("list_room_threads");
     setRoomThreads(backendThreads.map(mapRoomThreadSummary));
   }, []);
 
-  const openRoomAtLatest = useCallback((roomId: string) => {
-    const cachedRoomSnapshot = roomSnapshotsByRoomId[roomId];
-    if (cachedRoomSnapshot) {
-      setSelectedRoomSummary(cachedRoomSnapshot.summary);
-      setSelectedTimeline(cachedRoomSnapshot.timeline);
-    } else {
-      setSelectedRoomSummary(null);
-      setSelectedTimeline(null);
-    }
+  const openRoomAtLatest = useCallback(
+    (roomId: string) => {
+      const cachedRoomSnapshot = roomSnapshotsByRoomId[roomId];
+      if (cachedRoomSnapshot) {
+        setSelectedRoomSummary(cachedRoomSnapshot.summary);
+        setSelectedTimeline(cachedRoomSnapshot.timeline);
+      } else {
+        setSelectedRoomSummary(null);
+        setSelectedTimeline(null);
+      }
 
-    setTimelineJumpTarget(null);
-    setSelectedThreadId(roomId);
-    setActiveView('messages');
-  }, [roomSnapshotsByRoomId]);
+      setTimelineJumpTarget(null);
+      setSelectedThreadId(roomId);
+      setActiveView("messages");
+    },
+    [roomSnapshotsByRoomId],
+  );
 
   const openRoomAtEvent = useCallback((roomId: string, eventId: string) => {
     setTimelineJumpTarget({ roomId, eventId });
     setSelectedThreadId(roomId);
-    setActiveView('messages');
+    setActiveView("messages");
   }, []);
 
   const reloadSelectedTimeline = useCallback(
@@ -748,26 +803,27 @@ export default function useAppShellState({
       setSwitchingAccountKey(nextAccount.account_key);
 
       try {
-        await invoke('switch_active_account', {
+        await invoke("switch_active_account", {
           accountKey: nextAccount.account_key,
         });
 
         const refreshedActiveAccount =
-          (await invoke<AccountSummary | null>('active_account')) ?? nextAccount;
+          (await invoke<AccountSummary | null>("active_account")) ??
+          nextAccount;
 
         onActiveAccountChange(refreshedActiveAccount);
         setIsAccountCenterOpen(false);
         setFeedbackMessage(null);
         setSelectedRoomSummary(null);
         setSelectedTimeline(null);
-        setGlobalSearchQuery('');
+        setGlobalSearchQuery("");
         setGlobalSearchResults([]);
         setGlobalSearchNotice(null);
         setTimelineJumpTarget(null);
-        setComposerValue('');
+        setComposerValue("");
       } catch (error) {
         setFeedbackMessage({
-          tone: 'error',
+          tone: "error",
           text: getErrorMessage(error),
         });
       } finally {
@@ -790,14 +846,14 @@ export default function useAppShellState({
     setIsSendingMessage(true);
 
     try {
-      await invoke('send_room_message', {
+      await invoke("send_room_message", {
         request: {
           room_id: selectedThreadId,
           body,
         },
       });
 
-      setComposerValue('');
+      setComposerValue("");
       setTimelineJumpTarget(null);
       await Promise.all([
         reloadSelectedTimeline(selectedThreadId),
@@ -805,41 +861,56 @@ export default function useAppShellState({
       ]);
     } catch (error) {
       setFeedbackMessage({
-        tone: 'error',
+        tone: "error",
         text: getErrorMessage(error),
       });
     } finally {
       setIsSendingMessage(false);
     }
-  }, [composerValue, refreshRoomThreadsAfterSend, reloadSelectedTimeline, selectedThreadId]);
+  }, [
+    composerValue,
+    refreshRoomThreadsAfterSend,
+    reloadSelectedTimeline,
+    selectedThreadId,
+  ]);
 
   const loadOlderMessages = useCallback(async () => {
-    if (!selectedThreadId || !selectedTimeline?.nextBefore || isLoadingOlderMessages) {
+    if (
+      !selectedThreadId ||
+      !selectedTimeline?.nextBefore ||
+      isLoadingOlderMessages
+    ) {
       return;
     }
 
     setIsLoadingOlderMessages(true);
 
     try {
-      const backendTimeline = await invoke<BackendRoomTimeline>('get_room_timeline', {
-        request: {
-          room_id: selectedThreadId,
-          before: selectedTimeline.nextBefore,
-          limit: roomTimelinePageSize,
+      const backendTimeline = await invoke<BackendRoomTimeline>(
+        "get_room_timeline",
+        {
+          request: {
+            room_id: selectedThreadId,
+            before: selectedTimeline.nextBefore,
+            limit: roomTimelinePageSize,
+          },
         },
-      });
+      );
       const olderTimeline = mapRoomTimeline(backendTimeline);
 
       setSelectedTimeline((currentTimeline) => {
-        if (!currentTimeline || currentTimeline.roomId !== olderTimeline.roomId) {
+        if (
+          !currentTimeline ||
+          currentTimeline.roomId !== olderTimeline.roomId
+        ) {
           setRoomSnapshotsByRoomId((currentSnapshots) =>
             rememberRoomSnapshot(currentSnapshots, {
               summary: selectedRoomSummaryForSelectedThread ?? {
                 id: olderTimeline.roomId,
-                title: selectedThread?.title ?? '',
-                participantLabel: selectedThread?.participantLabel ?? '',
-                homeserverLabel: selectedThread?.homeserverLabel ?? '',
-                topic: '',
+                title: selectedThread?.title ?? "",
+                participantLabel: selectedThread?.participantLabel ?? "",
+                homeserverLabel: selectedThread?.homeserverLabel ?? "",
+                topic: "",
                 isDirect: selectedThread?.isDirect ?? false,
                 canSendMessages: true,
               },
@@ -851,17 +922,20 @@ export default function useAppShellState({
 
         const mergedTimeline = {
           ...currentTimeline,
-          items: mergeOlderTimelineItems(currentTimeline.items, olderTimeline.items),
+          items: mergeOlderTimelineItems(
+            currentTimeline.items,
+            olderTimeline.items,
+          ),
           nextBefore: olderTimeline.nextBefore,
         };
         setRoomSnapshotsByRoomId((currentSnapshots) =>
           rememberRoomSnapshot(currentSnapshots, {
             summary: selectedRoomSummaryForSelectedThread ?? {
               id: mergedTimeline.roomId,
-              title: selectedThread?.title ?? '',
-              participantLabel: selectedThread?.participantLabel ?? '',
-              homeserverLabel: selectedThread?.homeserverLabel ?? '',
-              topic: '',
+              title: selectedThread?.title ?? "",
+              participantLabel: selectedThread?.participantLabel ?? "",
+              homeserverLabel: selectedThread?.homeserverLabel ?? "",
+              topic: "",
               isDirect: selectedThread?.isDirect ?? false,
               canSendMessages: true,
             },
@@ -872,7 +946,7 @@ export default function useAppShellState({
       });
     } catch (error) {
       setFeedbackMessage({
-        tone: 'error',
+        tone: "error",
         text: getErrorMessage(error),
       });
     } finally {
@@ -887,21 +961,21 @@ export default function useAppShellState({
   ]);
 
   const openMessagesView = useCallback(() => {
-    setActiveView('messages');
+    setActiveView("messages");
     setIsAccountCenterOpen(false);
     setIsSortMenuOpen(false);
     setSelectedSpaceId(null);
   }, []);
 
   const openSpacesView = useCallback(() => {
-    setActiveView('spaces');
+    setActiveView("spaces");
     setIsAccountCenterOpen(false);
     setIsSortMenuOpen(false);
     setSelectedThreadId(null);
   }, []);
 
   const openSettingsView = useCallback(() => {
-    setActiveView('settings');
+    setActiveView("settings");
     setIsAccountCenterOpen(false);
     setIsSortMenuOpen(false);
   }, []);
@@ -913,7 +987,7 @@ export default function useAppShellState({
       eventId?: string,
     ) => {
       setIsGlobalSearchOpen(false);
-      setGlobalSearchQuery('');
+      setGlobalSearchQuery("");
       setGlobalSearchResults([]);
       setGlobalSearchNotice(null);
 
@@ -980,7 +1054,8 @@ export default function useAppShellState({
     setSpaceSearchQuery,
     setThreadSearchQuery,
     switchAccount,
-    toggleAccountCenter: () => setIsAccountCenterOpen((currentValue) => !currentValue),
+    toggleAccountCenter: () =>
+      setIsAccountCenterOpen((currentValue) => !currentValue),
     toggleSortMenu: () => setIsSortMenuOpen((currentValue) => !currentValue),
   };
 }

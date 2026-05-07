@@ -13,14 +13,14 @@
  * Project home: hyperion.velcore.net
  */
 
-import { Blocks, MessagesSquare, Search } from 'lucide-react';
-import { AppRail, AppRailButton } from '../../components/ui';
+import { Blocks, MessagesSquare, Search } from "lucide-react";
+import { AppRail, AppRailButton } from "../../components/ui";
 import {
   type AccountSummary,
   type AuthenticatedShellView,
   accountInitials,
-} from './appShellAdapters';
-import AppShellAccountPopoverContent from './AppShellAccountPopoverContent';
+} from "./appShellAdapters";
+import AppShellAccountPopoverContent from "./AppShellAccountPopoverContent";
 
 type AppShellNavigationProps = {
   activeAccount: AccountSummary;
@@ -55,13 +55,16 @@ export default function AppShellNavigation({
     <>
       <AppRail className="app-shell-rail">
         <div className="app-shell-rail-group">
-          <AppRailButton aria-label="Open global search" onClick={onOpenGlobalSearch}>
+          <AppRailButton
+            aria-label="Open global search"
+            onClick={onOpenGlobalSearch}
+          >
             <Search aria-hidden="true" />
           </AppRailButton>
 
           <AppRailButton
             aria-label="Open messages"
-            isActive={activeView === 'messages'}
+            isActive={activeView === "messages"}
             onClick={onOpenMessages}
           >
             <MessagesSquare aria-hidden="true" />
@@ -69,7 +72,7 @@ export default function AppShellNavigation({
 
           <AppRailButton
             aria-label="Open spaces"
-            isActive={activeView === 'spaces'}
+            isActive={activeView === "spaces"}
             onClick={onOpenSpaces}
           >
             <Blocks aria-hidden="true" />
@@ -78,7 +81,10 @@ export default function AppShellNavigation({
 
         <div className="app-shell-account-center">
           {isAccountCenterOpen ? (
-            <section className="app-shell-account-popover" aria-label="Account center">
+            <section
+              className="app-shell-account-popover"
+              aria-label="Account center"
+            >
               <AppShellAccountPopoverContent
                 activeAccount={activeAccount}
                 switchableAccounts={switchableAccounts}
@@ -96,7 +102,9 @@ export default function AppShellNavigation({
             type="button"
             onClick={onToggleAccountCenter}
           >
-            <span className="app-shell-account-avatar">{accountInitials(activeAccount)}</span>
+            <span className="app-shell-account-avatar">
+              {accountInitials(activeAccount)}
+            </span>
           </button>
         </div>
       </AppRail>
@@ -105,7 +113,7 @@ export default function AppShellNavigation({
         <button
           aria-label="Open global search"
           className={`app-shell-mobile-nav-button${
-            isGlobalSearchOpen ? ' app-shell-mobile-nav-button--active' : ''
+            isGlobalSearchOpen ? " app-shell-mobile-nav-button--active" : ""
           }`}
           type="button"
           onClick={onOpenGlobalSearch}
@@ -116,7 +124,9 @@ export default function AppShellNavigation({
         <button
           aria-label="Open messages"
           className={`app-shell-mobile-nav-button${
-            activeView === 'messages' ? ' app-shell-mobile-nav-button--active' : ''
+            activeView === "messages"
+              ? " app-shell-mobile-nav-button--active"
+              : ""
           }`}
           type="button"
           onClick={onOpenMessages}
@@ -127,7 +137,9 @@ export default function AppShellNavigation({
         <button
           aria-label="Open spaces"
           className={`app-shell-mobile-nav-button${
-            activeView === 'spaces' ? ' app-shell-mobile-nav-button--active' : ''
+            activeView === "spaces"
+              ? " app-shell-mobile-nav-button--active"
+              : ""
           }`}
           type="button"
           onClick={onOpenSpaces}
@@ -140,12 +152,14 @@ export default function AppShellNavigation({
           aria-haspopup="menu"
           aria-label="Open account center"
           className={`app-shell-mobile-nav-button app-shell-mobile-nav-button--account${
-            isAccountCenterOpen ? ' app-shell-mobile-nav-button--active' : ''
+            isAccountCenterOpen ? " app-shell-mobile-nav-button--active" : ""
           }`}
           type="button"
           onClick={onToggleAccountCenter}
         >
-          <span className="app-shell-account-avatar">{accountInitials(activeAccount)}</span>
+          <span className="app-shell-account-avatar">
+            {accountInitials(activeAccount)}
+          </span>
         </button>
 
         {isAccountCenterOpen ? (

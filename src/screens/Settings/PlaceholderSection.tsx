@@ -13,15 +13,17 @@
  * Project home: hyperion.velcore.net
  */
 
-import { Settings2 } from 'lucide-react';
-import { Card, Typography } from '../../components/ui';
-import { settingsSections, type SettingsSectionId } from './settingsSections';
+import { Settings2 } from "lucide-react";
+import { Card, Typography } from "../../components/ui";
+import { settingsSections, type SettingsSectionId } from "./settingsSections";
 
 type PlaceholderSectionProps = {
   sectionId: SettingsSectionId;
 };
 
-export default function PlaceholderSection({ sectionId }: PlaceholderSectionProps) {
+export default function PlaceholderSection({
+  sectionId,
+}: PlaceholderSectionProps) {
   const section = settingsSections.find((item) => item.id === sectionId);
 
   return (

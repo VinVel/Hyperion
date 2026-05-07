@@ -78,7 +78,9 @@ export default function LogInScreen({
     ...defaultFormValues,
     homeserver: initialHomeserver,
   }));
-  const [feedback, setFeedback] = useState<FeedbackMessage | null>(initialFeedback);
+  const [feedback, setFeedback] = useState<FeedbackMessage | null>(
+    initialFeedback,
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationRequested, setValidationRequested] = useState(false);
 
@@ -97,14 +99,17 @@ export default function LogInScreen({
 
     setFormValues((currentValues) => ({
       ...currentValues,
-      homeserver: currentValues.homeserver.trim().length > 0
-        ? currentValues.homeserver
-        : initialHomeserver,
+      homeserver:
+        currentValues.homeserver.trim().length > 0
+          ? currentValues.homeserver
+          : initialHomeserver,
     }));
   }, [initialHomeserver]);
 
-  const usernameMissing = validationRequested && formValues.username.trim().length === 0;
-  const passwordMissing = validationRequested && formValues.password.length === 0;
+  const usernameMissing =
+    validationRequested && formValues.username.trim().length === 0;
+  const passwordMissing =
+    validationRequested && formValues.password.length === 0;
 
   function updateField(field: keyof FormValues, value: string) {
     setFormValues((currentValues) => ({
@@ -113,11 +118,16 @@ export default function LogInScreen({
     }));
   }
 
-  async function handleSubmit(event: SyntheticEvent<HTMLFormElement, SubmitEvent>) {
+  async function handleSubmit(
+    event: SyntheticEvent<HTMLFormElement, SubmitEvent>,
+  ) {
     event.preventDefault();
     setValidationRequested(true);
 
-    if (formValues.username.trim().length === 0 || formValues.password.length === 0) {
+    if (
+      formValues.username.trim().length === 0 ||
+      formValues.password.length === 0
+    ) {
       setFeedback({
         tone: "error",
         text: "Username and password are required before you can log in.",
@@ -169,7 +179,12 @@ export default function LogInScreen({
           <Typography variant="eyebrow" className="login-panel-kicker">
             Account access
           </Typography>
-          <Typography as="h2" variant="h1" className="login-panel-title" id="login-panel-title">
+          <Typography
+            as="h2"
+            variant="h1"
+            className="login-panel-title"
+            id="login-panel-title"
+          >
             Log in
           </Typography>
 
@@ -181,7 +196,9 @@ export default function LogInScreen({
               isRequiredVisible
               label="Username"
               name="username"
-              onChange={(event) => updateField("username", event.currentTarget.value)}
+              onChange={(event) =>
+                updateField("username", event.currentTarget.value)
+              }
               spellCheck={false}
               type="text"
               value={formValues.username}
@@ -192,7 +209,9 @@ export default function LogInScreen({
               inputMode="url"
               label="Homeserver"
               name="homeserver"
-              onChange={(event) => updateField("homeserver", event.currentTarget.value)}
+              onChange={(event) =>
+                updateField("homeserver", event.currentTarget.value)
+              }
               placeholder={DEFAULT_HOMESERVER}
               spellCheck={false}
               type="text"
@@ -207,7 +226,9 @@ export default function LogInScreen({
                 isRequiredVisible
                 label="Password"
                 name="password"
-                onChange={(event) => updateField("password", event.currentTarget.value)}
+                onChange={(event) =>
+                  updateField("password", event.currentTarget.value)
+                }
                 type="password"
                 value={formValues.password}
               />
@@ -243,7 +264,11 @@ export default function LogInScreen({
             </div>
 
             <div className="login-registration-row">
-              <Typography variant="bodySmall" muted className="login-registration-copy">
+              <Typography
+                variant="bodySmall"
+                muted
+                className="login-registration-copy"
+              >
                 Need a new account?
               </Typography>
 

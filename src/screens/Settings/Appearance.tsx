@@ -13,22 +13,27 @@
  * Project home: hyperion.velcore.net
  */
 
-import { Palette } from 'lucide-react';
-import { useState } from 'react';
-import { Button, Card, Typography, useFeedbackToast } from '../../components/ui';
-import { useTheme } from '../../context/ThemeContext';
+import { Palette } from "lucide-react";
+import { useState } from "react";
+import {
+  Button,
+  Card,
+  Typography,
+  useFeedbackToast,
+} from "../../components/ui";
+import { useTheme } from "../../context/ThemeContext";
 import {
   themePresetDetails,
   themePalettes,
   type ThemeMode,
   type ThemePresetName,
-} from '../../themes/colorpalette';
+} from "../../themes/colorpalette";
 
 const themePresetNames = Object.keys(themePresetDetails) as ThemePresetName[];
-const themeModes: ThemeMode[] = ['system', 'light', 'dark'];
+const themeModes: ThemeMode[] = ["system", "light", "dark"];
 
 function getErrorMessage(error: unknown): string {
-  if (typeof error === 'string' && error.trim().length > 0) {
+  if (typeof error === "string" && error.trim().length > 0) {
     return error;
   }
 
@@ -36,7 +41,7 @@ function getErrorMessage(error: unknown): string {
     return error.message;
   }
 
-  return 'The selected theme preset could not be saved.';
+  return "The selected theme preset could not be saved.";
 }
 
 export default function Appearance() {
@@ -45,8 +50,10 @@ export default function Appearance() {
   const [isSavingPreset, setIsSavingPreset] = useState(false);
   const [themeModeError, setThemeModeError] = useState<string | null>(null);
   const [presetError, setPresetError] = useState<string | null>(null);
-  useFeedbackToast(themeModeError ? { tone: 'error', text: themeModeError } : null);
-  useFeedbackToast(presetError ? { tone: 'error', text: presetError } : null);
+  useFeedbackToast(
+    themeModeError ? { tone: "error", text: themeModeError } : null,
+  );
+  useFeedbackToast(presetError ? { tone: "error", text: presetError } : null);
 
   async function handleThemeModeChange(nextTheme: ThemeMode) {
     if (theme === nextTheme || isSavingThemeMode) {
@@ -88,8 +95,8 @@ export default function Appearance() {
         <div className="settings-view-card-copy">
           <Typography variant="h3">Theme mode</Typography>
           <Typography muted variant="bodySmall">
-            System is the default. You can override it at any time with a manual light or dark
-            preference.
+            System is the default. You can override it at any time with a manual
+            light or dark preference.
           </Typography>
         </div>
 
@@ -105,10 +112,12 @@ export default function Appearance() {
               <Button
                 key={modeName}
                 aria-pressed={isActive}
-                className={isActive ? 'settings-view-toggle--active' : undefined}
+                className={
+                  isActive ? "settings-view-toggle--active" : undefined
+                }
                 disabled={isSavingThemeMode}
                 onClick={() => void handleThemeModeChange(modeName)}
-                variant={isActive ? 'primary' : 'secondary'}
+                variant={isActive ? "primary" : "secondary"}
               >
                 {modeName[0].toUpperCase()}
                 {modeName.slice(1)}
@@ -116,7 +125,6 @@ export default function Appearance() {
             );
           })}
         </div>
-
       </Card>
 
       <Card className="settings-view-card">
@@ -130,7 +138,11 @@ export default function Appearance() {
           </div>
         </div>
 
-        <div className="settings-view-preset-grid" role="list" aria-label="Theme presets">
+        <div
+          className="settings-view-preset-grid"
+          role="list"
+          aria-label="Theme presets"
+        >
           {themePresetNames.map((presetName) => {
             const preset = themePresetDetails[presetName];
             const isActive = themePreset === presetName;
@@ -141,13 +153,16 @@ export default function Appearance() {
                 key={presetName}
                 aria-pressed={isActive}
                 className={`settings-view-theme-preset${
-                  isActive ? ' settings-view-theme-preset--active' : ''
+                  isActive ? " settings-view-theme-preset--active" : ""
                 }`}
                 disabled={isSavingPreset}
                 onClick={() => void handleThemePresetChange(presetName)}
                 type="button"
               >
-                <div className="settings-view-theme-preset-swatches" aria-hidden="true">
+                <div
+                  className="settings-view-theme-preset-swatches"
+                  aria-hidden="true"
+                >
                   <span
                     className="settings-view-theme-preset-swatch"
                     style={{ backgroundColor: previewColors.primary }}

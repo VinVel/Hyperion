@@ -20,13 +20,13 @@ export type AccountSummary = {
   is_active: boolean;
 };
 
-export type AuthenticatedShellView = 'messages' | 'spaces' | 'settings';
+export type AuthenticatedShellView = "messages" | "spaces" | "settings";
 
 export type RoomThreadSort =
-  | 'newest'
-  | 'oldest'
-  | 'mostMessages'
-  | 'alphabetical';
+  | "newest"
+  | "oldest"
+  | "mostMessages"
+  | "alphabetical";
 
 export type BackendRoomThreadSummary = {
   room_id: string;
@@ -143,25 +143,32 @@ export function mapRoomThreadSummary(
     lastActivityOrder: backendThread.last_activity_unix_ms,
     messageCount: backendThread.message_count,
     unreadCount: backendThread.unread_count,
-    avatarLabel: backendThread.avatar_label?.trim() || backendThread.title.slice(0, 1).toUpperCase() || 'R',
+    avatarLabel:
+      backendThread.avatar_label?.trim() ||
+      backendThread.title.slice(0, 1).toUpperCase() ||
+      "R",
     homeserverLabel: backendThread.homeserver_label,
     isDirect: backendThread.is_direct,
   };
 }
 
-export function mapRoomSummary(backendSummary: BackendRoomSummary): RoomSummary {
+export function mapRoomSummary(
+  backendSummary: BackendRoomSummary,
+): RoomSummary {
   return {
     id: backendSummary.room_id,
     title: backendSummary.title,
     participantLabel: backendSummary.participant_label,
     homeserverLabel: backendSummary.homeserver_label,
-    topic: backendSummary.topic ?? '',
+    topic: backendSummary.topic ?? "",
     isDirect: backendSummary.is_direct,
     canSendMessages: backendSummary.can_send_messages,
   };
 }
 
-export function mapRoomTimeline(backendTimeline: BackendRoomTimeline): RoomTimeline {
+export function mapRoomTimeline(
+  backendTimeline: BackendRoomTimeline,
+): RoomTimeline {
   return {
     roomId: backendTimeline.room_id,
     items: backendTimeline.items.map((item) => ({
@@ -179,14 +186,19 @@ export function mapRoomTimeline(backendTimeline: BackendRoomTimeline): RoomTimel
   };
 }
 
-export function mapSpaceSummary(backendSpace: BackendSpaceSummary): SpaceSummary {
+export function mapSpaceSummary(
+  backendSpace: BackendSpaceSummary,
+): SpaceSummary {
   return {
     id: backendSpace.space_id,
     name: backendSpace.name,
     description: backendSpace.description,
     memberLabel: backendSpace.member_label,
     activityLabel: backendSpace.activity_label,
-    accentLabel: backendSpace.accent_label?.trim() || backendSpace.name.slice(0, 1).toUpperCase() || 'S',
+    accentLabel:
+      backendSpace.accent_label?.trim() ||
+      backendSpace.name.slice(0, 1).toUpperCase() ||
+      "S",
     isOfficial: backendSpace.is_official,
   };
 }
@@ -197,31 +209,32 @@ export function filterAndSortRoomThreads(
   sort: RoomThreadSort,
 ): RoomThreadSummary[] {
   const normalizedQuery = searchQuery.trim().toLowerCase();
-  const filteredThreads = normalizedQuery.length === 0
-    ? threads
-    : threads.filter((thread) =>
-        [
-          thread.title,
-          thread.preview,
-          thread.participantLabel,
-          thread.homeserverLabel,
-        ]
-          .join(' ')
-          .toLowerCase()
-          .includes(normalizedQuery),
-      );
+  const filteredThreads =
+    normalizedQuery.length === 0
+      ? threads
+      : threads.filter((thread) =>
+          [
+            thread.title,
+            thread.preview,
+            thread.participantLabel,
+            thread.homeserverLabel,
+          ]
+            .join(" ")
+            .toLowerCase()
+            .includes(normalizedQuery),
+        );
 
   const sortedThreads = [...filteredThreads];
   sortedThreads.sort((left, right) => {
-    if (sort === 'alphabetical') {
+    if (sort === "alphabetical") {
       return left.title.localeCompare(right.title);
     }
 
-    if (sort === 'mostMessages') {
+    if (sort === "mostMessages") {
       return right.messageCount - left.messageCount;
     }
 
-    if (sort === 'oldest') {
+    if (sort === "oldest") {
       return left.lastActivityOrder - right.lastActivityOrder;
     }
 
@@ -232,26 +245,26 @@ export function filterAndSortRoomThreads(
 }
 
 export function accountInitials(account: AccountSummary): string {
-  const sanitizedUserId = account.user_id.replace(/^@/, '');
-  const [leadingSegment = 'H'] = sanitizedUserId.split(':');
+  const sanitizedUserId = account.user_id.replace(/^@/, "");
+  const [leadingSegment = "H"] = sanitizedUserId.split(":");
   return leadingSegment.slice(0, 2).toUpperCase();
 }
 
 export const roomThreadSortLabels: Record<RoomThreadSort, string> = {
-  newest: 'Newest activity',
-  oldest: 'Oldest activity',
-  mostMessages: 'Most messages',
-  alphabetical: 'Alphabetical',
+  newest: "Newest activity",
+  oldest: "Oldest activity",
+  mostMessages: "Most messages",
+  alphabetical: "Alphabetical",
 };
 
 function formatTimelineTime(timestampUnixMs: number): string {
   if (timestampUnixMs <= 0) {
-    return '';
+    return "";
   }
 
   const date = new Date(timestampUnixMs);
   return date.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }

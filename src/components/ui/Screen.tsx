@@ -13,8 +13,8 @@
  * Project home: hyperion.velcore.net
  */
 
-import type { HTMLAttributes, ReactNode } from 'react';
-import { classNames } from './classNames';
+import type { HTMLAttributes, ReactNode } from "react";
+import { classNames } from "./classNames";
 
 type ScreenShellProps = HTMLAttributes<HTMLDivElement> & {
   children: ReactNode;
@@ -32,9 +32,13 @@ type ScreenMainProps = HTMLAttributes<HTMLElement> & {
   largeBlockPadding?: boolean;
 };
 
-export function ScreenShell({ className, children, ...props }: ScreenShellProps) {
+export function ScreenShell({
+  className,
+  children,
+  ...props
+}: ScreenShellProps) {
   return (
-    <div className={classNames('ui-screen-shell', className)} {...props}>
+    <div className={classNames("ui-screen-shell", className)} {...props}>
       {children}
     </div>
   );
@@ -49,8 +53,8 @@ export function ScreenHeader({
   return (
     <header
       className={classNames(
-        'ui-screen-header',
-        wide && 'ui-screen-header--wide',
+        "ui-screen-header",
+        wide && "ui-screen-header--wide",
         className,
       )}
       {...props}
@@ -71,10 +75,10 @@ export function ScreenMain({
   return (
     <main
       className={classNames(
-        'ui-screen-main',
-        wide && 'ui-screen-main--wide',
-        centered && 'ui-screen-main--centered',
-        largeBlockPadding && 'ui-screen-main--large-block-padding',
+        "ui-screen-main",
+        wide && "ui-screen-main--wide",
+        centered && "ui-screen-main--centered",
+        largeBlockPadding && "ui-screen-main--large-block-padding",
         className,
       )}
       {...props}

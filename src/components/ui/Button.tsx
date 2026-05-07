@@ -13,10 +13,10 @@
  * Project home: hyperion.velcore.net
  */
 
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
-import { classNames } from './classNames';
+import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { classNames } from "./classNames";
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'icon' | 'destructive';
+type ButtonVariant = "primary" | "secondary" | "ghost" | "icon" | "destructive";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
@@ -26,21 +26,21 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 export function Button({
-  variant = 'secondary',
+  variant = "secondary",
   fullWidth = false,
   iconOnly = false,
   className,
   children,
-  type = 'button',
+  type = "button",
   ...props
 }: ButtonProps) {
   return (
     <button
       className={classNames(
-        'ui-button',
+        "ui-button",
         `ui-button--${variant}`,
-        fullWidth && 'ui-button--full-width',
-        iconOnly && 'ui-button--icon-only',
+        fullWidth && "ui-button--full-width",
+        iconOnly && "ui-button--icon-only",
         className,
       )}
       type={type}

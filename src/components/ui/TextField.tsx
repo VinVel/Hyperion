@@ -13,10 +13,10 @@
  * Project home: hyperion.velcore.net
  */
 
-import { Eye, EyeOff } from 'lucide-react';
-import type { InputHTMLAttributes, ReactNode } from 'react';
-import { useId, useState } from 'react';
-import { classNames } from './classNames';
+import { Eye, EyeOff } from "lucide-react";
+import type { InputHTMLAttributes, ReactNode } from "react";
+import { useId, useState } from "react";
+import { classNames } from "./classNames";
 
 type TextFieldProps = InputHTMLAttributes<HTMLInputElement> & {
   label: string;
@@ -41,12 +41,12 @@ export function TextField({
 }: TextFieldProps) {
   const generatedId = useId();
   const inputId = id ?? generatedId;
-  const isPasswordField = type === 'password';
+  const isPasswordField = type === "password";
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-  const resolvedType = isPasswordField && isPasswordVisible ? 'text' : type;
+  const resolvedType = isPasswordField && isPasswordVisible ? "text" : type;
 
   return (
-    <div className={classNames('ui-field', className)}>
+    <div className={classNames("ui-field", className)}>
       <label className="ui-field__label" htmlFor={inputId}>
         {label}
         {isRequiredVisible ? (
@@ -55,11 +55,11 @@ export function TextField({
           </span>
         ) : null}
       </label>
-      <span className={classNames(isPasswordField && 'ui-field__control-wrap')}>
+      <span className={classNames(isPasswordField && "ui-field__control-wrap")}>
         <input
           className={classNames(
-            'ui-field__control',
-            isPasswordField && 'ui-field__control--with-trailing-action',
+            "ui-field__control",
+            isPasswordField && "ui-field__control--with-trailing-action",
             controlClassName,
           )}
           data-invalid={isInvalid || undefined}
@@ -77,11 +77,17 @@ export function TextField({
             onClick={() => setIsPasswordVisible((current) => !current)}
             type="button"
           >
-            {isPasswordVisible ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+            {isPasswordVisible ? (
+              <EyeOff aria-hidden="true" />
+            ) : (
+              <Eye aria-hidden="true" />
+            )}
           </button>
         ) : null}
       </span>
-      {helperText ? <span className="ui-field__helper">{helperText}</span> : null}
+      {helperText ? (
+        <span className="ui-field__helper">{helperText}</span>
+      ) : null}
     </div>
   );
 }

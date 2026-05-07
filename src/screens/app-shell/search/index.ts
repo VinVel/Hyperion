@@ -13,13 +13,10 @@
  * Project home: hyperion.velcore.net
  */
 
-export { default as AppShellSearchOverlay } from './AppShellSearchOverlay';
-export {
-  globalSearchStatusNotice,
-  mapGlobalSearchResponse,
-} from './adapters';
+export { default as AppShellSearchOverlay } from "./AppShellSearchOverlay";
+export { globalSearchStatusNotice, mapGlobalSearchResponse } from "./adapters";
 export type {
   BackendGlobalSearchResponse,
   SearchResultGroup,
   SearchResultKind,
-} from './types';
+} from "./types";

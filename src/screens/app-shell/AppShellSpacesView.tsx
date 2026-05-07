@@ -13,9 +13,9 @@
  * Project home: hyperion.velcore.net
  */
 
-import { Plus, Search } from 'lucide-react';
-import { Button, Pill, ToolbarField, Typography } from '../../components/ui';
-import { type SpaceSummary } from './appShellAdapters';
+import { Plus, Search } from "lucide-react";
+import { Button, Pill, ToolbarField, Typography } from "../../components/ui";
+import { type SpaceSummary } from "./appShellAdapters";
 
 type AppShellSpacesViewProps = {
   selectedSpace: SpaceSummary | null;
@@ -33,7 +33,10 @@ export default function AppShellSpacesView({
   onSelectSpace,
 }: AppShellSpacesViewProps) {
   return (
-    <section className="app-shell-main-pane app-shell-main-pane--full" aria-label="Spaces browser">
+    <section
+      className="app-shell-main-pane app-shell-main-pane--full"
+      aria-label="Spaces browser"
+    >
       <div className="app-shell-spaces-layout">
         <header className="app-shell-spaces-head">
           <div className="app-shell-heading-row">
@@ -74,18 +77,26 @@ export default function AppShellSpacesView({
               <button
                 key={space.id}
                 className={`app-shell-space-card${
-                  selectedSpace?.id === space.id ? ' app-shell-space-card--active' : ''
+                  selectedSpace?.id === space.id
+                    ? " app-shell-space-card--active"
+                    : ""
                 }`}
                 type="button"
                 onClick={() => onSelectSpace(space.id)}
               >
-                <span className="app-shell-space-icon">{space.accentLabel}</span>
+                <span className="app-shell-space-icon">
+                  {space.accentLabel}
+                </span>
                 <span className="app-shell-space-copy">
                   <span className="app-shell-space-title-row">
                     <span className="app-shell-space-title">{space.name}</span>
-                    {space.isOfficial ? <Pill tone="primary">Official</Pill> : null}
+                    {space.isOfficial ? (
+                      <Pill tone="primary">Official</Pill>
+                    ) : null}
                   </span>
-                  <span className="app-shell-space-description">{space.description}</span>
+                  <span className="app-shell-space-description">
+                    {space.description}
+                  </span>
                   <span className="app-shell-space-meta">
                     {space.memberLabel} · {space.activityLabel}
                   </span>

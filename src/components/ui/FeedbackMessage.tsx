@@ -13,10 +13,10 @@
  * Project home: hyperion.velcore.net
  */
 
-import type { HTMLAttributes, ReactNode } from 'react';
-import { classNames } from './classNames';
+import type { HTMLAttributes, ReactNode } from "react";
+import { classNames } from "./classNames";
 
-export type FeedbackTone = 'error' | 'success' | 'info' | 'warning';
+export type FeedbackTone = "error" | "success" | "info" | "warning";
 
 type FeedbackMessageProps = HTMLAttributes<HTMLParagraphElement> & {
   tone: FeedbackTone;
@@ -31,7 +31,7 @@ export function FeedbackMessage({
 }: FeedbackMessageProps) {
   return (
     <p
-      className={classNames('ui-feedback', `ui-feedback--${tone}`, className)}
+      className={classNames("ui-feedback", `ui-feedback--${tone}`, className)}
       {...props}
     >
       {children}

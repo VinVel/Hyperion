@@ -14,7 +14,14 @@
  */
 
 import { useEffect } from "react";
-import { BackButton, Button, Card, notifyFeedback, Pill, Typography } from "../../components/ui";
+import {
+  BackButton,
+  Button,
+  Card,
+  notifyFeedback,
+  Pill,
+  Typography,
+} from "../../components/ui";
 import type { HomeserverDirectoryEntry } from "./registrationShared";
 import {
   boolLabel,
@@ -53,7 +60,10 @@ export function HomeserverDetailsScreen({
 }: HomeserverDetailsScreenProps) {
   useEffect(() => {
     if (homeserver.registration_flow !== "matrix_sdk") {
-      notifyFeedback({ tone: "warning", text: handoffWarning(homeserver, "external_flow") });
+      notifyFeedback({
+        tone: "warning",
+        text: handoffWarning(homeserver, "external_flow"),
+      });
     }
   }, [homeserver]);
 
@@ -85,23 +95,19 @@ export function HomeserverDetailsScreen({
       </Typography>
 
       <div className="registration-detail-tags">
-        {homeserver.is_official ? (
-          <Pill tone="primary">Official</Pill>
-        ) : null}
-        <Pill tone="secondary">
-          {flowLabel(homeserver.registration_flow)}
-        </Pill>
-        <Pill>
-          {homeserver.homeserver_url ?? homeserverHost(homeserver)}
-        </Pill>
-        {homeserver.reg_method ? (
-          <Pill>{homeserver.reg_method}</Pill>
-        ) : null}
+        {homeserver.is_official ? <Pill tone="primary">Official</Pill> : null}
+        <Pill tone="secondary">{flowLabel(homeserver.registration_flow)}</Pill>
+        <Pill>{homeserver.homeserver_url ?? homeserverHost(homeserver)}</Pill>
+        {homeserver.reg_method ? <Pill>{homeserver.reg_method}</Pill> : null}
       </div>
 
       <div className="registration-detail-grid">
         <Card>
-          <Typography as="h2" variant="h3" className="registration-detail-title">
+          <Typography
+            as="h2"
+            variant="h3"
+            className="registration-detail-title"
+          >
             Links
           </Typography>
           <div className="registration-link-list">
@@ -148,7 +154,11 @@ export function HomeserverDetailsScreen({
               </Button>
             ) : null}
             {!homepageUrl && !rulesUrl && !privacyUrl ? (
-              <Typography variant="bodySmall" muted className="registration-detail-copy">
+              <Typography
+                variant="bodySmall"
+                muted
+                className="registration-detail-copy"
+              >
                 No additional links were published for this homeserver.
               </Typography>
             ) : null}
@@ -156,7 +166,11 @@ export function HomeserverDetailsScreen({
         </Card>
 
         <Card>
-          <Typography as="h2" variant="h3" className="registration-detail-title">
+          <Typography
+            as="h2"
+            variant="h3"
+            className="registration-detail-title"
+          >
             Registration
           </Typography>
           <dl className="registration-detail-list">
@@ -174,13 +188,21 @@ export function HomeserverDetailsScreen({
             </div>
             <div>
               <dt>Display name</dt>
-              <dd>{homeserver.supports_display_name ? "Supported" : "Not supported"}</dd>
+              <dd>
+                {homeserver.supports_display_name
+                  ? "Supported"
+                  : "Not supported"}
+              </dd>
             </div>
           </dl>
         </Card>
 
         <Card>
-          <Typography as="h2" variant="h3" className="registration-detail-title">
+          <Typography
+            as="h2"
+            variant="h3"
+            className="registration-detail-title"
+          >
             Technical details
           </Typography>
           <dl className="registration-detail-list">
@@ -210,7 +232,11 @@ export function HomeserverDetailsScreen({
         </Card>
 
         <Card>
-          <Typography as="h2" variant="h3" className="registration-detail-title">
+          <Typography
+            as="h2"
+            variant="h3"
+            className="registration-detail-title"
+          >
             Jurisdiction
           </Typography>
           <dl className="registration-detail-list">

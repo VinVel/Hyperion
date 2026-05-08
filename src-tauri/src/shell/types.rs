@@ -82,6 +82,7 @@ pub struct RoomTimeline {
     pub items: Vec<RoomTimelineItem>,
     pub next_before: Option<String>,
     pub focused_event_id: Option<String>,
+    pub redacted_event_ids: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]

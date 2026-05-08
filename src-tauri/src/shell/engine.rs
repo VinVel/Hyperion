@@ -27,7 +27,10 @@ use matrix_sdk_ui::timeline::{
 use tauri::async_runtime::JoinHandle;
 use tauri::async_runtime::Mutex as AsyncMutex;
 
-use super::{sync::emit_shell_room_updated, types::RoomTimelineItem};
+use super::{
+    sync::{emit_shell_room_updated, emit_shell_timeline_updated},
+    types::RoomTimelineItem,
+};
 
 // The SDK room latest event can be updated shortly before the UI Timeline has
 // consumed the same event-cache update. Wait briefly so timeline snapshots do
@@ -139,14 +142,29 @@ impl ShellTimelineRegistry {
         drop(timeline_initial_items);
         let account_key = account_key.to_owned();
         let room_id = room.room_id().to_string();
+        let update_handles = self.live_timeline_update_handles.clone();
+        let cache_key_for_task = cache_key.clone();
         let handle = tauri::async_runtime::spawn(async move {
             while let Some(diffs) = timeline_stream.next().await {
                 if diffs.is_empty() {
                     continue;
                 }
 
+                let items = timeline.items().await;
+                let shell_items = timeline_items_to_shell_items(items.iter());
+                let redacted_event_ids = redacted_event_ids_from_timeline_items(items.iter());
+                emit_shell_timeline_updated(
+                    &app,
+                    &account_key,
+                    &room_id,
+                    shell_items,
+                    redacted_event_ids,
+                );
                 emit_shell_room_updated(&app, &account_key, &room_id, false);
             }
+
+            let mut handles = update_handles.lock().await;
+            handles.remove(&cache_key_for_task);
         });
 
         let mut handles = self.live_timeline_update_handles.lock().await;

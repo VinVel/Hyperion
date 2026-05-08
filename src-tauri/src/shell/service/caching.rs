@@ -388,14 +388,65 @@ pub(super) fn cached_room_timeline(
     Ok(Some((items, next_before)))
 }
 
-pub(super) fn remember_room_timeline(
+pub(super) fn merge_cached_room_timeline_refresh(
     account_key: &str,
     store_dir: &Path,
     room_id: &str,
-    items: &[RoomTimelineItem],
+    refreshed_items: &[RoomTimelineItem],
     next_before: Option<&str>,
+    redacted_event_ids: &[String],
 ) -> Result<(), String> {
-    write_cached_room_timeline(account_key, store_dir, room_id, items, next_before)
+    let Some((cached_items, cached_next_before)) =
+        cached_room_timeline(account_key, store_dir, room_id)?
+    else {
+        return write_cached_room_timeline(
+            account_key,
+            store_dir,
+            room_id,
+            refreshed_items,
+            next_before,
+        );
+    };
+
+    let redacted_event_ids = redacted_event_ids
+        .iter()
+        .map(String::as_str)
+        .collect::<std::collections::HashSet<&str>>();
+    let cached_event_ids = cached_items
+        .iter()
+        .map(|item| item.event_id.as_str())
+        .collect::<std::collections::HashSet<&str>>();
+    let refreshed_items_by_id = refreshed_items
+        .iter()
+        .map(|item| (item.event_id.as_str(), item))
+        .collect::<std::collections::HashMap<&str, &RoomTimelineItem>>();
+    let mut merged_items = cached_items
+        .iter()
+        .filter(|item| !redacted_event_ids.contains(item.event_id.as_str()))
+        .map(|item| {
+            refreshed_items_by_id
+                .get(item.event_id.as_str())
+                .map_or_else(|| item.clone(), |refreshed_item| (*refreshed_item).clone())
+        })
+        .collect::<Vec<RoomTimelineItem>>();
+
+    merged_items.extend(
+        refreshed_items
+            .iter()
+            .filter(|item| {
+                !cached_event_ids.contains(item.event_id.as_str())
+                    && !redacted_event_ids.contains(item.event_id.as_str())
+            })
+            .cloned(),
+    );
+
+    write_cached_room_timeline(
+        account_key,
+        store_dir,
+        room_id,
+        &merged_items,
+        cached_next_before.as_deref(),
+    )
 }
 
 pub(super) fn prepend_cached_room_timeline_items(
@@ -420,8 +471,8 @@ pub(super) fn prepend_cached_room_timeline_items(
     let mut seen_event_ids = cached_items
         .iter()
         .map(|item| item.event_id.clone())
-        .collect::<std::collections::HashSet<_>>();
-    let mut merged_items = Vec::new();
+        .collect::<std::collections::HashSet<String>>();
+    let mut merged_items: Vec<RoomTimelineItem> = Vec::new();
     for item in older_items {
         if seen_event_ids.insert(item.event_id.clone()) {
             merged_items.push(item.clone());
@@ -716,12 +767,13 @@ mod tests {
         let newer_items = vec![test_timeline_item("$2"), test_timeline_item("$3")];
         let older_items = vec![test_timeline_item("$1"), test_timeline_item("$2")];
 
-        remember_room_timeline(
+        merge_cached_room_timeline_refresh(
             ACCOUNT_KEY,
             &store_dir,
             ROOM_ID,
             &newer_items,
             Some(&timeline_page_token(1)),
+            &[],
         )
         .unwrap();
         prepend_cached_room_timeline_items(
@@ -740,10 +792,63 @@ mod tests {
             items
                 .iter()
                 .map(|item| item.event_id.as_str())
-                .collect::<Vec<_>>(),
+                .collect::<Vec<&str>>(),
             vec!["$1", "$2", "$3"]
         );
         assert_eq!(next_before, Some(timeline_page_token(2)));
+
+        remove_test_dir(&store_root).unwrap();
+    }
+
+    #[test]
+    fn refreshed_room_timeline_updates_and_redacts_cached_items() {
+        let store_root = unique_test_dir();
+        let store_dir = store_root.join("store");
+        fs::create_dir_all(&store_dir).unwrap();
+        let cached_items = vec![
+            test_timeline_item("$1"),
+            test_timeline_item("$2"),
+            test_timeline_item("$3"),
+        ];
+        let mut edited_item = test_timeline_item("$2");
+        edited_item.body = String::from("Edited body");
+        edited_item.is_edited = Some(true);
+        let refreshed_items = vec![edited_item, test_timeline_item("$4")];
+
+        merge_cached_room_timeline_refresh(
+            ACCOUNT_KEY,
+            &store_dir,
+            ROOM_ID,
+            &cached_items,
+            Some(&timeline_page_token(4)),
+            &[],
+        )
+        .unwrap();
+        merge_cached_room_timeline_refresh(
+            ACCOUNT_KEY,
+            &store_dir,
+            ROOM_ID,
+            &refreshed_items,
+            Some(&timeline_page_token(1)),
+            &[String::from("$3")],
+        )
+        .unwrap();
+
+        let (items, next_before) = cached_room_timeline(ACCOUNT_KEY, &store_dir, ROOM_ID)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            items
+                .iter()
+                .map(|item| (item.event_id.as_str(), item.body.as_str(), item.is_edited))
+                .collect::<Vec<(&str, &str, Option<bool>)>>(),
+            vec![
+                ("$1", "Body", Some(false)),
+                ("$2", "Edited body", Some(true)),
+                ("$4", "Body", Some(false)),
+            ]
+        );
+        assert_eq!(next_before, Some(timeline_page_token(4)));
 
         remove_test_dir(&store_root).unwrap();
     }

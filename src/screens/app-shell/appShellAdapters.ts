@@ -91,6 +91,7 @@ export type BackendRoomTimeline = {
   items: BackendRoomTimelineItem[];
   next_before?: string | null;
   focused_event_id?: string | null;
+  redacted_event_ids?: string[];
 };
 
 export type RoomTimelineItem = {
@@ -109,6 +110,7 @@ export type RoomTimeline = {
   items: RoomTimelineItem[];
   nextBefore: string | null;
   focusedEventId: string | null;
+  redactedEventIds: string[];
 };
 
 export type BackendSpaceSummary = {
@@ -183,6 +185,7 @@ export function mapRoomTimeline(
     })),
     nextBefore: backendTimeline.next_before ?? null,
     focusedEventId: backendTimeline.focused_event_id ?? null,
+    redactedEventIds: backendTimeline.redacted_event_ids ?? [],
   };
 }
 

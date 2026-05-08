@@ -56,14 +56,25 @@ impl ShellManager {
         let (items, next_before) = self
             .load_room_timeline_items(app, &account, &room, &request)
             .await?;
-        self.after_room_timeline_load(&account, &room, &request, &items, next_before.as_deref())
-            .await?;
+        let redacted_event_ids = self
+            .live_redacted_event_ids(&account.account_key, &room)
+            .await;
+        self.after_room_timeline_load(
+            &account,
+            &room,
+            &request,
+            &items,
+            next_before.as_deref(),
+            &redacted_event_ids,
+        )
+        .await?;
 
         Ok(RoomTimeline {
             room_id: room.room_id().to_string(),
             items,
             next_before,
             focused_event_id: None,
+            redacted_event_ids,
         })
     }
 
@@ -113,6 +124,9 @@ impl ShellManager {
             items,
             next_before: Some(focused_timeline_page_token(event_id.as_ref(), 1)),
             focused_event_id: Some(request.event_id),
+            redacted_event_ids: self
+                .focused_redacted_event_ids(&account.account_key, &room, event_id, context_limit)
+                .await,
         })
     }
 
@@ -143,6 +157,7 @@ impl ShellManager {
             items,
             next_before,
             focused_event_id: None,
+            redacted_event_ids: Vec::new(),
         })
     }
 
@@ -183,8 +198,18 @@ impl ShellManager {
         let (items, next_before) = self
             .load_room_timeline_items(app, &account, &room, &request)
             .await?;
-        self.after_room_timeline_load(&account, &room, &request, &items, next_before.as_deref())
-            .await?;
+        let redacted_event_ids = self
+            .live_redacted_event_ids(&account.account_key, &room)
+            .await;
+        self.after_room_timeline_load(
+            &account,
+            &room,
+            &request,
+            &items,
+            next_before.as_deref(),
+            &redacted_event_ids,
+        )
+        .await?;
         emit_shell_room_updated(app, &account.account_key, room.room_id().as_str(), false);
 
         Ok(())
@@ -246,6 +271,7 @@ impl ShellManager {
         request: &GetRoomTimelineRequest,
         items: &[crate::shell::types::RoomTimelineItem],
         next_before: Option<&str>,
+        redacted_event_ids: &[String],
     ) -> Result<(), String> {
         Self::record_room_timeline_pagination(account, room, request, items, next_before);
 
@@ -275,12 +301,13 @@ impl ShellManager {
         self.delete_redacted_timeline_items(&account.account_key, &account.store_dir, room)
             .await;
         if request.before.is_none() {
-            Self::remember_timeline(
+            Self::merge_refreshed_timeline(
                 &account.account_key,
                 &account.store_dir,
                 room.room_id().as_str(),
                 items,
                 next_before,
+                redacted_event_ids,
             );
         }
 
@@ -313,6 +340,40 @@ impl ShellManager {
             items,
             next_before,
         );
+    }
+
+    async fn live_redacted_event_ids(&self, account_key: &str, room: &Room) -> Vec<String> {
+        match self
+            .timeline_registry
+            .live_redacted_event_ids(account_key, room)
+            .await
+        {
+            Ok(redacted_event_ids) => redacted_event_ids,
+            Err(error) => {
+                eprintln!("Failed to inspect redacted timeline items: {error}");
+                Vec::new()
+            }
+        }
+    }
+
+    async fn focused_redacted_event_ids(
+        &self,
+        account_key: &str,
+        room: &Room,
+        event_id: matrix_sdk::ruma::OwnedEventId,
+        context_limit: u16,
+    ) -> Vec<String> {
+        match self
+            .timeline_registry
+            .focused_redacted_event_ids(account_key, room, event_id, context_limit)
+            .await
+        {
+            Ok(redacted_event_ids) => redacted_event_ids,
+            Err(error) => {
+                eprintln!("Failed to inspect focused redacted timeline items: {error}");
+                Vec::new()
+            }
+        }
     }
 }
 

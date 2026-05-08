@@ -17,9 +17,9 @@ use super::{
     ShellManager,
     caching::{
         cached_room_thread_summaries, cached_room_timeline, cached_space_summaries,
-        prepend_cached_room_timeline_items, remember_room_thread_summaries, remember_room_timeline,
-        remember_room_timeline_item_count, remember_space_summaries,
-        remembered_room_timeline_item_count,
+        merge_cached_room_timeline_refresh, prepend_cached_room_timeline_items,
+        remember_room_thread_summaries, remember_room_timeline_item_count,
+        remember_space_summaries, remembered_room_timeline_item_count,
     },
     paging::visible_count_after_live_page,
     search::{matches_query, normalize_query},
@@ -239,17 +239,23 @@ impl ShellManager {
         }
     }
 
-    pub(super) fn remember_timeline(
+    pub(super) fn merge_refreshed_timeline(
         account_key: &str,
         store_dir: &std::path::Path,
         room_id: &str,
         items: &[crate::shell::types::RoomTimelineItem],
         next_before: Option<&str>,
+        redacted_event_ids: &[String],
     ) {
-        if let Err(error) =
-            remember_room_timeline(account_key, store_dir, room_id, items, next_before)
-        {
-            eprintln!("Failed to persist cached room timeline: {error}");
+        if let Err(error) = merge_cached_room_timeline_refresh(
+            account_key,
+            store_dir,
+            room_id,
+            items,
+            next_before,
+            redacted_event_ids,
+        ) {
+            eprintln!("Failed to merge refreshed room timeline cache: {error}");
         }
     }
 

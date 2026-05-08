@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type AccountSummary,
   type AuthenticatedShellView,
+  type BackendRoomTimelineItem,
   type BackendRoomSummary,
   type BackendRoomThreadSummary,
   type BackendRoomTimeline,
@@ -42,6 +43,7 @@ import {
 } from "./search";
 
 const SHELL_SYNC_UPDATED_EVENT = "hyperion://shell-sync-updated";
+const SHELL_TIMELINE_UPDATED_EVENT = "hyperion://shell-timeline-updated";
 
 // Room-list sync can arrive in bursts, so collection refreshes need a modest
 // debounce to avoid rebuilding the whole shell too often.
@@ -73,6 +75,14 @@ type ShellSyncUpdatedPayload = {
   account_key: string;
   changed_room_ids: string[];
   room_list_may_have_changed: boolean;
+  updated_at_unix_ms: number;
+};
+
+type ShellTimelineUpdatedPayload = {
+  account_key: string;
+  room_id: string;
+  items: BackendRoomTimelineItem[];
+  redacted_event_ids: string[];
   updated_at_unix_ms: number;
 };
 
@@ -213,7 +223,20 @@ function emptyRoomTimeline(roomId: string): RoomTimeline {
     items: [],
     nextBefore: null,
     focusedEventId: null,
+    redactedEventIds: [],
   };
+}
+
+function roomTimelineFromUpdatePayload(
+  payload: ShellTimelineUpdatedPayload,
+): RoomTimeline {
+  return mapRoomTimeline({
+    room_id: payload.room_id,
+    items: payload.items,
+    next_before: null,
+    focused_event_id: null,
+    redacted_event_ids: payload.redacted_event_ids,
+  });
 }
 
 function readCachedRoomSnapshot(
@@ -284,6 +307,37 @@ function mergeOlderTimelineItems(
   );
 
   return [...uniqueOlderItems, ...currentItems];
+}
+
+function mergeTimelineRefresh(
+  currentTimeline: RoomTimeline | null,
+  refreshedTimeline: RoomTimeline,
+): RoomTimeline {
+  if (
+    !currentTimeline ||
+    currentTimeline.roomId !== refreshedTimeline.roomId ||
+    refreshedTimeline.focusedEventId
+  ) {
+    return refreshedTimeline;
+  }
+
+  const redactedItemIds = new Set(refreshedTimeline.redactedEventIds);
+  const currentItemIds = new Set(currentTimeline.items.map((item) => item.id));
+  const refreshedItemsById = new Map(
+    refreshedTimeline.items.map((item) => [item.id, item]),
+  );
+  const mergedItems = currentTimeline.items
+    .filter((item) => !redactedItemIds.has(item.id))
+    .map((item) => refreshedItemsById.get(item.id) ?? item);
+  const newRefreshedItems = refreshedTimeline.items.filter(
+    (item) => !currentItemIds.has(item.id) && !redactedItemIds.has(item.id),
+  );
+
+  return {
+    ...refreshedTimeline,
+    items: [...mergedItems, ...newRefreshedItems],
+    nextBefore: currentTimeline.nextBefore ?? refreshedTimeline.nextBefore,
+  };
 }
 
 function rememberRoomSnapshot(
@@ -601,12 +655,67 @@ export default function useAppShellState({
       }
 
       setSelectedRoomSummary(roomSnapshot.summary);
-      setSelectedTimeline(roomSnapshot.timeline);
-      setRoomSnapshotsByRoomId((currentSnapshots) =>
-        rememberRoomSnapshot(currentSnapshots, roomSnapshot),
-      );
-      writeCachedRoomSnapshot(activeAccount.account_key, roomSnapshot);
+      setSelectedTimeline((currentTimeline) => {
+        const mergedTimeline = mergeTimelineRefresh(
+          currentTimeline,
+          roomSnapshot.timeline,
+        );
+        const mergedRoomSnapshot = {
+          summary: roomSnapshot.summary,
+          timeline: mergedTimeline,
+        };
+        setRoomSnapshotsByRoomId((currentSnapshots) =>
+          rememberRoomSnapshot(currentSnapshots, mergedRoomSnapshot),
+        );
+        writeCachedRoomSnapshot(activeAccount.account_key, mergedRoomSnapshot);
+        return mergedTimeline;
+      });
       void refreshRoomCollections().catch(() => {});
+    }
+
+    function applyLiveTimelineUpdate(payload: ShellTimelineUpdatedPayload) {
+      if (
+        cancelled ||
+        payload.account_key !== activeAccount.account_key ||
+        activeView !== "messages" ||
+        timelineJumpTarget !== null ||
+        selectedThreadIdRef.current !== payload.room_id
+      ) {
+        return;
+      }
+
+      const refreshedTimeline = roomTimelineFromUpdatePayload(payload);
+      setSelectedTimeline((currentTimeline) => {
+        const mergedTimeline = mergeTimelineRefresh(
+          currentTimeline,
+          refreshedTimeline,
+        );
+        const selectedRoomSummaryForPayload =
+          selectedRoomSummary?.id === payload.room_id
+            ? selectedRoomSummary
+            : null;
+        const selectedThreadForPayload =
+          roomThreads.find((thread) => thread.id === payload.room_id) ?? null;
+        if (selectedRoomSummaryForPayload || selectedThreadForPayload) {
+          let summary: RoomSummary;
+          if (selectedRoomSummaryForPayload) {
+            summary = selectedRoomSummaryForPayload;
+          } else if (selectedThreadForPayload) {
+            summary = fallbackRoomSummaryFromThread(selectedThreadForPayload);
+          } else {
+            return mergedTimeline;
+          }
+          const roomSnapshot = {
+            summary,
+            timeline: mergedTimeline,
+          };
+          setRoomSnapshotsByRoomId((currentSnapshots) =>
+            rememberRoomSnapshot(currentSnapshots, roomSnapshot),
+          );
+          writeCachedRoomSnapshot(activeAccount.account_key, roomSnapshot);
+        }
+        return mergedTimeline;
+      });
     }
 
     const unlistenPromise = listen<ShellSyncUpdatedPayload>(
@@ -668,6 +777,12 @@ export default function useAppShellState({
         }, shellSyncTimelineRefreshDebounceMilliseconds);
       },
     );
+    const unlistenTimelinePromise = listen<ShellTimelineUpdatedPayload>(
+      SHELL_TIMELINE_UPDATED_EVENT,
+      (event) => {
+        applyLiveTimelineUpdate(event.payload);
+      },
+    );
 
     return () => {
       cancelled = true;
@@ -678,12 +793,15 @@ export default function useAppShellState({
         window.clearTimeout(timelineRefreshTimeoutId);
       }
       void unlistenPromise.then((unlisten) => unlisten());
+      void unlistenTimelinePromise.then((unlisten) => unlisten());
     };
   }, [
     activeAccount.account_key,
     activeView,
     loadSelectedRoomSnapshot,
     refreshRoomCollections,
+    roomThreads,
+    selectedRoomSummary,
     selectedThreadId,
     timelineJumpTarget,
   ]);
@@ -817,11 +935,21 @@ export default function useAppShellState({
       }
 
       setSelectedRoomSummary(roomSnapshot.summary);
-      setSelectedTimeline(roomSnapshot.timeline);
-      setRoomSnapshotsByRoomId((currentSnapshots) =>
-        rememberRoomSnapshot(currentSnapshots, roomSnapshot),
-      );
-      writeCachedRoomSnapshot(activeAccount.account_key, roomSnapshot);
+      setSelectedTimeline((currentTimeline) => {
+        const mergedTimeline = mergeTimelineRefresh(
+          currentTimeline,
+          roomSnapshot.timeline,
+        );
+        const mergedRoomSnapshot = {
+          summary: roomSnapshot.summary,
+          timeline: mergedTimeline,
+        };
+        setRoomSnapshotsByRoomId((currentSnapshots) =>
+          rememberRoomSnapshot(currentSnapshots, mergedRoomSnapshot),
+        );
+        writeCachedRoomSnapshot(activeAccount.account_key, mergedRoomSnapshot);
+        return mergedTimeline;
+      });
     },
     [activeAccount.account_key, loadSelectedRoomSnapshot],
   );

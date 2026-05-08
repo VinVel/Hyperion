@@ -26,16 +26,21 @@ use matrix_sdk_ui::sync_service::{State as SyncServiceState, SyncService};
 use serde::Serialize;
 use tauri::{Emitter, async_runtime::JoinHandle};
 
-use crate::account::{AccountClientSnapshot, AccountManager};
+use crate::{
+    account::{AccountClientSnapshot, AccountManager},
+    shell::types::RoomTimelineItem,
+};
 
 pub const SHELL_SYNC_UPDATED_EVENT: &str = "hyperion://shell-sync-updated";
+pub const SHELL_TIMELINE_UPDATED_EVENT: &str = "hyperion://shell-timeline-updated";
 pub const SHELL_SYNC_STATUS_EVENT: &str = "hyperion://shell-sync-status";
 pub const SHELL_SESSION_DEAUTHORIZED_EVENT: &str = "hyperion://session-deauthorized";
 
-// Focus subscriptions are additive, so keep a short debounce window to avoid
-// repeatedly issuing the same room subscription while a user is already there.
-const FOCUSED_ROOM_TTL_SECONDS: u64 = 90;
-const FOCUSED_ROOM_TTL_MS: u64 = FOCUSED_ROOM_TTL_SECONDS * 1_000;
+// Focused-room subscriptions drive low-latency active-room edits/redactions.
+// Reassert them often enough to survive sync recovery without cancelling every
+// in-flight request on ordinary timeline refreshes.
+const FOCUSED_ROOM_RESUBSCRIBE_SECONDS: u64 = 5;
+const FOCUSED_ROOM_RESUBSCRIBE_MS: u64 = FOCUSED_ROOM_RESUBSCRIBE_SECONDS * 1_000;
 // The active account keeps a broad room-list observer alive so SyncService has
 // a visible range immediately after login instead of waiting for a UI command.
 const ACTIVE_ROOM_LIST_OBSERVER_PAGE_SIZE: usize = 10_000;
@@ -53,6 +58,15 @@ struct ShellSyncStatusPayload {
     account_key: String,
     state: String,
     detail: Option<String>,
+    updated_at_unix_ms: u64,
+}
+
+#[derive(Clone, Serialize)]
+struct ShellTimelineUpdatedPayload {
+    account_key: String,
+    room_id: String,
+    items: Vec<RoomTimelineItem>,
+    redacted_event_ids: Vec<String>,
     updated_at_unix_ms: u64,
 }
 
@@ -106,7 +120,8 @@ impl ShellSyncManager {
 
             let should_subscribe = focused_rooms.get(account_key).is_none_or(|focused_room| {
                 focused_room.room_id != room_id
-                    || now.saturating_sub(focused_room.last_touched_unix_ms) >= FOCUSED_ROOM_TTL_MS
+                    || now.saturating_sub(focused_room.last_touched_unix_ms)
+                        >= FOCUSED_ROOM_RESUBSCRIBE_MS
             });
 
             focused_rooms.insert(
@@ -192,6 +207,7 @@ impl ShellSyncManager {
             app.clone(),
             account.account_key.clone(),
             sync_service.clone(),
+            self.focused_rooms.clone(),
         );
         let room_update_listener_handle = Self::spawn_room_update_listener_task(
             app.clone(),
@@ -234,6 +250,7 @@ impl ShellSyncManager {
         app: tauri::AppHandle,
         account_key: String,
         sync_service: Arc<SyncService>,
+        focused_rooms: Arc<RwLock<HashMap<String, FocusedRoomState>>>,
     ) -> JoinHandle<()> {
         tauri::async_runtime::spawn(async move {
             let mut state = sync_service.state();
@@ -241,6 +258,13 @@ impl ShellSyncManager {
             while let Some(next_state) = state.next().await {
                 let (status, detail) = shell_sync_status_parts(&next_state);
                 emit_shell_sync_status(&app, &account_key, status, detail);
+
+                if matches!(next_state, SyncServiceState::Running)
+                    && let Some(focused_room_id) =
+                        focused_room_id_from_state(&focused_rooms, &account_key)
+                {
+                    Self::subscribe_to_focused_room(sync_service.clone(), &focused_room_id);
+                }
             }
         })
     }
@@ -534,6 +558,26 @@ pub(super) fn emit_shell_room_updated(
     }
 }
 
+pub(super) fn emit_shell_timeline_updated(
+    app: &tauri::AppHandle,
+    account_key: &str,
+    room_id: &str,
+    items: Vec<RoomTimelineItem>,
+    redacted_event_ids: Vec<String>,
+) {
+    let payload = ShellTimelineUpdatedPayload {
+        account_key: account_key.to_owned(),
+        room_id: room_id.to_owned(),
+        items,
+        redacted_event_ids,
+        updated_at_unix_ms: now_unix_ms(),
+    };
+
+    if let Err(error) = app.emit(SHELL_TIMELINE_UPDATED_EVENT, payload) {
+        eprintln!("Failed to emit shell timeline update event: {error}");
+    }
+}
+
 fn emit_shell_room_list_updated(
     app: &tauri::AppHandle,
     account_key: &str,
@@ -599,6 +643,17 @@ fn emit_shell_sync_updated(app: &tauri::AppHandle, account_key: &str, updates: &
     if let Err(error) = app.emit(SHELL_SYNC_UPDATED_EVENT, payload) {
         eprintln!("Failed to emit shell sync update event: {error}");
     }
+}
+
+fn focused_room_id_from_state(
+    focused_rooms: &RwLock<HashMap<String, FocusedRoomState>>,
+    account_key: &str,
+) -> Option<String> {
+    focused_rooms
+        .read()
+        .expect("shell sync manager focused-rooms lock poisoned")
+        .get(account_key)
+        .map(|focused_room| focused_room.room_id.clone())
 }
 
 fn now_unix_ms() -> u64 {

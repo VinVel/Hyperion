@@ -21,21 +21,23 @@ import {
   type AuthenticatedShellView,
   type BackendRoomTimelineItem,
   type BackendRoomSummary,
-  type BackendRoomThreadSummary,
   type BackendRoomTimeline,
   type BackendSpaceSummary,
-  type RoomThreadKindFilter,
   type RoomTimeline,
   type RoomTimelineItem,
   type RoomSummary,
-  type RoomThreadSort,
   type SpaceSummary,
-  filterAndSortRoomThreads,
   mapRoomSummary,
-  mapRoomThreadSummary,
   mapRoomTimeline,
   mapSpaceSummary,
 } from "./appShellAdapters";
+import {
+  type BackendRoomThreadSummary,
+  type RoomThreadKindFilter,
+  type RoomThreadSort,
+  filterAndSortRoomThreads,
+  mapRoomThreadSummary,
+} from "../conversations";
 import {
   type BackendGlobalSearchResponse,
   type SearchResultGroup,

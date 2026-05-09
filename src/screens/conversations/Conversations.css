@@ -1,0 +1,280 @@
+/*
+ * Copyright (c) 2026 VinVel
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, version 3 only.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * Project home: hyperion.velcore.net
+ */
+
+.conversations-sidebar,
+.conversations-sidebar-head,
+.conversations-thread-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.conversations-sidebar {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  gap: var(--spacing-gap-extra-large);
+  overflow: hidden;
+  padding: max(1rem, env(safe-area-inset-top)) var(--spacing-panel-padding)
+    max(1rem, env(safe-area-inset-bottom)) var(--spacing-panel-padding);
+  border-right: 1px solid
+    color-mix(in srgb, var(--outline-variant) 68%, transparent);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.conversations-sidebar-head {
+  gap: var(--spacing-gap-medium);
+}
+
+.conversations-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-gap-medium);
+}
+
+.conversations-square-action {
+  width: var(--sizing-icon-button-size);
+  height: var(--sizing-icon-button-size);
+}
+
+.conversations-toolbar {
+  display: grid;
+  gap: var(--spacing-gap-medium);
+}
+
+.conversations-sort-menu {
+  position: relative;
+}
+
+.conversations-select {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-gap-medium);
+  min-height: var(--sizing-icon-button-size);
+  border: none;
+  border-radius: var(--shape-radius-small);
+  background: var(--surface-container-high);
+  padding: 0 var(--spacing-control-padding-inline);
+  box-shadow: var(--elevation-outline-strong), var(--elevation-surface-raised);
+  color: var(--on-surface-variant);
+  cursor: pointer;
+}
+
+.conversations-select-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-gap-medium);
+  color: var(--on-surface);
+}
+
+.conversations-thread-kind-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-gap-extra-small);
+  padding: var(--spacing-gap-extra-small);
+  border-radius: var(--shape-radius-small);
+  background: color-mix(
+    in srgb,
+    var(--surface-container-high) 72%,
+    transparent
+  );
+}
+
+.conversations-thread-kind-option {
+  min-width: 0;
+  min-height: var(--sizing-icon-button-size);
+  padding: 0 var(--spacing-control-padding-inline);
+  border: none;
+  border-radius: var(--shape-radius-small);
+  background: transparent;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  font: inherit;
+  font-weight: var(--typography-font-weight-medium);
+  text-align: center;
+}
+
+.conversations-thread-kind-option:hover,
+.conversations-thread-kind-option--active {
+  background: color-mix(
+    in srgb,
+    var(--surface-container-highest) 86%,
+    transparent
+  );
+  color: var(--on-surface);
+}
+
+.conversations-thread-kind-option:focus-visible {
+  outline: none;
+  box-shadow: var(--elevation-field-focus);
+}
+
+.conversations-sort-menu-popover {
+  position: absolute;
+  top: calc(100% + var(--spacing-gap-small));
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: var(--spacing-gap-extra-small);
+  padding: var(--spacing-card-padding);
+  border-radius: var(--shape-radius-small);
+  background: var(--surface-container);
+  box-shadow: var(--elevation-panel-raised), var(--elevation-outline-subtle);
+  z-index: 3;
+}
+
+.conversations-sort-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-gap-medium);
+  padding: var(--spacing-card-padding);
+  border: none;
+  border-radius: var(--shape-radius-small);
+  background: transparent;
+  color: var(--on-surface);
+  cursor: pointer;
+  text-align: left;
+}
+
+.conversations-sort-option:hover,
+.conversations-sort-option--active {
+  background: color-mix(
+    in srgb,
+    var(--surface-container-high) 88%,
+    transparent
+  );
+}
+
+.conversations-thread-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: var(--spacing-gap-component);
+  overflow-y: auto;
+}
+
+.conversations-thread-row {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-gap-medium);
+  padding: 0.9rem var(--spacing-card-padding);
+  border: none;
+  border-radius: var(--shape-radius-small);
+  background: transparent;
+  color: var(--on-surface);
+  cursor: pointer;
+  text-align: left;
+}
+
+.conversations-thread-row:hover {
+  background: color-mix(
+    in srgb,
+    var(--surface-container-high) 88%,
+    transparent
+  );
+}
+
+.conversations-thread-row--active {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+}
+
+.conversations-thread-avatar {
+  width: var(--sizing-room-list-avatar-size);
+  height: var(--sizing-room-list-avatar-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--shape-radius-circle);
+  background: var(--surface-container-highest);
+  font-weight: var(--typography-font-weight-bold);
+  flex-shrink: 0;
+}
+
+.conversations-thread-row--active .conversations-thread-avatar {
+  background: color-mix(in srgb, var(--surface) 35%, transparent);
+}
+
+.conversations-thread-copy {
+  min-width: 0;
+  display: grid;
+  gap: var(--spacing-gap-small);
+}
+
+.conversations-thread-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-gap-medium);
+}
+
+.conversations-thread-title {
+  font-weight: var(--typography-font-weight-bold);
+}
+
+.conversations-thread-meta {
+  color: var(--on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--typography-meta-size);
+}
+
+.conversations-thread-row--active .conversations-thread-meta {
+  color: color-mix(in srgb, var(--on-primary-container) 82%, transparent);
+}
+
+.conversations-thread-unread {
+  min-width: 1.6rem;
+  height: 1.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--shape-radius-round);
+  background: var(--secondary);
+  color: var(--on-secondary);
+  font-size: var(--typography-meta-size);
+  font-weight: var(--typography-font-weight-bold);
+}
+
+@media (max-width: 760px) {
+  .conversations-sidebar {
+    padding-right: var(--spacing-panel-padding);
+    padding-bottom: calc(
+      var(--layout-mobile-bottom-bar-height) + var(--spacing-gap-large)
+    );
+    border-right: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .conversations-thread-row {
+    align-items: flex-start;
+  }
+
+  .conversations-thread-title-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .conversations-heading-row {
+    align-items: flex-start;
+  }
+}

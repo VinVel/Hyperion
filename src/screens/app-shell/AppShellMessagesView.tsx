@@ -13,14 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-import {
-  ArrowDownUp,
-  Check,
-  ChevronDown,
-  MessageCircleMore,
-  Plus,
-  SendHorizontal,
-} from "lucide-react";
+import { MessageCircleMore, SendHorizontal } from "lucide-react";
 import { type KeyboardEvent, useLayoutEffect, useRef } from "react";
 import {
   BackButton,
@@ -30,14 +23,12 @@ import {
   Typography,
 } from "../../components/ui";
 import {
-  type RoomSummary,
+  ConversationSidebar,
   type RoomThreadKindFilter,
   type RoomThreadSort,
   type RoomThreadSummary,
-  type RoomTimeline,
-  roomThreadKindFilterLabels,
-  roomThreadSortLabels,
-} from "./appShellAdapters";
+} from "../conversations";
+import { type RoomSummary, type RoomTimeline } from "./appShellAdapters";
 
 type AppShellMessagesViewProps = {
   composerValue: string;
@@ -99,44 +90,6 @@ export default function AppShellMessagesView({
     onSendMessage();
   }
 
-  function renderThreadList() {
-    if (visibleThreads.length === 0) {
-      return (
-        <Typography muted variant="body">
-          No conversations are available for this account yet.
-        </Typography>
-      );
-    }
-
-    return visibleThreads.map((thread) => (
-      <button
-        key={thread.id}
-        className={`app-shell-thread-row${
-          selectedThread?.id === thread.id
-            ? " app-shell-thread-row--active"
-            : ""
-        }`}
-        type="button"
-        onClick={() => onOpenThread(thread.id)}
-      >
-        <span className="app-shell-thread-avatar">{thread.avatarLabel}</span>
-        <span className="app-shell-thread-copy">
-          <span className="app-shell-thread-title-row">
-            <span className="app-shell-thread-title">{thread.title}</span>
-            {thread.unreadCount > 0 ? (
-              <span className="app-shell-thread-unread">
-                {thread.unreadCount}
-              </span>
-            ) : null}
-          </span>
-          <span className="app-shell-thread-meta">
-            {thread.participantLabel} · {thread.lastActivityLabel}
-          </span>
-        </span>
-      </button>
-    ));
-  }
-
   function renderTimelineItems() {
     if (!selectedTimeline?.items.length) {
       return (
@@ -195,92 +148,17 @@ export default function AppShellMessagesView({
 
   return (
     <>
-      <aside className="app-shell-sidebar" aria-label="Message thread list">
-        <div className="app-shell-sidebar-head">
-          <div className="app-shell-heading-row">
-            <Typography as="h1" variant="h2">
-              Conversations
-            </Typography>
-            <Button
-              iconOnly
-              aria-label="Start a new chat"
-              className="app-shell-square-action"
-              variant="secondary"
-            >
-              <Plus aria-hidden="true" />
-            </Button>
-          </div>
-        </div>
-
-        <div
-          aria-label="Conversation type"
-          className="app-shell-thread-kind-switch"
-          role="group"
-        >
-          {Object.entries(roomThreadKindFilterLabels).map(
-            ([filterKey, filterLabel]) => (
-              <button
-                key={filterKey}
-                aria-pressed={threadKindFilter === filterKey}
-                className={`app-shell-thread-kind-option${
-                  threadKindFilter === filterKey
-                    ? " app-shell-thread-kind-option--active"
-                    : ""
-                }`}
-                type="button"
-                onClick={() =>
-                  onThreadKindFilterChange(filterKey as RoomThreadKindFilter)
-                }
-              >
-                {filterLabel}
-              </button>
-            ),
-          )}
-        </div>
-
-        <div className="app-shell-toolbar">
-          <div className="app-shell-sort-menu">
-            <button
-              aria-expanded={isSortMenuOpen}
-              className="app-shell-select"
-              type="button"
-              onClick={onToggleSortMenu}
-            >
-              <span className="app-shell-select-copy">
-                <ArrowDownUp aria-hidden="true" />
-                <span>{roomThreadSortLabels[threadSort]}</span>
-              </span>
-              <ChevronDown aria-hidden="true" />
-            </button>
-
-            {isSortMenuOpen ? (
-              <div className="app-shell-sort-menu-popover">
-                {Object.entries(roomThreadSortLabels).map(
-                  ([sortKey, sortLabel]) => (
-                    <button
-                      key={sortKey}
-                      className={`app-shell-sort-option${
-                        threadSort === sortKey
-                          ? " app-shell-sort-option--active"
-                          : ""
-                      }`}
-                      type="button"
-                      onClick={() => onSelectSort(sortKey as RoomThreadSort)}
-                    >
-                      <span>{sortLabel}</span>
-                      {threadSort === sortKey ? (
-                        <Check aria-hidden="true" />
-                      ) : null}
-                    </button>
-                  ),
-                )}
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="app-shell-thread-list">{renderThreadList()}</div>
-      </aside>
+      <ConversationSidebar
+        isSortMenuOpen={isSortMenuOpen}
+        selectedThread={selectedThread}
+        threadKindFilter={threadKindFilter}
+        threadSort={threadSort}
+        visibleThreads={visibleThreads}
+        onOpenThread={onOpenThread}
+        onSelectSort={onSelectSort}
+        onThreadKindFilterChange={onThreadKindFilterChange}
+        onToggleSortMenu={onToggleSortMenu}
+      />
 
       <section className="app-shell-main-pane" aria-label="Conversation view">
         {selectedThread ? (

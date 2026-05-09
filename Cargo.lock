@@ -2477,6 +2477,7 @@ dependencies = [
  "matrix-sdk",
  "matrix-sdk-base",
  "matrix-sdk-ui",
+ "ndk-context",
  "rand 0.10.1",
  "reqwest",
  "rusqlite",

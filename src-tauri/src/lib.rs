@@ -310,8 +310,6 @@ pub fn run() {
             }
             #[cfg(not(mobile))]
             let _app_handle = app.handle();
-            //TODO: Remove eager secure storage initialization from `.setup()` on Android. `android_native_keyring_store::Store::new_with_configuration(...)` now crashes because the Android context is not fully initialized during app startup after the Tauri update. Replace with lazy/on-demand initialization using `OnceLock` (or similar) before first secure storage access (`get_secret`, `set_secret`, `delete_secret`).
-            account::secure_storage::initialize_default_store()?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

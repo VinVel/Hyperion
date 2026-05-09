@@ -46,7 +46,7 @@ enum DiscoveredAccountRestore {
         account: ManagedAccount,
         is_active: bool,
     },
-    SkippedIncomplete,
+    SkippedMissingKey,
     RetryNeeded,
 }
 
@@ -135,12 +135,12 @@ impl AccountManager {
     }
 
     pub(super) async fn ensure_loaded(&self, app: &AppHandle) -> Result<(), String> {
-        if self.restore_is_completed_and_usable(app)? {
+        if self.restore_is_completed() {
             return Ok(());
         }
 
         let _guard = self.restore_lock.lock().await;
-        if self.restore_is_completed_and_usable(app)? {
+        if self.restore_is_completed() {
             return Ok(());
         }
 
@@ -156,32 +156,12 @@ impl AccountManager {
         Ok(())
     }
 
-    fn restore_is_completed_and_usable(&self, app: &AppHandle) -> Result<bool, String> {
-        let is_restore_completed = {
-            let restore_completed = self
-                .restore_completed
-                .read()
-                .expect("account manager restore flag lock poisoned");
-            *restore_completed
-        };
-        if !is_restore_completed {
-            return Ok(false);
-        }
-
-        if self.has_restored_accounts() {
-            return Ok(true);
-        }
-
-        Ok(Self::discover_account_stores(app)?.is_empty())
-    }
-
-    fn has_restored_accounts(&self) -> bool {
-        let accounts = self
-            .accounts
+    fn restore_is_completed(&self) -> bool {
+        let restore_completed = self
+            .restore_completed
             .read()
-            .expect("account manager accounts lock poisoned");
-
-        !accounts.is_empty()
+            .expect("account manager restore flag lock poisoned");
+        *restore_completed
     }
 
     async fn restore_accounts_state(&self, app: &AppHandle) -> Result<AccountRestoreState, String> {
@@ -203,7 +183,7 @@ impl AccountManager {
 
                     restored_accounts.insert(account_key, account);
                 }
-                DiscoveredAccountRestore::SkippedIncomplete => {}
+                DiscoveredAccountRestore::SkippedMissingKey => {}
                 DiscoveredAccountRestore::RetryNeeded => {
                     retry_needed = true;
                 }
@@ -243,13 +223,22 @@ impl AccountManager {
         app: &AppHandle,
         storage: AccountStorageLocation,
     ) -> Result<DiscoveredAccountRestore, String> {
-        let Some(store_key) = Self::load_store_key(app, &storage.store_id)? else {
-            eprintln!(
-                "Skipping persisted account store {} because its secure encryption key is missing",
-                storage.store_id
-            );
-            Self::prune_incomplete_store(app, &storage, "its secure encryption key is missing");
-            return Ok(DiscoveredAccountRestore::SkippedIncomplete);
+        let store_key = match Self::load_store_key(app, &storage.store_id) {
+            Ok(Some(store_key)) => store_key,
+            Ok(None) => {
+                eprintln!(
+                    "Skipping persisted account store {} because its secure encryption key is missing",
+                    storage.store_id
+                );
+                return Ok(DiscoveredAccountRestore::SkippedMissingKey);
+            }
+            Err(error) => {
+                eprintln!(
+                    "Deferring persisted account store {} because its secure encryption key could not be read: {error}",
+                    storage.store_id
+                );
+                return Ok(DiscoveredAccountRestore::RetryNeeded);
+            }
         };
 
         let Some((client, metadata, session)) =

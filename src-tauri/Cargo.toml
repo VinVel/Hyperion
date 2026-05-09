@@ -52,6 +52,7 @@ features = [
 
 [target.'cfg(target_os = "android")'.dependencies]
 android-native-keyring-store = { workspace = true }
+ndk-context = { workspace = true }
 tauri-plugin-app-events = { workspace = true }
 tauri-plugin-mobile-webview-overlay = { workspace = true }
 

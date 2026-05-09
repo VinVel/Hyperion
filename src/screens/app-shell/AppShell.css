@@ -302,6 +302,48 @@
   gap: var(--spacing-gap-medium);
 }
 
+.app-shell-thread-kind-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-gap-extra-small);
+  padding: var(--spacing-gap-extra-small);
+  border-radius: var(--shape-radius-small);
+  background: color-mix(
+    in srgb,
+    var(--surface-container-high) 72%,
+    transparent
+  );
+}
+
+.app-shell-thread-kind-option {
+  min-width: 0;
+  min-height: var(--sizing-icon-button-size);
+  padding: 0 var(--spacing-control-padding-inline);
+  border: none;
+  border-radius: var(--shape-radius-small);
+  background: transparent;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  font: inherit;
+  font-weight: var(--typography-font-weight-medium);
+  text-align: center;
+}
+
+.app-shell-thread-kind-option:hover,
+.app-shell-thread-kind-option--active {
+  background: color-mix(
+    in srgb,
+    var(--surface-container-highest) 86%,
+    transparent
+  );
+  color: var(--on-surface);
+}
+
+.app-shell-thread-kind-option:focus-visible {
+  outline: none;
+  box-shadow: var(--elevation-field-focus);
+}
+
 .app-shell-sort-menu-popover {
   position: absolute;
   top: calc(100% + var(--spacing-gap-small));
@@ -864,6 +906,7 @@
     padding-bottom: calc(
       var(--layout-mobile-bottom-bar-height) + var(--spacing-gap-large)
     );
+    border-right: none;
   }
 
   .app-shell-main-pane {

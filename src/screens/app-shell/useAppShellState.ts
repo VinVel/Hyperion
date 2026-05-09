@@ -24,6 +24,7 @@ import {
   type BackendRoomThreadSummary,
   type BackendRoomTimeline,
   type BackendSpaceSummary,
+  type RoomThreadKindFilter,
   type RoomTimeline,
   type RoomTimelineItem,
   type RoomSummary,
@@ -129,7 +130,7 @@ export type UseAppShellStateResult = {
   spaceSearchQuery: string;
   switchableAccounts: AccountSummary[];
   switchingAccountKey: string | null;
-  threadSearchQuery: string;
+  threadKindFilter: RoomThreadKindFilter;
   threadSort: RoomThreadSort;
   visibleSpaces: SpaceSummary[];
   visibleThreads: ReturnType<typeof mapRoomThreadSummary>[];
@@ -146,7 +147,7 @@ export type UseAppShellStateResult = {
   setComposerValue: (value: string) => void;
   setGlobalSearchQuery: (value: string) => void;
   setSpaceSearchQuery: (value: string) => void;
-  setThreadSearchQuery: (value: string) => void;
+  setThreadKindFilter: (value: RoomThreadKindFilter) => void;
   switchAccount: (nextAccount: AccountSummary) => Promise<void>;
   toggleAccountCenter: () => void;
   toggleSortMenu: () => void;
@@ -396,7 +397,8 @@ export default function useAppShellState({
   const [composerValue, setComposerValue] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
-  const [threadSearchQuery, setThreadSearchQuery] = useState("");
+  const [threadKindFilter, setThreadKindFilter] =
+    useState<RoomThreadKindFilter>("direct");
   const [threadSort, setThreadSort] = useState<RoomThreadSort>("newest");
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
   const [spaceSearchQuery, setSpaceSearchQuery] = useState("");
@@ -859,8 +861,8 @@ export default function useAppShellState({
   }, [globalSearchQuery, isGlobalSearchOpen]);
 
   const visibleThreads = useMemo(
-    () => filterAndSortRoomThreads(roomThreads, threadSearchQuery, threadSort),
-    [roomThreads, threadSearchQuery, threadSort],
+    () => filterAndSortRoomThreads(roomThreads, threadSort, threadKindFilter),
+    [roomThreads, threadKindFilter, threadSort],
   );
   const selectedThread =
     visibleThreads.find((thread) => thread.id === selectedThreadId) ??
@@ -1185,7 +1187,7 @@ export default function useAppShellState({
     spaceSearchQuery,
     switchableAccounts,
     switchingAccountKey,
-    threadSearchQuery,
+    threadKindFilter,
     threadSort,
     visibleSpaces,
     visibleThreads,
@@ -1210,7 +1212,7 @@ export default function useAppShellState({
     setComposerValue,
     setGlobalSearchQuery,
     setSpaceSearchQuery,
-    setThreadSearchQuery,
+    setThreadKindFilter,
     switchAccount,
     toggleAccountCenter: () =>
       setIsAccountCenterOpen((currentValue) => !currentValue),

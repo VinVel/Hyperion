@@ -28,6 +28,8 @@ export type RoomThreadSort =
   | "mostMessages"
   | "alphabetical";
 
+export type RoomThreadKindFilter = "direct" | "group";
+
 export type BackendRoomThreadSummary = {
   room_id: string;
   title: string;
@@ -208,25 +210,12 @@ export function mapSpaceSummary(
 
 export function filterAndSortRoomThreads(
   threads: RoomThreadSummary[],
-  searchQuery: string,
   sort: RoomThreadSort,
+  kindFilter: RoomThreadKindFilter,
 ): RoomThreadSummary[] {
-  const normalizedQuery = searchQuery.trim().toLowerCase();
-  const filteredThreads =
-    normalizedQuery.length === 0
-      ? threads
-      : threads.filter((thread) =>
-          [
-            thread.title,
-            thread.preview,
-            thread.participantLabel,
-            thread.homeserverLabel,
-          ]
-            .join(" ")
-            .toLowerCase()
-            .includes(normalizedQuery),
-        );
-
+  const filteredThreads = threads.filter(
+    (thread) => thread.isDirect === (kindFilter === "direct"),
+  );
   const sortedThreads = [...filteredThreads];
   sortedThreads.sort((left, right) => {
     if (sort === "alphabetical") {
@@ -259,6 +248,13 @@ export const roomThreadSortLabels: Record<RoomThreadSort, string> = {
   mostMessages: "Most messages",
   alphabetical: "Alphabetical",
 };
+
+// Labels are shared by the room-list switch and state so the copy stays aligned.
+export const roomThreadKindFilterLabels: Record<RoomThreadKindFilter, string> =
+  {
+    direct: "Direct Chats",
+    group: "Group Chats",
+  };
 
 function formatTimelineTime(timestampUnixMs: number): string {
   if (timestampUnixMs <= 0) {

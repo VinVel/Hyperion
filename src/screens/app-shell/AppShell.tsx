@@ -128,7 +128,7 @@ export default function AppShell({
                 selectedRoomSummary={shell.selectedRoomSummary}
                 selectedThread={shell.selectedThread}
                 selectedTimeline={shell.selectedTimeline}
-                threadSearchQuery={shell.threadSearchQuery}
+                threadKindFilter={shell.threadKindFilter}
                 threadSort={shell.threadSort}
                 visibleThreads={shell.visibleThreads}
                 onCloseThread={shell.closeThread}
@@ -137,7 +137,7 @@ export default function AppShell({
                 onOpenThread={shell.selectThread}
                 onSelectSort={shell.selectSort}
                 onSendMessage={() => void shell.sendMessage()}
-                onThreadSearchChange={shell.setThreadSearchQuery}
+                onThreadKindFilterChange={shell.setThreadKindFilter}
                 onToggleSortMenu={shell.toggleSortMenu}
               />
             ) : null}

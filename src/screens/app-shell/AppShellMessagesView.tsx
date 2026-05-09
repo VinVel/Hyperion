@@ -19,7 +19,6 @@ import {
   ChevronDown,
   MessageCircleMore,
   Plus,
-  Search,
   SendHorizontal,
 } from "lucide-react";
 import { type KeyboardEvent, useLayoutEffect, useRef } from "react";
@@ -28,14 +27,15 @@ import {
   Button,
   EmptyState,
   Pill,
-  ToolbarField,
   Typography,
 } from "../../components/ui";
 import {
   type RoomSummary,
+  type RoomThreadKindFilter,
   type RoomThreadSort,
   type RoomThreadSummary,
   type RoomTimeline,
+  roomThreadKindFilterLabels,
   roomThreadSortLabels,
 } from "./appShellAdapters";
 
@@ -47,7 +47,7 @@ type AppShellMessagesViewProps = {
   selectedRoomSummary: RoomSummary | null;
   selectedThread: RoomThreadSummary | null;
   selectedTimeline: RoomTimeline | null;
-  threadSearchQuery: string;
+  threadKindFilter: RoomThreadKindFilter;
   threadSort: RoomThreadSort;
   visibleThreads: RoomThreadSummary[];
   onCloseThread: () => void;
@@ -56,7 +56,7 @@ type AppShellMessagesViewProps = {
   onOpenThread: (roomId: string) => void;
   onSelectSort: (sort: RoomThreadSort) => void;
   onSendMessage: () => void;
-  onThreadSearchChange: (value: string) => void;
+  onThreadKindFilterChange: (value: RoomThreadKindFilter) => void;
   onToggleSortMenu: () => void;
 };
 
@@ -68,7 +68,7 @@ export default function AppShellMessagesView({
   selectedRoomSummary,
   selectedThread,
   selectedTimeline,
-  threadSearchQuery,
+  threadKindFilter,
   threadSort,
   visibleThreads,
   onCloseThread,
@@ -77,7 +77,7 @@ export default function AppShellMessagesView({
   onOpenThread,
   onSelectSort,
   onSendMessage,
-  onThreadSearchChange,
+  onThreadKindFilterChange,
   onToggleSortMenu,
 }: AppShellMessagesViewProps) {
   const timelineRef = useRef<HTMLDivElement | null>(null);
@@ -212,16 +212,33 @@ export default function AppShellMessagesView({
           </div>
         </div>
 
-        <div className="app-shell-toolbar">
-          <ToolbarField
-            icon={<Search aria-hidden="true" />}
-            placeholder="Search conversations"
-            value={threadSearchQuery}
-            onChange={(event) =>
-              onThreadSearchChange(event.currentTarget.value)
-            }
-          />
+        <div
+          aria-label="Conversation type"
+          className="app-shell-thread-kind-switch"
+          role="group"
+        >
+          {Object.entries(roomThreadKindFilterLabels).map(
+            ([filterKey, filterLabel]) => (
+              <button
+                key={filterKey}
+                aria-pressed={threadKindFilter === filterKey}
+                className={`app-shell-thread-kind-option${
+                  threadKindFilter === filterKey
+                    ? " app-shell-thread-kind-option--active"
+                    : ""
+                }`}
+                type="button"
+                onClick={() =>
+                  onThreadKindFilterChange(filterKey as RoomThreadKindFilter)
+                }
+              >
+                {filterLabel}
+              </button>
+            ),
+          )}
+        </div>
 
+        <div className="app-shell-toolbar">
           <div className="app-shell-sort-menu">
             <button
               aria-expanded={isSortMenuOpen}

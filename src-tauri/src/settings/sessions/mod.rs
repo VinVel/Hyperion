@@ -13,7 +13,13 @@
  * Project home: hyperion.velcore.net
  */
 
-pub mod account;
-pub mod encryption;
-pub mod sessions;
-pub mod theme;
+mod commands;
+mod types;
+
+pub use commands::{
+    accept_sas_verification, accept_session_verification_request, cancel_sas_verification,
+    confirm_sas_verification, deauthorize_sessions, deny_session_verification_request,
+    get_sas_verification, get_session_overview, register_session_verification_event_handler,
+    start_current_session_verification, start_sas_verification, start_session_verification,
+};
+pub use types::SessionOverview;

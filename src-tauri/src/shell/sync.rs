@@ -28,6 +28,7 @@ use tauri::{Emitter, async_runtime::JoinHandle};
 
 use crate::{
     account::{AccountClientSnapshot, AccountManager},
+    settings::sessions::register_session_verification_event_handler,
     shell::types::RoomTimelineItem,
 };
 
@@ -454,6 +455,7 @@ async fn build_shell_sync_service(
     app: &tauri::AppHandle,
     account: &AccountClientSnapshot,
 ) -> Result<SyncService, String> {
+    register_session_verification_event_handler(app, account);
     let sync_service_builder = SyncService::builder(account.client.clone()).with_offline_mode();
 
     match sync_service_builder.build().await {

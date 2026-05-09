@@ -17,7 +17,13 @@ import "./App.css";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
-import { ScreenMain, ScreenShell, Typography } from "./components/ui";
+import {
+  notifyFeedback,
+  ScreenMain,
+  ScreenShell,
+  Typography,
+  useFeedbackToast,
+} from "./components/ui";
 import { AppShell, type AccountSummary } from "./screens/app-shell";
 import { LogInScreen } from "./screens/Log-in";
 import { RegistrationScreen } from "./screens/registration";
@@ -33,10 +39,37 @@ type LoginLaunchState = {
 const ACTIVE_ACCOUNT_CACHE_KEY = "hyperion.activeAccountSummary";
 const APP_BOOTSTRAP_FALLBACK_DELAY_MS = 1200;
 const SHELL_SESSION_DEAUTHORIZED_EVENT = "hyperion://session-deauthorized";
+const SESSION_VERIFICATION_REQUEST_RECEIVED_EVENT =
+  "hyperion://session-verification-request-received";
 
 type SessionDeauthorizedPayload = {
   account_key: string;
 };
+
+type IncomingSessionVerification = {
+  account_key: string;
+  flow_id: string;
+  device_id: string;
+  event_kind: "request" | "start";
+  supported_methods: string[];
+};
+
+type Feedback = {
+  tone: "error" | "success" | "info" | "warning";
+  text: string;
+};
+
+function messageFromError(error: unknown): string {
+  if (typeof error === "string" && error.trim().length > 0) {
+    return error;
+  }
+
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return "Verification request could not be updated.";
+}
 
 function loadCachedActiveAccount(): AccountSummary | null {
   if (typeof window === "undefined") {
@@ -82,6 +115,9 @@ function App() {
   const [activeScreen, setActiveScreen] = useState<EntryScreen>("login");
   const [loginLaunchState, setLoginLaunchState] =
     useState<LoginLaunchState | null>(null);
+  const [verificationFeedback, setVerificationFeedback] =
+    useState<Feedback | null>(null);
+  useFeedbackToast(verificationFeedback);
 
   useEffect(() => {
     persistCachedActiveAccount(activeAccount);
@@ -117,6 +153,97 @@ function App() {
       void unlistenPromise.then((unlisten) => unlisten());
     };
   }, []);
+
+  useEffect(() => {
+    if (appStage !== "authenticated" || !activeAccount) {
+      return;
+    }
+
+    const activeAccountKey = activeAccount.account_key;
+    let cancelled = false;
+
+    async function respondToVerificationRequest(
+      flowId: string,
+      command:
+        | "accept_session_verification_request"
+        | "deny_session_verification_request",
+    ) {
+      await invoke(command, {
+        request: { flow_id: flowId },
+      });
+    }
+
+    const unlistenPromise = listen<IncomingSessionVerification>(
+      SESSION_VERIFICATION_REQUEST_RECEIVED_EVENT,
+      (event) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (event.payload.account_key !== activeAccountKey) {
+          return;
+        }
+
+        if (event.payload.event_kind !== "request") {
+          return;
+        }
+
+        notifyFeedback({
+          tone: "info",
+          text: `Incoming verification request from ${event.payload.device_id}.`,
+          actions: [
+            {
+              label: "Accept",
+              variant: "primary",
+              onSelect: async () => {
+                if (cancelled) {
+                  return;
+                }
+
+                try {
+                  await respondToVerificationRequest(
+                    event.payload.flow_id,
+                    "accept_session_verification_request",
+                  );
+                } catch (error) {
+                  setVerificationFeedback({
+                    tone: "error",
+                    text: messageFromError(error),
+                  });
+                }
+              },
+            },
+            {
+              label: "Deny",
+              variant: "destructive",
+              onSelect: async () => {
+                if (cancelled) {
+                  return;
+                }
+
+                try {
+                  await respondToVerificationRequest(
+                    event.payload.flow_id,
+                    "deny_session_verification_request",
+                  );
+                } catch (error) {
+                  setVerificationFeedback({
+                    tone: "error",
+                    text: messageFromError(error),
+                  });
+                }
+              },
+            },
+          ],
+        });
+      },
+    );
+
+    return () => {
+      cancelled = true;
+      void unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, [activeAccount, appStage]);
 
   useEffect(() => {
     let cancelled = false;

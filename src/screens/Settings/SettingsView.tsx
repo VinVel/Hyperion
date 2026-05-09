@@ -71,7 +71,7 @@ function SettingsSectionContent({
     case "account":
       return <Account onAddAccount={onAddAccount} onSignOut={onSignOut} />;
     case "sessions":
-      return <Sessions />;
+      return <Sessions activeAccount={activeAccount} />;
     case "appearance":
       return <Appearance />;
     case "notifications":

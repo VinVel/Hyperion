@@ -21,12 +21,20 @@ import {
   useRef,
   useState,
 } from "react";
+import { Button } from "./Button";
 import { classNames } from "./classNames";
 import type { FeedbackTone } from "./FeedbackMessage";
+
+export type ToastAction = {
+  label: string;
+  variant?: "primary" | "secondary" | "destructive";
+  onSelect: () => Promise<void> | void;
+};
 
 export type ToastFeedback = {
   tone: FeedbackTone;
   text: string;
+  actions?: ToastAction[];
 };
 
 type ToastNotification = ToastFeedback & {
@@ -156,7 +164,14 @@ type ToastItemProps = {
 };
 
 function ToastItem({ notification, onClose }: ToastItemProps) {
+  const actions = notification.actions?.slice(0, 2) ?? [];
+  const hasActions = actions.length > 0;
+
   useEffect(() => {
+    if (hasActions) {
+      return;
+    }
+
     const timeoutId = window.setTimeout(() => {
       onClose(notification.id);
     }, toastDismissDelayMilliseconds);
@@ -164,18 +179,43 @@ function ToastItem({ notification, onClose }: ToastItemProps) {
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [notification.id, onClose]);
+  }, [hasActions, notification.id, onClose]);
+
+  function handleActionSelect(action: ToastAction) {
+    onClose(notification.id);
+    try {
+      void Promise.resolve(action.onSelect()).catch(() => undefined);
+    } catch {
+      // Action handlers own their user-facing error reporting.
+    }
+  }
 
   return (
     <div
       className={classNames(
         "ui-feedback",
         "ui-toast",
+        hasActions && "ui-toast--actionable",
         `ui-feedback--${notification.tone}`,
       )}
       role={notification.tone === "error" ? "alert" : "status"}
     >
-      <span className="ui-toast__text">{notification.text}</span>
+      <div className="ui-toast__content">
+        <span className="ui-toast__text">{notification.text}</span>
+        {hasActions ? (
+          <div className="ui-toast__actions">
+            {actions.map((action) => (
+              <Button
+                key={action.label}
+                onClick={() => handleActionSelect(action)}
+                variant={action.variant ?? "secondary"}
+              >
+                {action.label}
+              </Button>
+            ))}
+          </div>
+        ) : null}
+      </div>
       <button
         className="ui-toast__close"
         type="button"

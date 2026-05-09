@@ -31,8 +31,7 @@ export type SettingsSectionId = (typeof settingsSections)[number]["id"];
 export const sectionDescriptions: Record<SettingsSectionId, string> = {
   account:
     "Manage account-level settings here once the account preferences land.",
-  sessions:
-    "Review signed-in sessions and related session controls here later on.",
+  sessions: "Review signed-in sessions and related session controls.",
   appearance: "Pick one preset palette.",
   notifications:
     "Notification delivery, sounds, and attention settings will live here.",

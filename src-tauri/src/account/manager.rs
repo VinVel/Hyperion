@@ -20,7 +20,7 @@ use std::{
 };
 
 use matrix_sdk::{Client, SqliteStoreConfig, search_index::SearchIndexStoreKind};
-use matrix_sdk_base::crypto::CollectStrategy;
+use matrix_sdk_crypto::CollectStrategy;
 use tauri::AppHandle;
 use tauri::async_runtime::Mutex as AsyncMutex;
 

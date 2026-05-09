@@ -2475,7 +2475,7 @@ dependencies = [
  "keyring-core",
  "linux-keyutils-keyring-store",
  "matrix-sdk",
- "matrix-sdk-base",
+ "matrix-sdk-crypto",
  "matrix-sdk-ui",
  "ndk-context",
  "rand 0.10.1",

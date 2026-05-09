@@ -32,7 +32,7 @@ reqwest = { workspace = true, features = ["json"] }
 rust-i18n = { workspace = true }
 futures-util = { workspace = true }
 eyeball-im = { workspace = true }
-matrix-sdk-base = { workspace = true, features = ["e2e-encryption"] }
+matrix-sdk-crypto = { workspace = true }
 keyring-core = { workspace = true }
 
 [dependencies.matrix-sdk]

@@ -235,21 +235,10 @@ jobs:
             wget \
             xdg-utils
 
-      - name: Read Rust toolchain channel
-        id: rust-toolchain
-        shell: bash
-        run: |
-          toolchain="$(sed -nE 's/^channel = "(.*)"$/\1/p' rust-toolchain.toml | head -n1)"
-          if [[ -z "$toolchain" ]]; then
-            echo "Could not read 'channel' from rust-toolchain.toml" >&2
-            exit 1
-          fi
-          echo "toolchain=$toolchain" >> "$GITHUB_OUTPUT"
-
       - name: Install Rust toolchain and targets
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: ${{ steps.rust-toolchain.outputs.toolchain }}
+          toolchain: stable
           targets: ${{ matrix.rust_targets }}
 
       - name: Install Bun

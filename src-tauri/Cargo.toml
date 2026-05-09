@@ -28,7 +28,7 @@ serde_json = { workspace = true }
 base64 = { workspace = true }
 rand = { workspace = true }
 rusqlite = { workspace = true, features = ["bundled"] }
-reqwest = { workspace = true, features = ["json", "rustls-tls"] }
+reqwest = { workspace = true, features = ["json"] }
 rust-i18n = { workspace = true }
 futures-util = { workspace = true }
 eyeball-im = { workspace = true }
@@ -42,13 +42,11 @@ features = [
     "automatic-room-key-forwarding", 
     "bundled-sqlite", 
     "experimental-search",
-    "rustls-tls"
 ]
 
 [dependencies.matrix-sdk-ui]
 workspace = true
 features = [
-    "rustls-tls",
     "unstable-msc4274"
 ]
 

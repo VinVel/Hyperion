@@ -27,7 +27,7 @@ use settings::{
         create_recovery_key, delete_recovery, disable_server_key_storage,
         enable_server_key_storage, export_room_keys, get_encryption_overview, import_room_keys,
         recover_with_recovery_key, reset_crypto_identity, rotate_recovery_key,
-        set_verified_devices_only,
+        set_share_encrypted_history_on_invite, set_verified_devices_only,
     },
     sessions::{
         accept_sas_verification, accept_session_verification_request, cancel_sas_verification,
@@ -342,6 +342,7 @@ pub fn run() {
             export_room_keys,
             import_room_keys,
             reset_crypto_identity,
+            set_share_encrypted_history_on_invite,
             set_verified_devices_only,
             get_session_overview,
             start_session_verification,

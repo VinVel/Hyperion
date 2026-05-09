@@ -23,7 +23,7 @@ use std::{
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use matrix_sdk::{Client, authentication::matrix::MatrixSession};
-use rand::{RngCore, rngs::OsRng};
+use rand::{TryRng, rngs::SysRng};
 use tauri::{AppHandle, Manager};
 
 use super::{
@@ -71,7 +71,7 @@ impl AccountManager {
                 app,
                 &Self::store_key_entry_id(&store_id),
             ));
-            store_id = Self::replacement_account_store_id(&store_id);
+            store_id = Self::replacement_account_store_id(&store_id)?;
             store_root_dir = storage_parent_dir.join(&store_id);
         }
 
@@ -338,7 +338,9 @@ impl AccountManager {
         session: MatrixSession,
         preferences: &EncryptionPreferences,
     ) -> Result<Client, String> {
-        if !preferences.verified_devices_only {
+        let client_uses_default_preferences =
+            !preferences.verified_devices_only && !preferences.share_encrypted_history_on_invite;
+        if client_uses_default_preferences {
             return Ok(client);
         }
 
@@ -594,7 +596,7 @@ impl AccountManager {
         }
 
         let mut key = [0_u8; STORE_KEY_LENGTH];
-        OsRng.fill_bytes(&mut key);
+        fill_random_bytes(&mut key, "Failed to generate an account store key")?;
         secure_storage::set_secret(app, &Self::store_key_entry_id(store_id), &key)?;
         Ok(key)
     }
@@ -628,11 +630,14 @@ impl AccountManager {
         format!("v1__hs_{homeserver}__acct_{account}")
     }
 
-    fn replacement_account_store_id(base_store_id: &str) -> String {
+    fn replacement_account_store_id(base_store_id: &str) -> Result<String, String> {
         let mut random_bytes = [0_u8; REPLACEMENT_STORE_ID_RANDOM_BYTES];
-        OsRng.fill_bytes(&mut random_bytes);
+        fill_random_bytes(
+            &mut random_bytes,
+            "Failed to generate a replacement account store id",
+        )?;
         let suffix = URL_SAFE_NO_PAD.encode(random_bytes);
-        format!("{base_store_id}__fresh_{suffix}")
+        Ok(format!("{base_store_id}__fresh_{suffix}"))
     }
 
     fn decode_homeserver_url_from_store_id(store_id: &str) -> Option<String> {
@@ -650,4 +655,10 @@ impl AccountManager {
 
         Ok(app_data_dir.join("matrix-accounts"))
     }
+}
+
+fn fill_random_bytes(destination: &mut [u8], failure_context: &str) -> Result<(), String> {
+    let mut rng = SysRng;
+    rng.try_fill_bytes(destination)
+        .map_err(|error| format!("{failure_context}: {error}"))
 }

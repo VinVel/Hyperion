@@ -116,6 +116,7 @@ pub fn write_encryption_preferences(
     if let Some(overview) = settings.overview.as_mut() {
         overview.server_key_storage_opted_out = preferences.server_key_storage_opted_out;
         overview.verified_devices_only = preferences.verified_devices_only;
+        overview.share_encrypted_history_on_invite = preferences.share_encrypted_history_on_invite;
     }
     write_encryption_settings(store_dir, &settings)
 }
@@ -131,6 +132,8 @@ pub fn write_encryption_overview(
     let mut settings = read_encryption_settings(store_dir)?;
     settings.preferences.server_key_storage_opted_out = overview.server_key_storage_opted_out;
     settings.preferences.verified_devices_only = overview.verified_devices_only;
+    settings.preferences.share_encrypted_history_on_invite =
+        overview.share_encrypted_history_on_invite;
     settings.overview = Some(overview.clone());
     write_encryption_settings(store_dir, &settings)
 }

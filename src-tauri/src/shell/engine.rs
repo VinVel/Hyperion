@@ -22,7 +22,8 @@ use matrix_sdk::ruma::{
 };
 use matrix_sdk::{Room, sleep::sleep};
 use matrix_sdk_ui::timeline::{
-    RoomExt, Timeline, TimelineDetails, TimelineFocus, TimelineItem, TimelineItemKind,
+    Timeline, TimelineDetails, TimelineEventFocusThreadMode, TimelineFocus, TimelineItem,
+    TimelineItemKind,
 };
 use tauri::async_runtime::JoinHandle;
 use tauri::async_runtime::Mutex as AsyncMutex;
@@ -77,8 +78,7 @@ impl ShellTimelineRegistry {
             }
         }
 
-        let timeline = room
-            .timeline()
+        let timeline = matrix_sdk_ui::timeline::RoomExt::timeline(room)
             .await
             .map(Arc::new)
             .map_err(|error| format!("Failed to build the room timeline: {error}"))?;
@@ -217,8 +217,8 @@ impl ShellTimelineRegistry {
     }
 
     async fn wait_for_timeline_to_reach_room_latest(room: &Room, timeline: &Timeline) {
-        let Some(latest_room_event_id) = room.latest_event().and_then(|event| event.event_id())
-        else {
+        let latest_event = room.latest_event();
+        let Some(latest_room_event_id) = latest_event.event_id() else {
             return;
         };
 
@@ -291,12 +291,13 @@ impl ShellTimelineRegistry {
             }
         }
 
-        let timeline = room
-            .timeline_builder()
+        let timeline = matrix_sdk_ui::timeline::RoomExt::timeline_builder(room)
             .with_focus(TimelineFocus::Event {
                 target: event_id.clone(),
                 num_context_events: context_limit,
-                hide_threaded_events: false,
+                thread_mode: TimelineEventFocusThreadMode::Automatic {
+                    hide_threaded_events: false,
+                },
             })
             .build()
             .await

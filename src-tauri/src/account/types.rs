@@ -66,6 +66,8 @@ pub struct EncryptionPreferences {
     pub server_key_storage_opted_out: bool,
     #[serde(default)]
     pub verified_devices_only: bool,
+    #[serde(default)]
+    pub share_encrypted_history_on_invite: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]

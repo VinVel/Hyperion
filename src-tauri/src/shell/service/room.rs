@@ -19,7 +19,8 @@ use matrix_sdk::{
     ruma::{
         RoomId,
         events::{
-            AnyMessageLikeEventContent, MessageLikeEventType,
+            AnyMessageLikeEventContent, AnySyncMessageLikeEvent, AnySyncStateEvent,
+            AnySyncTimelineEvent, MessageLikeEventType,
             fully_read::FullyReadEventContent,
             receipt::{ReceiptThread, ReceiptType},
             room::message::MessageType,
@@ -39,96 +40,142 @@ pub(super) fn local_room_state_key(account_key: &str, room_id: &str) -> String {
 }
 
 pub(super) fn current_latest_event_id(room: &Room) -> Option<String> {
-    let latest_event = room.latest_event()?;
+    let latest_event = room.latest_event();
     let event_id = latest_event.event_id()?;
 
     Some(event_id.to_string())
 }
 
 pub(super) fn current_latest_event_is_own(room: &Room) -> bool {
-    let Some(latest_event) = room.latest_event() else {
-        return false;
-    };
+    let latest_event = room.latest_event();
 
-    let Ok(event) = latest_event.event().raw().deserialize() else {
-        return false;
-    };
+    match latest_event {
+        LatestEventValue::Remote(event) => {
+            let Ok(event) = event.raw().deserialize() else {
+                return false;
+            };
 
-    match event {
-        matrix_sdk::ruma::events::AnySyncTimelineEvent::MessageLike(message_like) => {
-            message_like.sender() == room.own_user_id()
+            event.sender() == room.own_user_id()
         }
-        matrix_sdk::ruma::events::AnySyncTimelineEvent::State(state) => {
-            state.sender() == room.own_user_id()
-        }
+        LatestEventValue::LocalIsSending(_)
+        | LatestEventValue::LocalHasBeenSent { .. }
+        | LatestEventValue::LocalCannotBeSent(_) => true,
+        LatestEventValue::None | LatestEventValue::RemoteInvite { .. } => false,
     }
 }
 
 pub(super) fn latest_activity_unix_ms(room: &Room) -> u64 {
-    let latest_event_timestamp = room.new_latest_event().timestamp();
-    let timestamp = latest_event_timestamp.or_else(|| {
-        let latest_event = room.latest_event()?;
-        latest_event.event().timestamp()
-    });
-
-    timestamp
+    room.latest_event()
+        .timestamp()
         .map(|timestamp| u64::from(timestamp.0))
         .unwrap_or_default()
 }
 
 pub(super) fn latest_preview_text(room: &Room) -> Option<String> {
-    let latest_event = room.new_latest_event();
+    let latest_event = room.latest_event();
 
     match latest_event {
         LatestEventValue::Remote(event) => {
             let raw_event = event.raw();
             let event = raw_event.deserialize().ok()?;
-            message_preview_from_sync_event(event)
+            Some(preview_from_sync_event(event))
         }
+        LatestEventValue::RemoteInvite { .. } => Some(String::from("Room invite")),
         LatestEventValue::LocalIsSending(local_event)
-        | LatestEventValue::LocalCannotBeSent(local_event) => {
-            message_preview_from_content(local_event.content.deserialize().ok()?)
+        | LatestEventValue::LocalHasBeenSent {
+            value: local_event, ..
         }
-        LatestEventValue::None => {
-            let latest_event = room.latest_event()?;
-            let raw_event = latest_event.event().raw();
-            let event = raw_event.deserialize().ok()?;
-            message_preview_from_sync_event(event)
-        }
+        | LatestEventValue::LocalCannotBeSent(local_event) => Some(preview_from_content(
+            local_event.content.deserialize().ok()?,
+        )),
+        LatestEventValue::None => None,
     }
 }
 
-fn message_preview_from_content(content: AnyMessageLikeEventContent) -> Option<String> {
+fn preview_from_content(content: AnyMessageLikeEventContent) -> String {
     match content {
         AnyMessageLikeEventContent::RoomMessage(message) => match message.msgtype {
-            MessageType::Text(text) => Some(text.body),
-            MessageType::Notice(notice) => Some(notice.body),
-            MessageType::Emote(emote) => Some(emote.body),
-            _ => None,
+            MessageType::Text(text) => text.body,
+            MessageType::Notice(notice) => notice.body,
+            MessageType::Emote(emote) => emote.body,
+            message_type => preview_from_message_type(&message_type),
         },
-        _ => None,
+        _ => String::from("Room activity"),
     }
 }
 
-fn message_preview_from_sync_event(
-    event: matrix_sdk::ruma::events::AnySyncTimelineEvent,
-) -> Option<String> {
-    let matrix_sdk::ruma::events::AnySyncTimelineEvent::MessageLike(message_like) = event else {
-        return None;
-    };
+fn preview_from_sync_event(event: AnySyncTimelineEvent) -> String {
+    match event {
+        AnySyncTimelineEvent::MessageLike(message_like) => {
+            preview_from_sync_message_like_event(&message_like)
+        }
+        AnySyncTimelineEvent::State(state) => preview_from_sync_state_event(&state),
+    }
+}
 
-    let matrix_sdk::ruma::events::AnySyncMessageLikeEvent::RoomMessage(message) = message_like
-    else {
-        return None;
-    };
+fn preview_from_sync_message_like_event(event: &AnySyncMessageLikeEvent) -> String {
+    if let AnySyncMessageLikeEvent::RoomMessage(message) = event
+        && let Some(original) = message.as_original()
+    {
+        return match &original.content.msgtype {
+            MessageType::Text(text) => text.body.clone(),
+            MessageType::Notice(notice) => notice.body.clone(),
+            MessageType::Emote(emote) => emote.body.clone(),
+            message_type => preview_from_message_type(message_type),
+        };
+    }
 
-    let original = message.as_original()?;
+    preview_from_message_like_event_type(&event.event_type().to_string())
+}
 
-    match &original.content.msgtype {
-        MessageType::Text(text) => Some(text.body.clone()),
-        MessageType::Notice(notice) => Some(notice.body.clone()),
-        MessageType::Emote(emote) => Some(emote.body.clone()),
-        _ => None,
+fn preview_from_message_type(message_type: &MessageType) -> String {
+    match message_type {
+        MessageType::Audio(_) => String::from("Audio message"),
+        MessageType::File(_) => String::from("File shared"),
+        MessageType::Image(_) => String::from("Image shared"),
+        MessageType::Location(_) => String::from("Location shared"),
+        MessageType::ServerNotice(_) => String::from("Server notice"),
+        MessageType::VerificationRequest(_) => String::from("Verification request"),
+        MessageType::Video(_) => String::from("Video shared"),
+        MessageType::Text(_) | MessageType::Notice(_) | MessageType::Emote(_) => {
+            String::from("Message")
+        }
+        _ => String::from("Message"),
+    }
+}
+
+fn preview_from_message_like_event_type(event_type: &str) -> String {
+    match event_type {
+        "m.location" => String::from("Live location shared"),
+        "m.beacon" | "org.matrix.msc3672.beacon" => String::from("Live location updated"),
+        "m.reaction" => String::from("Reaction"),
+        "m.room.encrypted" => String::from("Encrypted message"),
+        "m.room.redaction" => String::from("Message removed"),
+        "m.sticker" => String::from("Sticker"),
+        value if value.starts_with("m.call.") || value.contains(".call.") => {
+            String::from("Call activity")
+        }
+        value if value.starts_with("m.key.verification.") => String::from("Verification activity"),
+        value if value.contains("poll.") => String::from("Poll activity"),
+        _ => String::from("Room activity"),
+    }
+}
+
+fn preview_from_sync_state_event(event: &AnySyncStateEvent) -> String {
+    match event.event_type().to_string().as_str() {
+        "m.room.avatar" | "m.room.canonical_alias" | "m.room.name" | "m.room.topic" => {
+            String::from("Room details updated")
+        }
+        "m.room.member" => String::from("Room membership updated"),
+        "m.room.encryption" => String::from("Encryption updated"),
+        "m.beacon_info" | "org.matrix.msc3672.beacon_info" => String::from("Live location shared"),
+        "m.room.guest_access"
+        | "m.room.history_visibility"
+        | "m.room.join_rules"
+        | "m.room.pinned_events"
+        | "m.room.power_levels"
+        | "m.room.server_acl" => String::from("Room settings updated"),
+        _ => String::from("Room activity"),
     }
 }
 

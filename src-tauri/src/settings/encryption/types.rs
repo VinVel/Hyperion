@@ -16,6 +16,11 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = r#"This mirrors a Tauri IPC payload where frontend compatibility benefits from
+            explicit booleans for independent encryption settings and account presence."#
+)]
 pub struct EncryptionOverview {
     pub has_active_account: bool,
     pub account_key: Option<String>,
@@ -27,6 +32,8 @@ pub struct EncryptionOverview {
     pub backup_state: Option<String>,
     pub server_key_storage_opted_out: bool,
     pub verified_devices_only: bool,
+    #[serde(default)]
+    pub share_encrypted_history_on_invite: bool,
     #[serde(default)]
     pub last_refreshed_at_unix_ms: Option<u64>,
 }

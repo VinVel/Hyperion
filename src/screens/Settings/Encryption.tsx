@@ -47,6 +47,7 @@ export type EncryptionOverview = {
   backup_state: string | null;
   server_key_storage_opted_out: boolean;
   verified_devices_only: boolean;
+  share_encrypted_history_on_invite: boolean;
   last_refreshed_at_unix_ms?: number | null;
 };
 
@@ -93,6 +94,7 @@ function defaultEncryptionOverview(
     backup_state: null,
     server_key_storage_opted_out: false,
     verified_devices_only: false,
+    share_encrypted_history_on_invite: false,
     last_refreshed_at_unix_ms: null,
   };
 }
@@ -415,6 +417,16 @@ export default function Encryption({ activeAccount }: EncryptionProps) {
     setMessage({ tone: "success", text: "Device trust preference was saved." });
   }
 
+  async function toggleShareEncryptedHistoryOnInvite() {
+    await invoke("set_share_encrypted_history_on_invite", {
+      enabled: !overview.share_encrypted_history_on_invite,
+    });
+    setMessage({
+      tone: "success",
+      text: "Invite history-sharing preference was saved.",
+    });
+  }
+
   const isBusy = pendingAction !== null;
   const isServerKeyStorageEnabled = !overview.server_key_storage_opted_out;
   const recoveryConfirmationPending = recoveryConfirmation !== null;
@@ -693,6 +705,41 @@ export default function Encryption({ activeAccount }: EncryptionProps) {
             label="Only verified devices"
             onClick={() =>
               void runAction("verified-devices-only", toggleVerifiedDevicesOnly)
+            }
+          />
+        </div>
+      </Card>
+
+      <Card className="settings-view-card">
+        <div className="settings-view-card-head">
+          <ShieldCheck aria-hidden="true" />
+          <div className="settings-view-card-copy">
+            <Typography variant="h3">Invite history sharing</Typography>
+            <Typography muted variant="bodySmall">
+              Share encrypted room history keys with people when you invite them
+              to encrypted rooms.
+            </Typography>
+          </div>
+        </div>
+
+        <div className="settings-view-toggle-row">
+          <div>
+            <Typography variant="label">
+              Share encrypted history on invite
+            </Typography>
+            <Typography muted variant="bodySmall">
+              Applies immediately by reconnecting the active Matrix client.
+            </Typography>
+          </div>
+          <Toggle
+            checked={overview.share_encrypted_history_on_invite}
+            disabled={isBusy}
+            label="Share encrypted history on invite"
+            onClick={() =>
+              void runAction(
+                "share-encrypted-history-on-invite",
+                toggleShareEncryptedHistoryOnInvite,
+              )
             }
           />
         </div>

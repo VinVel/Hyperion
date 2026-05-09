@@ -506,6 +506,7 @@ impl AccountManager {
             .server_name_or_homeserver_url(homeserver_target)
             .sqlite_store_with_config_and_cache_path(store_config, Some(cache_dir))
             .with_room_key_recipient_strategy(room_key_recipient_strategy)
+            .with_enable_share_history_on_invite(preferences.share_encrypted_history_on_invite)
             // Hyperion owns durable search indexing. Keeping the SDK's
             // experimental index in memory avoids path issues from raw room IDs
             // on Windows while the app-level index handles searchable metadata.

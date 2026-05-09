@@ -67,6 +67,7 @@ pub async fn get_encryption_overview(
             backup_state: None,
             server_key_storage_opted_out: false,
             verified_devices_only: false,
+            share_encrypted_history_on_invite: false,
             last_refreshed_at_unix_ms: None,
         });
     };
@@ -92,6 +93,7 @@ pub async fn get_encryption_overview(
         backup_state: None,
         server_key_storage_opted_out: preferences.server_key_storage_opted_out,
         verified_devices_only: preferences.verified_devices_only,
+        share_encrypted_history_on_invite: preferences.share_encrypted_history_on_invite,
         last_refreshed_at_unix_ms: None,
     })
 }
@@ -148,6 +150,7 @@ async fn refreshed_encryption_overview(
         )),
         server_key_storage_opted_out: preferences.server_key_storage_opted_out,
         verified_devices_only: preferences.verified_devices_only,
+        share_encrypted_history_on_invite: preferences.share_encrypted_history_on_invite,
         last_refreshed_at_unix_ms: Some(now_unix_ms()),
     })
 }
@@ -420,6 +423,32 @@ pub async fn set_verified_devices_only(
     }
 
     preferences.verified_devices_only = enabled;
+    AccountManager::persist_encryption_preferences_for_store(&account.store_dir, &preferences)?;
+    shell_manager.stop_account(&account.account_key).await;
+    account_manager.rebuild_active_client(&app).await?;
+    shell_manager
+        .ensure_active_account_sync(&app, &account_manager)
+        .await
+}
+
+#[tauri::command]
+pub async fn set_share_encrypted_history_on_invite(
+    app: AppHandle,
+    account_manager: tauri::State<'_, AccountManager>,
+    shell_manager: tauri::State<'_, ShellManager>,
+    enabled: bool,
+) -> Result<(), String> {
+    let Some(account) = account_manager.active_account_client(&app).await? else {
+        return Err(String::from("No active account is available"));
+    };
+    let mut preferences =
+        AccountManager::load_encryption_preferences_for_store(&account.client, &account.store_dir)
+            .await?;
+    if preferences.share_encrypted_history_on_invite == enabled {
+        return Ok(());
+    }
+
+    preferences.share_encrypted_history_on_invite = enabled;
     AccountManager::persist_encryption_preferences_for_store(&account.store_dir, &preferences)?;
     shell_manager.stop_account(&account.account_key).await;
     account_manager.rebuild_active_client(&app).await?;

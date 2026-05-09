@@ -335,7 +335,7 @@ impl ShellSyncManager {
 
             loop {
                 match session_changes.recv().await {
-                    Ok(SessionChange::UnknownToken { soft_logout: _ }) => {
+                    Ok(SessionChange::UnknownToken(_soft_logout)) => {
                         if let Err(error) = account_manager
                             .deauthorize_account_store(&app, &account.store_dir)
                             .await

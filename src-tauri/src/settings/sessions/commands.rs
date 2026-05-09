@@ -17,7 +17,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use matrix_sdk::{
     Client,
-    authentication::oauth::AccountManagementActionFull,
     encryption::{
         VerificationState as MatrixVerificationState,
         verification::{Verification, VerificationRequest, VerificationRequestState},
@@ -26,6 +25,9 @@ use matrix_sdk::{
         OwnedDeviceId, OwnedUserId,
         api::client::{
             device::delete_device,
+            discovery::get_authorization_server_metadata::v1::{
+                AccountManagementActionData, DeviceDeleteData,
+            },
             uiaa::{self, AuthData},
         },
         events::key::verification::{
@@ -451,30 +453,26 @@ async fn account_management_url_for_first_device(
     device_ids: &[OwnedDeviceId],
 ) -> Option<String> {
     let action = account_management_action_for_device_ids(device_ids)?;
-    account
-        .client
-        .oauth()
-        .account_management_url()
-        .await
-        .ok()
-        .flatten()
-        .map(|url_builder| url_builder.action(action).build().to_string())
+    let metadata = account.client.oauth().cached_server_metadata().await.ok()?;
+
+    metadata
+        .account_management_url_with_action(action)
+        .map(|url| url.to_string())
 }
 
 fn account_management_action_for_device_ids(
     device_ids: &[OwnedDeviceId],
-) -> Option<AccountManagementActionFull> {
+) -> Option<AccountManagementActionData<'_>> {
     if device_ids.len() == 1 {
-        return device_ids
-            .first()
-            .cloned()
-            .map(|device_id| AccountManagementActionFull::SessionEnd { device_id });
+        return device_ids.first().map(|device_id| {
+            AccountManagementActionData::DeviceDelete(DeviceDeleteData::new(device_id))
+        });
     }
 
     if device_ids.is_empty() {
         None
     } else {
-        Some(AccountManagementActionFull::SessionsList)
+        Some(AccountManagementActionData::DevicesList)
     }
 }
 
@@ -827,7 +825,7 @@ fn password_auth_data(
 
     let user_id = active_user_id(account)?;
     let mut password_auth = uiaa::Password::new(
-        uiaa::UserIdentifier::UserIdOrLocalpart(user_id.to_string()),
+        uiaa::UserIdentifier::Matrix(uiaa::MatrixUserIdentifier::new(user_id.to_string())),
         password.to_owned(),
     );
     password_auth.session = auth_session.cloned();

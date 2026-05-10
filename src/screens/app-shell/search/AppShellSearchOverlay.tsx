@@ -46,10 +46,14 @@ export default function AppShellSearchOverlay({
   }
 
   return (
-    <div className="app-shell-search-overlay" role="dialog" aria-modal="true">
+    <div
+      className="ui-overlay app-shell-search-overlay"
+      role="dialog"
+      aria-modal="true"
+    >
       <button
         aria-label="Close global search"
-        className="app-shell-search-scrim"
+        className="ui-overlay-scrim ui-overlay-scrim--blurred"
         type="button"
         onClick={onClose}
       />

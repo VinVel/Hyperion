@@ -13,24 +13,9 @@
  * Project home: hyperion.velcore.net
  */
 
-import { elevation } from "./elevation";
-import { effects } from "./effects";
-import { layout } from "./layout";
-import { motion } from "./motion";
-import { shape } from "./shape";
-import { sizing } from "./sizing";
-import { spacing } from "./spacing";
-import { typography } from "./typography";
-
-export const primitives = {
-  typography,
-  spacing,
-  sizing,
-  shape,
-  elevation,
-  effects,
-  motion,
-  layout,
+export const effects = {
+  // Shared overlay blur for modal scrims that should soften the inactive app.
+  overlayBackdropBlur: "blur(14px)",
 } as const;
 
-export type ThemePrimitives = typeof primitives;
+export type EffectsTokens = typeof effects;

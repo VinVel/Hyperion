@@ -856,14 +856,14 @@ function SasVerificationOverlay({
 
   return (
     <div
-      className="settings-view-verification-overlay"
+      className="ui-overlay settings-view-verification-overlay"
       role="dialog"
       aria-modal="true"
       aria-labelledby="settings-view-verification-title"
     >
       <button
         aria-label="Close emoji verification"
-        className="settings-view-verification-scrim"
+        className="ui-overlay-scrim ui-overlay-scrim--blurred"
         onClick={onClose}
         type="button"
       />

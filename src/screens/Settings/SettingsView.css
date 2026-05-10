@@ -360,20 +360,8 @@
 }
 
 .settings-view-verification-overlay {
-  position: fixed;
-  inset: 0;
   z-index: 24;
-  display: grid;
   place-items: center;
-  padding: var(--spacing-safe-area-padding);
-}
-
-.settings-view-verification-scrim {
-  position: absolute;
-  inset: 0;
-  border: none;
-  background: color-mix(in srgb, var(--scrim) 55%, transparent);
-  cursor: pointer;
 }
 
 .settings-view-verification-dialog {

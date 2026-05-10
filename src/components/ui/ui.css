@@ -51,6 +51,26 @@
   min-height: var(--layout-centered-screen-min-height);
 }
 
+.ui-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  padding: var(--spacing-safe-area-padding);
+}
+
+.ui-overlay-scrim {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: color-mix(in srgb, var(--scrim) 55%, transparent);
+  cursor: pointer;
+}
+
+.ui-overlay-scrim--blurred {
+  -webkit-backdrop-filter: var(--effects-overlay-backdrop-blur);
+  backdrop-filter: var(--effects-overlay-backdrop-blur);
+}
+
 .ui-app-rail {
   width: var(--layout-app-rail-width);
   min-width: var(--layout-app-rail-width);

@@ -478,20 +478,8 @@
 }
 
 .app-shell-search-overlay {
-  position: fixed;
-  inset: 0;
   z-index: 20;
-  display: grid;
   place-items: center;
-  padding: var(--spacing-safe-area-padding);
-}
-
-.app-shell-search-scrim {
-  position: absolute;
-  inset: 0;
-  border: none;
-  background: color-mix(in srgb, var(--scrim) 55%, transparent);
-  cursor: pointer;
 }
 
 .app-shell-search-dialog {

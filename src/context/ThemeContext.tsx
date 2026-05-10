@@ -169,6 +169,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     exposeTokenGroup(root, "sizing", primitives.sizing);
     exposeTokenGroup(root, "shape", primitives.shape);
     exposeTokenGroup(root, "elevation", primitives.elevation);
+    exposeTokenGroup(root, "effects", primitives.effects);
     exposeTokenGroup(root, "motion", primitives.motion);
     exposeTokenGroup(root, "layout", primitives.layout);
   }, [isDark, currentColors, themePreset]);

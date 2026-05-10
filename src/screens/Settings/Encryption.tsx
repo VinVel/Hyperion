@@ -606,11 +606,11 @@ export default function Encryption({ activeAccount }: EncryptionProps) {
             <dd>{overview.device_id}</dd>
           </div>
           <div>
-            <dt>Ed25519 fingerprint</dt>
+            <dt>Ed25519 public fingerprint</dt>
             <dd>{overview.ed25519_key ?? "Unknown"}</dd>
           </div>
           <div>
-            <dt>Curve25519 key</dt>
+            <dt>Curve25519 public key</dt>
             <dd>{overview.curve25519_key ?? "Unknown"}</dd>
           </div>
         </dl>

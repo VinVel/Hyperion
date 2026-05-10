@@ -55,6 +55,7 @@
 }
 
 .app-shell-rail-group,
+.app-shell-rail-bottom,
 .app-shell-account-center,
 .app-shell-account-copy,
 .app-shell-account-section,
@@ -70,6 +71,11 @@
 .app-shell-search-group-list {
   display: flex;
   flex-direction: column;
+}
+
+.app-shell-rail-bottom {
+  align-items: center;
+  gap: var(--spacing-gap-large);
 }
 
 .app-shell-account-center {
@@ -182,11 +188,6 @@
 .app-shell-account-option-meta {
   color: var(--on-surface-variant);
   font-size: var(--typography-meta-size);
-}
-
-.app-shell-square-action {
-  width: var(--sizing-icon-button-size);
-  height: var(--sizing-icon-button-size);
 }
 
 .app-shell-settings-button {
@@ -600,7 +601,7 @@
     width: 100vw;
     z-index: 15;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     align-items: center;
     gap: 0;
     min-height: var(--layout-mobile-bottom-bar-height);
@@ -633,6 +634,11 @@
   .app-shell-mobile-nav-button--active {
     background: var(--primary-container);
     color: var(--on-primary-container);
+  }
+
+  .app-shell-mobile-nav-button:disabled {
+    color: var(--outline);
+    cursor: not-allowed;
   }
 
   .app-shell-mobile-nav-button svg {

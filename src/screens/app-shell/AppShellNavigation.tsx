@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-import { Blocks, MessagesSquare, Search } from "lucide-react";
+import { Blocks, MessagesSquare, Plus, Search } from "lucide-react";
 import { AppRail, AppRailButton } from "../../components/ui";
 import {
   type AccountSummary,
@@ -79,46 +79,54 @@ export default function AppShellNavigation({
           </AppRailButton>
         </div>
 
-        <div className="app-shell-account-center">
-          {isAccountCenterOpen ? (
-            <section
-              className="app-shell-account-popover"
-              aria-label="Account center"
-            >
-              <AppShellAccountPopoverContent
-                activeAccount={activeAccount}
-                switchableAccounts={switchableAccounts}
-                switchingAccountKey={switchingAccountKey}
-                onOpenSettings={onOpenSettings}
-                onSwitchAccount={onSwitchAccount}
-              />
-            </section>
-          ) : null}
+        <div className="app-shell-rail-bottom">
+          <AppRailButton aria-label="Create or join" disabled>
+            <Plus aria-hidden="true" />
+          </AppRailButton>
 
-          <button
-            aria-expanded={isAccountCenterOpen}
-            aria-haspopup="menu"
-            className="app-shell-account-trigger"
-            type="button"
-            onClick={onToggleAccountCenter}
-          >
-            <span className="app-shell-account-avatar">
-              {accountInitials(activeAccount)}
-            </span>
-          </button>
+          <div className="app-shell-account-center">
+            {isAccountCenterOpen ? (
+              <section
+                className="app-shell-account-popover"
+                aria-label="Account center"
+              >
+                <AppShellAccountPopoverContent
+                  activeAccount={activeAccount}
+                  switchableAccounts={switchableAccounts}
+                  switchingAccountKey={switchingAccountKey}
+                  onOpenSettings={onOpenSettings}
+                  onSwitchAccount={onSwitchAccount}
+                />
+              </section>
+            ) : null}
+
+            <button
+              aria-expanded={isAccountCenterOpen}
+              aria-haspopup="menu"
+              className="app-shell-account-trigger"
+              type="button"
+              onClick={onToggleAccountCenter}
+            >
+              <span className="app-shell-account-avatar">
+                {accountInitials(activeAccount)}
+              </span>
+            </button>
+          </div>
         </div>
       </AppRail>
 
       <nav className="app-shell-mobile-nav" aria-label="Primary navigation">
         <button
-          aria-label="Open global search"
+          aria-label="Open spaces"
           className={`app-shell-mobile-nav-button${
-            isGlobalSearchOpen ? " app-shell-mobile-nav-button--active" : ""
+            activeView === "spaces"
+              ? " app-shell-mobile-nav-button--active"
+              : ""
           }`}
           type="button"
-          onClick={onOpenGlobalSearch}
+          onClick={onOpenSpaces}
         >
-          <Search aria-hidden="true" />
+          <Blocks aria-hidden="true" />
         </button>
 
         <button
@@ -135,16 +143,23 @@ export default function AppShellNavigation({
         </button>
 
         <button
-          aria-label="Open spaces"
+          aria-label="Open global search"
           className={`app-shell-mobile-nav-button${
-            activeView === "spaces"
-              ? " app-shell-mobile-nav-button--active"
-              : ""
+            isGlobalSearchOpen ? " app-shell-mobile-nav-button--active" : ""
           }`}
           type="button"
-          onClick={onOpenSpaces}
+          onClick={onOpenGlobalSearch}
         >
-          <Blocks aria-hidden="true" />
+          <Search aria-hidden="true" />
+        </button>
+
+        <button
+          aria-label="Create or join"
+          className="app-shell-mobile-nav-button"
+          type="button"
+          disabled
+        >
+          <Plus aria-hidden="true" />
         </button>
 
         <button

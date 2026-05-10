@@ -13,8 +13,8 @@
  * Project home: hyperion.velcore.net
  */
 
-import { ArrowDownUp, Check, ChevronDown, Plus } from "lucide-react";
-import { Button, Typography } from "../../components/ui";
+import { ArrowDownUp, Check, ChevronDown } from "lucide-react";
+import { Typography } from "../../components/ui";
 import {
   type RoomThreadKindFilter,
   type RoomThreadSort,
@@ -94,14 +94,6 @@ export default function ConversationSidebar({
           <Typography as="h1" variant="h2">
             Conversations
           </Typography>
-          <Button
-            iconOnly
-            aria-label="Start a new chat"
-            className="conversations-square-action"
-            variant="secondary"
-          >
-            <Plus aria-hidden="true" />
-          </Button>
         </div>
       </div>
 

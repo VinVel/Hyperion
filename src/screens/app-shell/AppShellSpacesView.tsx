@@ -13,8 +13,8 @@
  * Project home: hyperion.velcore.net
  */
 
-import { Plus, Search } from "lucide-react";
-import { Button, Pill, ToolbarField, Typography } from "../../components/ui";
+import { Search } from "lucide-react";
+import { Pill, ToolbarField, Typography } from "../../components/ui";
 import { type SpaceSummary } from "./appShellAdapters";
 
 type AppShellSpacesViewProps = {
@@ -43,14 +43,6 @@ export default function AppShellSpacesView({
             <Typography as="h2" variant="h2">
               Spaces
             </Typography>
-            <Button
-              iconOnly
-              aria-label="Create or join a space"
-              className="app-shell-square-action"
-              variant="secondary"
-            >
-              <Plus aria-hidden="true" />
-            </Button>
           </div>
         </header>
 

@@ -111,6 +111,11 @@
   color: var(--on-surface);
 }
 
+.ui-app-rail-button:disabled {
+  color: var(--outline);
+  cursor: not-allowed;
+}
+
 .ui-app-rail-button--active {
   background: var(--primary-container);
   color: var(--on-primary-container);

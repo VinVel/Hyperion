@@ -13,23 +13,18 @@
  * Project home: hyperion.velcore.net
  */
 
-import { Search } from "lucide-react";
-import { Pill, ToolbarField, Typography } from "../../components/ui";
+import { Pill, Typography } from "../../components/ui";
 import { type SpaceSummary } from "./appShellAdapters";
 
 type AppShellSpacesViewProps = {
   selectedSpace: SpaceSummary | null;
-  spaceSearchQuery: string;
   visibleSpaces: SpaceSummary[];
-  onSearchChange: (value: string) => void;
   onSelectSpace: (spaceId: string) => void;
 };
 
 export default function AppShellSpacesView({
   selectedSpace,
-  spaceSearchQuery,
   visibleSpaces,
-  onSearchChange,
   onSelectSpace,
 }: AppShellSpacesViewProps) {
   return (
@@ -45,19 +40,6 @@ export default function AppShellSpacesView({
             </Typography>
           </div>
         </header>
-
-        <div className="app-shell-toolbar app-shell-toolbar--spaces">
-          <ToolbarField
-            icon={<Search aria-hidden="true" />}
-            placeholder="Find a space"
-            value={spaceSearchQuery}
-            onChange={(event) => onSearchChange(event.currentTarget.value)}
-          />
-          <div className="app-shell-filter-pills">
-            <Pill tone="primary">My spaces</Pill>
-            <Pill>Discover</Pill>
-          </div>
-        </div>
 
         <div className="app-shell-space-grid">
           {visibleSpaces.length === 0 ? (

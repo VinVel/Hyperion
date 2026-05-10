@@ -244,21 +244,6 @@
   align-self: flex-start;
 }
 
-.app-shell-toolbar {
-  display: grid;
-  gap: var(--spacing-gap-medium);
-}
-
-.app-shell-toolbar--spaces {
-  margin-top: 0;
-}
-
-.app-shell-filter-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-gap-medium);
-}
-
 .app-shell-space-card,
 .app-shell-search-result {
   border: none;

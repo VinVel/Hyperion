@@ -129,7 +129,6 @@ export type UseAppShellStateResult = {
   selectedSpace: SpaceSummary | null;
   selectedThread: ReturnType<typeof mapRoomThreadSummary> | null;
   selectedTimeline: RoomTimeline | null;
-  spaceSearchQuery: string;
   switchableAccounts: AccountSummary[];
   switchingAccountKey: string | null;
   threadKindFilter: RoomThreadKindFilter;
@@ -148,7 +147,6 @@ export type UseAppShellStateResult = {
   sendMessage: () => Promise<void>;
   setComposerValue: (value: string) => void;
   setGlobalSearchQuery: (value: string) => void;
-  setSpaceSearchQuery: (value: string) => void;
   setThreadKindFilter: (value: RoomThreadKindFilter) => void;
   switchAccount: (nextAccount: AccountSummary) => Promise<void>;
   toggleAccountCenter: () => void;
@@ -403,7 +401,6 @@ export default function useAppShellState({
     useState<RoomThreadKindFilter>("direct");
   const [threadSort, setThreadSort] = useState<RoomThreadSort>("newest");
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
-  const [spaceSearchQuery, setSpaceSearchQuery] = useState("");
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [globalSearchResults, setGlobalSearchResults] = useState<
@@ -874,23 +871,8 @@ export default function useAppShellState({
     selectedRoomSummary?.id === selectedThreadId ? selectedRoomSummary : null;
   const selectedTimelineForSelectedThread =
     selectedTimeline?.roomId === selectedThreadId ? selectedTimeline : null;
-  const visibleSpaces = useMemo(() => {
-    const normalizedQuery = spaceSearchQuery.trim().toLowerCase();
-    if (normalizedQuery.length === 0) {
-      return spaces;
-    }
-
-    return spaces.filter((space) =>
-      [space.name, space.description]
-        .join(" ")
-        .toLowerCase()
-        .includes(normalizedQuery),
-    );
-  }, [spaces, spaceSearchQuery]);
   const selectedSpace =
-    visibleSpaces.find((space) => space.id === selectedSpaceId) ??
-    spaces.find((space) => space.id === selectedSpaceId) ??
-    null;
+    spaces.find((space) => space.id === selectedSpaceId) ?? null;
   const isThreadOpen = activeView === "messages" && selectedThread !== null;
   const switchableAccounts = knownAccounts
     .filter((account) => account.account_key !== activeAccount.account_key)
@@ -1186,12 +1168,11 @@ export default function useAppShellState({
     selectedSpace,
     selectedThread,
     selectedTimeline: selectedTimelineForSelectedThread,
-    spaceSearchQuery,
     switchableAccounts,
     switchingAccountKey,
     threadKindFilter,
     threadSort,
-    visibleSpaces,
+    visibleSpaces: spaces,
     visibleThreads,
     closeGlobalSearch: () => setIsGlobalSearchOpen(false),
     closeThread: () => setSelectedThreadId(null),
@@ -1213,7 +1194,6 @@ export default function useAppShellState({
     sendMessage,
     setComposerValue,
     setGlobalSearchQuery,
-    setSpaceSearchQuery,
     setThreadKindFilter,
     switchAccount,
     toggleAccountCenter: () =>

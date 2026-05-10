@@ -145,9 +145,7 @@ export default function AppShell({
             {shell.activeView === "spaces" ? (
               <AppShellSpacesView
                 selectedSpace={shell.selectedSpace}
-                spaceSearchQuery={shell.spaceSearchQuery}
                 visibleSpaces={shell.visibleSpaces}
-                onSearchChange={shell.setSpaceSearchQuery}
                 onSelectSpace={shell.selectSpace}
               />
             ) : null}

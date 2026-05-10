@@ -731,6 +731,14 @@
 }
 
 @media (max-width: 640px) {
+  .app-shell-search-overlay {
+    align-items: start;
+    justify-items: center;
+    padding-block-start: calc(
+      env(safe-area-inset-top) + var(--spacing-gap-triple-extra-large)
+    );
+  }
+
   .app-shell-workspace {
     grid-template-columns: minmax(0, 1fr);
   }

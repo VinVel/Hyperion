@@ -55,7 +55,6 @@ impl<'connection> SearchRepository<'connection> {
 
     // Redaction handling will call this once Matrix timeline redaction events are
     // wired into the search indexer.
-    #[allow(dead_code)]
     pub(super) fn delete_document(
         &self,
         account_key: &str,
@@ -134,7 +133,6 @@ impl<'connection> SearchRepository<'connection> {
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub(super) fn update_room_backfill_progress(
         &self,
         progress: &SearchRoomBackfillProgress,
@@ -173,7 +171,6 @@ impl<'connection> SearchRepository<'connection> {
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub(super) fn room_backfill_progress(
         &self,
         account_key: &str,

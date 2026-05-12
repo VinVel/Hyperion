@@ -28,7 +28,6 @@ pub(super) enum SearchEntityType {
     Message,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::shell::service) enum SearchBackfillState {
     NotStarted,
@@ -41,7 +40,6 @@ pub(in crate::shell::service) enum SearchBackfillState {
     Error,
 }
 
-#[allow(dead_code)]
 impl SearchBackfillState {
     pub(super) fn as_str(self) -> &'static str {
         match self {
@@ -140,7 +138,6 @@ pub(super) struct SearchHitRow {
     pub(super) fts_rank: f64,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::shell::service) struct SearchRoomBackfillProgress {
     pub(in crate::shell::service) account_key: String,

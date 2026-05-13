@@ -26,10 +26,12 @@ type AppShellNavigationProps = {
   activeAccount: AccountSummary;
   activeView: AuthenticatedShellView;
   isGlobalSearchOpen: boolean;
+  isDiscoveryOpen: boolean;
   isAccountCenterOpen: boolean;
   switchableAccounts: AccountSummary[];
   switchingAccountKey: string | null;
   onOpenGlobalSearch: () => void;
+  onOpenDiscovery: () => void;
   onOpenMessages: () => void;
   onOpenSpaces: () => void;
   onToggleAccountCenter: () => void;
@@ -41,10 +43,12 @@ export default function AppShellNavigation({
   activeAccount,
   activeView,
   isGlobalSearchOpen,
+  isDiscoveryOpen,
   isAccountCenterOpen,
   switchableAccounts,
   switchingAccountKey,
   onOpenGlobalSearch,
+  onOpenDiscovery,
   onOpenMessages,
   onOpenSpaces,
   onToggleAccountCenter,
@@ -80,7 +84,11 @@ export default function AppShellNavigation({
         </div>
 
         <div className="app-shell-rail-bottom">
-          <AppRailButton aria-label="Create or join" disabled>
+          <AppRailButton
+            aria-label="Create or join"
+            isActive={isDiscoveryOpen}
+            onClick={onOpenDiscovery}
+          >
             <Plus aria-hidden="true" />
           </AppRailButton>
 
@@ -155,9 +163,11 @@ export default function AppShellNavigation({
 
         <button
           aria-label="Create or join"
-          className="app-shell-mobile-nav-button"
+          className={`app-shell-mobile-nav-button${
+            isDiscoveryOpen ? " app-shell-mobile-nav-button--active" : ""
+          }`}
           type="button"
-          disabled
+          onClick={onOpenDiscovery}
         >
           <Plus aria-hidden="true" />
         </button>

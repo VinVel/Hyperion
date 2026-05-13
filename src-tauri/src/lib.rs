@@ -40,12 +40,23 @@ use settings::{
         set_theme_mode as save_theme_mode, set_theme_preset as save_theme_preset,
     },
 };
+
 use shell::{
-    GetRoomEventContextRequest, GetRoomSummaryRequest, GetRoomTimelineRequest, GlobalSearchRequest,
-    GlobalSearchResponse, ListRoomThreadsRequest, ListSpacesRequest, RoomSummary,
-    RoomThreadSummary, RoomTimeline, SendRoomMessageRequest, SendRoomMessageResponse, ShellManager,
-    SpaceSummary,
+    service::{
+        ShellManager,
+        discovery::types::{
+            DiscoveryEntity, InviteTarget, InviteUserToRoomRequest, JoinDiscoveryRoomRequest,
+            JoinDiscoveryRoomResponse, ListInviteTargetsRequest, SearchDiscoveryEntitiesRequest,
+        },
+    },
+    types::{
+        GetRoomEventContextRequest, GetRoomSummaryRequest, GetRoomTimelineRequest,
+        GlobalSearchRequest, GlobalSearchResponse, ListRoomThreadsRequest, ListSpacesRequest,
+        RoomSummary, RoomThreadSummary, RoomTimeline, SendRoomMessageRequest,
+        SendRoomMessageResponse, SpaceSummary,
+    },
 };
+
 use tauri::{AppHandle, RunEvent, State};
 
 use tauri_plugin_dialog as dialog;
@@ -239,6 +250,54 @@ async fn global_search(
 }
 
 #[tauri::command]
+async fn search_discovery_entities(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: SearchDiscoveryEntitiesRequest,
+) -> Result<Vec<DiscoveryEntity>, String> {
+    shell_manager
+        .search_discovery_entities(&app, &account_manager, request)
+        .await
+}
+
+#[tauri::command]
+async fn join_discovery_room(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: JoinDiscoveryRoomRequest,
+) -> Result<JoinDiscoveryRoomResponse, String> {
+    shell_manager
+        .join_discovery_room(&app, &account_manager, request)
+        .await
+}
+
+#[tauri::command]
+async fn invite_user_to_room(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: InviteUserToRoomRequest,
+) -> Result<(), String> {
+    shell_manager
+        .invite_user_to_room(&app, &account_manager, request)
+        .await
+}
+
+#[tauri::command]
+async fn list_invite_targets(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: ListInviteTargetsRequest,
+) -> Result<Vec<InviteTarget>, String> {
+    shell_manager
+        .list_invite_targets(&app, &account_manager, request)
+        .await
+}
+
+#[tauri::command]
 #[cfg(mobile)]
 async fn open_mobile_overlay_webview(
     app: AppHandle,
@@ -328,6 +387,10 @@ pub fn run() {
             send_room_message,
             list_spaces,
             global_search,
+            search_discovery_entities,
+            join_discovery_room,
+            invite_user_to_room,
+            list_invite_targets,
             #[cfg(mobile)]
             open_mobile_overlay_webview,
             get_encryption_overview,

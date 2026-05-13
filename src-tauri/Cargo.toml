@@ -56,8 +56,11 @@ features = [
 [target.'cfg(target_os = "android")'.dependencies]
 android-native-keyring-store = { workspace = true }
 ndk-context = { workspace = true }
+rustls = { workspace = true }
+rustls-native-certs = { workspace = true }
 tauri-plugin-app-events = { workspace = true }
 tauri-plugin-mobile-webview-overlay = { workspace = true }
+webpki-roots = { workspace = true }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 apple-native-keyring-store = { workspace = true, features = ["protected"] }

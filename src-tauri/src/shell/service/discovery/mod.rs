@@ -13,7 +13,5 @@
  * Project home: hyperion.velcore.net
  */
 
-mod engine;
-pub mod service;
-mod sync;
+mod commands;
 pub mod types;

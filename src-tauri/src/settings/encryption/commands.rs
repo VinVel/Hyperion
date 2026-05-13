@@ -32,7 +32,7 @@ use tauri_plugin_fs::{FsExt, OpenOptions};
 use crate::{
     account::{AccountClientSnapshot, AccountManager},
     settings::account as account_settings,
-    shell::ShellManager,
+    shell::service::ShellManager,
 };
 
 pub use super::types::{

@@ -14,6 +14,7 @@
  */
 
 use std::{
+    cmp::Reverse,
     collections::{HashMap, HashSet},
     sync::{Arc, RwLock},
 };
@@ -25,6 +26,7 @@ use crate::account::AccountManager;
 
 mod cache_state;
 mod caching;
+pub mod discovery;
 mod global_search;
 mod paging;
 mod read_state;
@@ -79,7 +81,7 @@ const ROOM_LIST_SNAPSHOT_PAGE_SIZE: usize = 10_000;
 // pagination can still continue beyond this as the user asks for more history.
 const MAX_RESTORED_TIMELINE_ITEMS: usize = 1_000;
 
-enum ShellRoomListKind {
+pub(super) enum ShellRoomListKind {
     Conversations,
     Spaces,
 }
@@ -461,7 +463,7 @@ impl ShellManager {
         })
     }
 
-    async fn snapshot_room_list(
+    pub(super) async fn snapshot_room_list(
         &self,
         account_key: &str,
         list_kind: ShellRoomListKind,
@@ -480,7 +482,7 @@ impl ShellManager {
         store_dir: &std::path::Path,
         mut room_candidates: Vec<(String, u64)>,
     ) {
-        room_candidates.sort_by(|left, right| right.1.cmp(&left.1));
+        room_candidates.sort_by_key(|room_candidate| Reverse(room_candidate.1));
 
         for (room_id, _activity_timestamp) in room_candidates
             .into_iter()

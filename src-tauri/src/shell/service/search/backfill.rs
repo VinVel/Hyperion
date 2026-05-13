@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
+use std::{cmp::Reverse, collections::HashMap, path::Path, sync::Arc, time::Duration};
 
 use matrix_sdk::Client;
 use tauri::async_runtime::{JoinHandle, Mutex as AsyncMutex};
@@ -40,7 +40,7 @@ pub(super) const BACKFILL_MAX_ROOM_BATCHES_PER_TICK: usize = 2;
 pub(super) const BACKFILL_REQUEST_COOLDOWN: Duration = Duration::from_secs(3);
 // Rate-limit responses pause the room before the scheduler attempts another
 // backfill pass.
-pub(super) const BACKFILL_RATE_LIMIT_RETRY_DELAY: Duration = Duration::from_secs(60);
+pub(super) const BACKFILL_RATE_LIMIT_RETRY_DELAY: Duration = Duration::from_mins(1);
 // The first scheduler pass keeps a conservative session budget. It can be tuned
 // after measuring actual account sizes and mobile power behavior.
 pub(super) const BACKFILL_SESSION_EVENT_BUDGET: u64 = 1_000;
@@ -72,7 +72,7 @@ impl SearchBackfillCoordinator {
             return;
         }
 
-        room_candidates.sort_by(|left, right| right.1.cmp(&left.1));
+        room_candidates.sort_by_key(|room_candidate| Reverse(room_candidate.1));
         let available_slots = BACKFILL_CONCURRENT_ROOM_LIMIT.saturating_sub(active_count);
 
         for (room_id, _activity_timestamp) in room_candidates.into_iter().take(available_slots) {

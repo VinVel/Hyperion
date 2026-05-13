@@ -13,7 +13,12 @@
  * Project home: hyperion.velcore.net
  */
 
-mod engine;
-pub mod service;
-mod sync;
-pub mod types;
+export { default as AppShellDiscoveryOverlay } from "./AppShellDiscoveryOverlay";
+export type {
+  BackendDiscoveryEntity,
+  BackendInviteTarget,
+  DiscoveryEntity,
+  DiscoveryKind,
+  DiscoverySource,
+  InviteTarget,
+} from "./types";

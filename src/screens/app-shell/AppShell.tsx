@@ -20,6 +20,7 @@ import type { AccountSummary } from "./appShellAdapters";
 import AppShellMessagesView from "./AppShellMessagesView";
 import AppShellNavigation from "./AppShellNavigation";
 import AppShellSpacesView from "./AppShellSpacesView";
+import { AppShellDiscoveryOverlay } from "./discovery";
 import {
   SettingsView,
   encryptionOverviewStorageKey,
@@ -97,10 +98,12 @@ export default function AppShell({
             activeAccount={activeAccount}
             activeView={shell.activeView}
             isAccountCenterOpen={shell.isAccountCenterOpen}
+            isDiscoveryOpen={shell.isDiscoveryOpen}
             isGlobalSearchOpen={shell.isGlobalSearchOpen}
             switchableAccounts={shell.switchableAccounts}
             switchingAccountKey={shell.switchingAccountKey}
             onOpenGlobalSearch={shell.openGlobalSearch}
+            onOpenDiscovery={shell.openDiscovery}
             onOpenMessages={shell.openMessagesView}
             onOpenSettings={shell.openSettingsView}
             onOpenSpaces={shell.openSpacesView}
@@ -168,6 +171,14 @@ export default function AppShell({
           onClose={shell.closeGlobalSearch}
           onQueryChange={shell.setGlobalSearchQuery}
           onSelectResult={shell.handleGlobalSearchResult}
+        />
+
+        <AppShellDiscoveryOverlay
+          isOpen={shell.isDiscoveryOpen}
+          onClose={shell.closeDiscovery}
+          onError={shell.handleDiscoveryError}
+          onInviteSent={shell.handleDiscoveryInviteSent}
+          onJoined={shell.handleDiscoveryJoined}
         />
       </ScreenMain>
     </ScreenShell>

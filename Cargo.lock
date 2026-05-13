@@ -2482,6 +2482,8 @@ dependencies = [
  "reqwest",
  "rusqlite",
  "rust-i18n",
+ "rustls",
+ "rustls-native-certs",
  "serde",
  "serde_json",
  "tauri",
@@ -2492,6 +2494,7 @@ dependencies = [
  "tauri-plugin-i18n",
  "tauri-plugin-mobile-webview-overlay",
  "tauri-plugin-opener",
+ "webpki-roots",
  "windows-native-keyring-store",
 ]
 

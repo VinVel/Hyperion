@@ -120,6 +120,7 @@ export type UseAppShellStateResult = {
   globalSearchStatusNotice: string | null;
   isAccountCenterOpen: boolean;
   isGlobalSearchOpen: boolean;
+  isDiscoveryOpen: boolean;
   isLoadingOlderMessages: boolean;
   isLoadingShell: boolean;
   isSendingMessage: boolean;
@@ -137,7 +138,9 @@ export type UseAppShellStateResult = {
   visibleThreads: ReturnType<typeof mapRoomThreadSummary>[];
   closeThread: () => void;
   closeGlobalSearch: () => void;
+  closeDiscovery: () => void;
   openGlobalSearch: () => void;
+  openDiscovery: () => void;
   openMessagesView: () => void;
   openSettingsView: () => void;
   openSpacesView: () => void;
@@ -149,6 +152,9 @@ export type UseAppShellStateResult = {
   setGlobalSearchQuery: (value: string) => void;
   setThreadKindFilter: (value: RoomThreadKindFilter) => void;
   switchAccount: (nextAccount: AccountSummary) => Promise<void>;
+  handleDiscoveryInviteSent: () => void;
+  handleDiscoveryError: (message: string) => void;
+  handleDiscoveryJoined: () => Promise<void>;
   toggleAccountCenter: () => void;
   toggleSortMenu: () => void;
   handleGlobalSearchResult: (
@@ -403,6 +409,7 @@ export default function useAppShellState({
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
+  const [isDiscoveryOpen, setIsDiscoveryOpen] = useState(false);
   const [globalSearchResults, setGlobalSearchResults] = useState<
     SearchResultGroup[]
   >([]);
@@ -1107,6 +1114,7 @@ export default function useAppShellState({
   const openMessagesView = useCallback(() => {
     setActiveView("messages");
     setIsAccountCenterOpen(false);
+    setIsDiscoveryOpen(false);
     setIsSortMenuOpen(false);
     setSelectedSpaceId(null);
   }, []);
@@ -1114,6 +1122,7 @@ export default function useAppShellState({
   const openSpacesView = useCallback(() => {
     setActiveView("spaces");
     setIsAccountCenterOpen(false);
+    setIsDiscoveryOpen(false);
     setIsSortMenuOpen(false);
     setSelectedThreadId(null);
   }, []);
@@ -1121,6 +1130,7 @@ export default function useAppShellState({
   const openSettingsView = useCallback(() => {
     setActiveView("settings");
     setIsAccountCenterOpen(false);
+    setIsDiscoveryOpen(false);
     setIsSortMenuOpen(false);
   }, []);
 
@@ -1131,6 +1141,7 @@ export default function useAppShellState({
       eventId?: string,
     ) => {
       setIsGlobalSearchOpen(false);
+      setIsDiscoveryOpen(false);
       setGlobalSearchQuery("");
       setGlobalSearchResults([]);
       setGlobalSearchNotice(null);
@@ -1150,6 +1161,42 @@ export default function useAppShellState({
     [openRoomAtEvent, openRoomAtLatest],
   );
 
+  const closeDiscovery = useCallback(() => {
+    setIsDiscoveryOpen(false);
+  }, []);
+
+  const handleDiscoveryError = useCallback((message: string) => {
+    setGenericErrorFeedback(setFeedbackMessage, message);
+  }, []);
+
+  const handleDiscoveryInviteSent = useCallback(() => {
+    setFeedbackMessage({
+      tone: "success",
+      text: "Invite sent.",
+    });
+  }, []);
+
+  const handleDiscoveryJoined = useCallback(async () => {
+    await refreshRoomCollections();
+    setFeedbackMessage({
+      tone: "success",
+      text: "Joined room.",
+    });
+  }, [refreshRoomCollections]);
+
+  const openGlobalSearch = useCallback(() => {
+    setIsGlobalSearchOpen(true);
+    setIsDiscoveryOpen(false);
+    setIsAccountCenterOpen(false);
+  }, []);
+
+  const openDiscovery = useCallback(() => {
+    setIsDiscoveryOpen(true);
+    setIsGlobalSearchOpen(false);
+    setIsAccountCenterOpen(false);
+    setIsSortMenuOpen(false);
+  }, []);
+
   return {
     activeView,
     composerValue,
@@ -1158,6 +1205,7 @@ export default function useAppShellState({
     globalSearchResults,
     globalSearchStatusNotice: globalSearchNotice,
     isAccountCenterOpen,
+    isDiscoveryOpen,
     isGlobalSearchOpen,
     isLoadingOlderMessages,
     isLoadingShell,
@@ -1175,13 +1223,15 @@ export default function useAppShellState({
     visibleSpaces: spaces,
     visibleThreads,
     closeGlobalSearch: () => setIsGlobalSearchOpen(false),
+    closeDiscovery,
     closeThread: () => setSelectedThreadId(null),
     handleGlobalSearchResult,
+    handleDiscoveryError,
+    handleDiscoveryInviteSent,
+    handleDiscoveryJoined,
     loadOlderMessages,
-    openGlobalSearch: () => {
-      setIsGlobalSearchOpen(true);
-      setIsAccountCenterOpen(false);
-    },
+    openGlobalSearch,
+    openDiscovery,
     openMessagesView,
     openSettingsView,
     openSpacesView,

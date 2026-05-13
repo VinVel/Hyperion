@@ -18,8 +18,11 @@
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ```
+## Feature List: For a full list of Features check out the [Features](./FEATURES.md) list.
 
-## Android setup
+## Building & Developement
+
+### Android setup
 
 For a reproducible local setup set the environment variable `ANDROID_HOME` and it should just work when executing the following command:
 ```bash
@@ -30,7 +33,7 @@ or
 bun tauri android dev
 ```
 
-## Linux desktop setup
+### Linux desktop setup
 
 For Tauri desktop builds on Debian-based Linux systems, install the native
 libraries required by GTK, GLib, and WebKit before running `bun tauri dev` or `bun tauri build`:

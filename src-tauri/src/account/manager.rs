@@ -271,7 +271,10 @@ impl AccountManager {
         app: &AppHandle,
     ) -> Result<Option<AccountClientSnapshot>, String> {
         self.ensure_loaded(app).await?;
+        Ok(self.active_account_client_loaded())
+    }
 
+    pub(crate) fn active_account_client_loaded(&self) -> Option<AccountClientSnapshot> {
         let accounts = self
             .accounts
             .read()
@@ -281,19 +284,15 @@ impl AccountManager {
             .read()
             .expect("account manager active account lock poisoned");
 
-        let Some(account_key) = active_account_key.clone() else {
-            return Ok(None);
-        };
-        let Some(account) = accounts.get(&account_key) else {
-            return Ok(None);
-        };
+        let account_key = active_account_key.clone()?;
+        let account = accounts.get(&account_key)?;
 
-        Ok(Some(AccountClientSnapshot {
+        Some(AccountClientSnapshot {
             account_key,
             homeserver_url: account.homeserver_url.clone(),
             client: account.client.clone(),
             store_dir: account.store_dir.clone(),
-        }))
+        })
     }
 
     pub async fn rebuild_active_client(&self, app: &AppHandle) -> Result<bool, String> {

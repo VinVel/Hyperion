@@ -13,8 +13,12 @@
  * Project home: hyperion.velcore.net
  */
 
+use std::{
+    collections::HashSet,
+    sync::{Arc, RwLock},
+};
+
 use super::{
-    ShellManager,
     caching::{
         cached_room_thread_summaries, cached_room_timeline, cached_space_summaries,
         merge_cached_room_timeline_refresh, prepend_cached_room_timeline_items,
@@ -28,7 +32,18 @@ use crate::shell::types::{
     ListRoomThreadsRequest, ListSpacesRequest, RoomSummary, RoomThreadSummary, SpaceSummary,
 };
 
-impl ShellManager {
+#[derive(Clone, Default)]
+pub(crate) struct ShellCacheState {
+    room_thread_cache_served_accounts: Arc<RwLock<HashSet<String>>>,
+    space_cache_served_accounts: Arc<RwLock<HashSet<String>>>,
+    room_timeline_cache_served_keys: Arc<RwLock<HashSet<String>>>,
+}
+
+impl ShellCacheState {
+    pub(super) fn new() -> Self {
+        Self::default()
+    }
+
     pub(super) fn room_thread_cache_was_served(&self, account_key: &str) -> bool {
         let served_accounts = self
             .room_thread_cache_served_accounts

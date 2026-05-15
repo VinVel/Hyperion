@@ -38,10 +38,13 @@ use rustls::{ClientConfig, RootCertStore, client::WebPkiServerVerifier};
 use crate::{
     account::AccountManager,
     shell::{
-        service::{ShellManager, ShellRoomListKind},
+        service::{ShellCacheState, ShellManager, ShellRoomListKind},
+        sync::ShellSyncManager,
         types::{RoomThreadSummary, SpaceSummary},
     },
 };
+
+use super::super::{room_list::snapshot_room_list_for_account, runtime::ShellDiscoveryService};
 
 use super::types::{
     DiscoveryEntity, DiscoveryEntityKind, DiscoverySource, InviteTarget, InviteUserToRoomRequest,
@@ -66,14 +69,62 @@ impl ShellManager {
         account_manager: &AccountManager,
         request: SearchDiscoveryEntitiesRequest,
     ) -> Result<Vec<DiscoveryEntity>, String> {
-        let Some(account) = account_manager.active_account_client(app).await? else {
+        self.discovery_service
+            .search_discovery_entities(app, account_manager, &self.sync_manager, request)
+            .await
+    }
+
+    pub async fn join_discovery_room(
+        &self,
+        app: &tauri::AppHandle,
+        account_manager: &AccountManager,
+        request: JoinDiscoveryRoomRequest,
+    ) -> Result<JoinDiscoveryRoomResponse, String> {
+        self.discovery_service
+            .join_discovery_room(app, account_manager, &self.sync_manager, request)
+            .await
+    }
+
+    pub async fn invite_user_to_room(
+        &self,
+        app: &tauri::AppHandle,
+        account_manager: &AccountManager,
+        request: InviteUserToRoomRequest,
+    ) -> Result<(), String> {
+        self.discovery_service
+            .invite_user_to_room(app, account_manager, request)
+            .await
+    }
+
+    pub async fn list_invite_targets(
+        &self,
+        app: &tauri::AppHandle,
+        account_manager: &AccountManager,
+        request: ListInviteTargetsRequest,
+    ) -> Result<Vec<InviteTarget>, String> {
+        self.discovery_service
+            .list_invite_targets(app, account_manager, request)
+            .await
+    }
+}
+
+impl ShellDiscoveryService {
+    pub(super) async fn search_discovery_entities(
+        &self,
+        app: &tauri::AppHandle,
+        account_manager: &AccountManager,
+        sync_manager: &ShellSyncManager,
+        request: SearchDiscoveryEntitiesRequest,
+    ) -> Result<Vec<DiscoveryEntity>, String> {
+        account_manager.ensure_loaded(app).await?;
+        let Some(account) = account_manager.active_account_client_loaded() else {
             return Err(String::from("No active account is available"));
         };
 
         let limit = bounded_discovery_limit(request.limit);
         let source = request.source.unwrap_or(DiscoverySource::All);
-        let joined_rooms = self.joined_conversation_ids(&account.account_key).await?;
-        let joined_spaces = self.joined_space_ids(&account.account_key).await?;
+        let joined_rooms = joined_conversation_ids(sync_manager, &account.account_key).await?;
+        let joined_spaces = joined_space_ids(sync_manager, &account.account_key).await?;
 
         let offset = request.offset.unwrap_or_default();
         if request.kind == DiscoveryEntityKind::User {
@@ -119,13 +170,15 @@ impl ShellManager {
         Ok(dedupe_discovery_entities(results, limit))
     }
 
-    pub async fn join_discovery_room(
+    pub(super) async fn join_discovery_room(
         &self,
         app: &tauri::AppHandle,
         account_manager: &AccountManager,
+        sync_manager: &ShellSyncManager,
         request: JoinDiscoveryRoomRequest,
     ) -> Result<JoinDiscoveryRoomResponse, String> {
-        let Some(account) = account_manager.active_account_client(app).await? else {
+        account_manager.ensure_loaded(app).await?;
+        let Some(account) = account_manager.active_account_client_loaded() else {
             return Err(String::from("No active account is available"));
         };
 
@@ -135,20 +188,21 @@ impl ShellManager {
         let room =
             join_room_by_id_or_alias_with_timeout(&account.client, &room_or_alias, &via).await?;
 
-        self.ensure_sync_in_background(app, account_manager);
+        ensure_sync_in_background(app, account_manager, sync_manager);
 
         Ok(JoinDiscoveryRoomResponse {
             room_id: room.room_id().to_string(),
         })
     }
 
-    pub async fn invite_user_to_room(
+    pub(super) async fn invite_user_to_room(
         &self,
         app: &tauri::AppHandle,
         account_manager: &AccountManager,
         request: InviteUserToRoomRequest,
     ) -> Result<(), String> {
-        let Some(account) = account_manager.active_account_client(app).await? else {
+        account_manager.ensure_loaded(app).await?;
+        let Some(account) = account_manager.active_account_client_loaded() else {
             return Err(String::from("No active account is available"));
         };
         let room_id =
@@ -164,24 +218,25 @@ impl ShellManager {
             .map_err(|error| format!("Failed to invite user: {error}"))
     }
 
-    pub async fn list_invite_targets(
+    pub(super) async fn list_invite_targets(
         &self,
         app: &tauri::AppHandle,
         account_manager: &AccountManager,
         request: ListInviteTargetsRequest,
     ) -> Result<Vec<InviteTarget>, String> {
-        let Some(account) = account_manager.active_account_client(app).await? else {
+        account_manager.ensure_loaded(app).await?;
+        let Some(account) = account_manager.active_account_client_loaded() else {
             return Err(String::from("No active account is available"));
         };
         UserId::parse(&request.user_id).map_err(|error| format!("Invalid user id: {error}"))?;
 
-        let conversations = Self::cached_room_threads(
+        let conversations = ShellCacheState::cached_room_threads(
             &account.account_key,
             &account.store_dir,
             &crate::shell::types::ListRoomThreadsRequest { search_query: None },
         )
         .unwrap_or_default();
-        let spaces = Self::cached_spaces(
+        let spaces = ShellCacheState::cached_spaces(
             &account.store_dir,
             &crate::shell::types::ListSpacesRequest { search_query: None },
         )
@@ -193,28 +248,66 @@ impl ShellManager {
             spaces,
         ))
     }
+}
 
-    async fn joined_conversation_ids(&self, account_key: &str) -> Result<HashSet<String>, String> {
-        let rooms = self
-            .snapshot_room_list(account_key, ShellRoomListKind::Conversations)
+async fn joined_conversation_ids(
+    sync_manager: &ShellSyncManager,
+    account_key: &str,
+) -> Result<HashSet<String>, String> {
+    let rooms =
+        snapshot_room_list_for_account(sync_manager, account_key, ShellRoomListKind::Conversations)
             .await
             .unwrap_or_default();
-        Ok(rooms
-            .into_iter()
-            .map(|room| room.room_id().to_string())
-            .collect())
-    }
+    Ok(rooms
+        .into_iter()
+        .map(|room| room.room_id().to_string())
+        .collect())
+}
 
-    async fn joined_space_ids(&self, account_key: &str) -> Result<HashSet<String>, String> {
-        let spaces = self
-            .snapshot_room_list(account_key, ShellRoomListKind::Spaces)
+async fn joined_space_ids(
+    sync_manager: &ShellSyncManager,
+    account_key: &str,
+) -> Result<HashSet<String>, String> {
+    let spaces =
+        snapshot_room_list_for_account(sync_manager, account_key, ShellRoomListKind::Spaces)
             .await
             .unwrap_or_default();
-        Ok(spaces
-            .into_iter()
-            .map(|room| room.room_id().to_string())
-            .collect())
-    }
+    Ok(spaces
+        .into_iter()
+        .map(|room| room.room_id().to_string())
+        .collect())
+}
+
+fn ensure_sync_in_background(
+    app: &tauri::AppHandle,
+    account_manager: &AccountManager,
+    sync_manager: &ShellSyncManager,
+) {
+    let app = app.clone();
+    let account_manager = account_manager.clone();
+    let sync_manager = sync_manager.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = ensure_active_account_sync(&app, &account_manager, &sync_manager).await
+        {
+            eprintln!("Failed to refresh shell discovery data in background: {error}");
+        }
+    });
+}
+
+async fn ensure_active_account_sync(
+    app: &tauri::AppHandle,
+    account_manager: &AccountManager,
+    sync_manager: &ShellSyncManager,
+) -> Result<(), String> {
+    account_manager.ensure_loaded(app).await?;
+    let Some(account) = account_manager.active_account_client_loaded() else {
+        sync_manager.stop_all_accounts().await;
+        return Ok(());
+    };
+
+    sync_manager
+        .ensure_started_for_account(app, account_manager, account)
+        .await
 }
 
 async fn search_users(

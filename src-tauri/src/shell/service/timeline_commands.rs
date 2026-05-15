@@ -20,6 +20,7 @@ use crate::account::{AccountClientSnapshot, AccountManager};
 use super::{
     super::sync::emit_shell_room_updated,
     DEFAULT_EVENT_CONTEXT_LIMIT, DEFAULT_TIMELINE_LIMIT, MAX_RESTORED_TIMELINE_ITEMS, ShellManager,
+    cache_state::ShellCacheState,
     caching::restored_timeline_limit,
     paging::{
         focused_timeline_page_token, load_live_room_timeline, load_paginated_room_timeline,
@@ -37,7 +38,8 @@ impl ShellManager {
         account_manager: &AccountManager,
         request: GetRoomTimelineRequest,
     ) -> Result<RoomTimeline, String> {
-        let Some(account) = account_manager.active_account_client(app).await? else {
+        account_manager.ensure_loaded(app).await?;
+        let Some(account) = account_manager.active_account_client_loaded() else {
             return Err(String::from("No active account is available"));
         };
 
@@ -48,7 +50,7 @@ impl ShellManager {
         }
 
         self.sync_manager
-            .ensure_started_for_manager(account_manager, app)
+            .ensure_started_for_account(app, account_manager, account.clone())
             .await?;
 
         let room = resolve_room(&account.client, &request.room_id)?;
@@ -84,13 +86,15 @@ impl ShellManager {
         account_manager: &AccountManager,
         request: GetRoomEventContextRequest,
     ) -> Result<RoomTimeline, String> {
-        self.sync_manager
-            .ensure_started_for_manager(account_manager, app)
-            .await?;
-
-        let Some(account) = account_manager.active_account_client(app).await? else {
+        account_manager.ensure_loaded(app).await?;
+        let Some(account) = account_manager.active_account_client_loaded() else {
             return Err(String::from("No active account is available"));
         };
+
+        self.sync_manager
+            .ensure_started_for_account(app, account_manager, account.clone())
+            .await?;
+
         let room = resolve_room(&account.client, &request.room_id)?;
         self.mark_room_focused(&account.account_key, room.room_id().as_str());
         let event_id = EventId::parse(&request.event_id)
@@ -98,18 +102,20 @@ impl ShellManager {
             .clone();
         let context_limit = request.context_limit.unwrap_or(DEFAULT_EVENT_CONTEXT_LIMIT);
         let items = self
-            .timeline_registry
+            .timeline_service
+            .registry()
             .focused_timeline_items(&account.account_key, &room, event_id.clone(), context_limit)
             .await?;
         let title = room_title(&room).await?;
-        self.index_timeline_items(
-            &account.account_key,
-            &account.store_dir,
-            room.room_id().as_str(),
-            &title,
-            &items,
-        )
-        .await;
+        self.search_service
+            .index_timeline_items(
+                &account.account_key,
+                &account.store_dir,
+                room.room_id().as_str(),
+                &title,
+                &items,
+            )
+            .await;
         self.delete_focused_redacted_timeline_items(
             &account.account_key,
             &account.store_dir,
@@ -137,19 +143,25 @@ impl ShellManager {
         account: &AccountClientSnapshot,
         request: &GetRoomTimelineRequest,
     ) -> Option<RoomTimeline> {
-        if self.room_timeline_cache_was_served(&account.account_key, &request.room_id)
+        if self
+            .cache_state
+            .room_timeline_cache_was_served(&account.account_key, &request.room_id)
             && request.before.is_none()
         {
             return None;
         }
 
-        let (items, next_before) =
-            Self::cached_room_timeline(&account.account_key, &account.store_dir, &request.room_id)?;
+        let (items, next_before) = ShellCacheState::cached_room_timeline(
+            &account.account_key,
+            &account.store_dir,
+            &request.room_id,
+        )?;
         let (items, next_before) = cached_timeline_window(&items, next_before, request)?;
 
         self.mark_room_focused(&account.account_key, &request.room_id);
         if request.before.is_none() {
-            self.mark_room_timeline_cache_served(&account.account_key, &request.room_id);
+            self.cache_state
+                .mark_room_timeline_cache_served(&account.account_key, &request.room_id);
         }
         self.refresh_room_timeline_in_background(app, account_manager, request.clone());
         Some(RoomTimeline {
@@ -186,13 +198,15 @@ impl ShellManager {
         account_manager: &AccountManager,
         request: GetRoomTimelineRequest,
     ) -> Result<(), String> {
-        self.sync_manager
-            .ensure_started_for_manager(account_manager, app)
-            .await?;
-
-        let Some(account) = account_manager.active_account_client(app).await? else {
+        account_manager.ensure_loaded(app).await?;
+        let Some(account) = account_manager.active_account_client_loaded() else {
             return Ok(());
         };
+
+        self.sync_manager
+            .ensure_started_for_account(app, account_manager, account.clone())
+            .await?;
+
         let room = resolve_room(&account.client, &request.room_id)?;
         self.prepare_room_timeline_load(&account, &room);
         let (items, next_before) = self
@@ -217,11 +231,12 @@ impl ShellManager {
 
     fn prepare_room_timeline_load(&self, account: &AccountClientSnapshot, room: &Room) {
         self.mark_room_focused(&account.account_key, room.room_id().as_str());
-        self.schedule_room_timeline_warmup(
+        self.timeline_service.schedule_room_timeline_warmup(
             account.client.clone(),
             &account.account_key,
             &account.store_dir,
             room.room_id().to_string(),
+            self.search_service.indexer_clone(),
         );
     }
 
@@ -234,10 +249,11 @@ impl ShellManager {
     ) -> Result<(Vec<crate::shell::types::RoomTimelineItem>, Option<String>), String> {
         let page_limit = request.limit.unwrap_or(DEFAULT_TIMELINE_LIMIT);
         if request.before.is_none() {
-            self.timeline_registry
+            self.timeline_service
+                .registry()
                 .subscribe_live_timeline_updates(app.clone(), &account.account_key, room)
                 .await?;
-            let remembered_count = Self::remembered_timeline_item_count(
+            let remembered_count = ShellCacheState::remembered_timeline_item_count(
                 &account.account_key,
                 &account.store_dir,
                 room.room_id().as_str(),
@@ -245,7 +261,7 @@ impl ShellManager {
             let restored_limit =
                 restored_timeline_limit(page_limit, remembered_count, MAX_RESTORED_TIMELINE_ITEMS);
             return load_live_room_timeline(
-                &self.timeline_registry,
+                self.timeline_service.registry(),
                 &account.account_key,
                 room,
                 restored_limit,
@@ -255,7 +271,7 @@ impl ShellManager {
         }
 
         load_paginated_room_timeline(
-            &self.timeline_registry,
+            self.timeline_service.registry(),
             &account.account_key,
             room,
             page_limit,
@@ -278,11 +294,12 @@ impl ShellManager {
         if request.before.is_none()
             && let Some(latest_item) = items.last()
         {
-            self.timeline_registry
+            self.timeline_service
+                .registry()
                 .mark_live_timeline_as_read(&account.account_key, room)
                 .await?;
             mark_room_read_locally(
-                &self.locally_read_room_state,
+                self.timeline_service.locally_read_room_state(),
                 &account.account_key,
                 room.room_id().as_str(),
                 &latest_item.event_id,
@@ -290,18 +307,19 @@ impl ShellManager {
         }
 
         let title = room_title(room).await?;
-        self.index_timeline_items(
-            &account.account_key,
-            &account.store_dir,
-            room.room_id().as_str(),
-            &title,
-            items,
-        )
-        .await;
+        self.search_service
+            .index_timeline_items(
+                &account.account_key,
+                &account.store_dir,
+                room.room_id().as_str(),
+                &title,
+                items,
+            )
+            .await;
         self.delete_redacted_timeline_items(&account.account_key, &account.store_dir, room)
             .await;
         if request.before.is_none() {
-            Self::merge_refreshed_timeline(
+            ShellCacheState::merge_refreshed_timeline(
                 &account.account_key,
                 &account.store_dir,
                 room.room_id().as_str(),
@@ -325,7 +343,7 @@ impl ShellManager {
             return;
         }
 
-        Self::remember_timeline_item_count_after_pagination(
+        ShellCacheState::remember_timeline_item_count_after_pagination(
             &account.account_key,
             &account.store_dir,
             room.room_id().as_str(),
@@ -333,7 +351,7 @@ impl ShellManager {
             request.limit.unwrap_or(DEFAULT_TIMELINE_LIMIT),
             items.len(),
         );
-        Self::prepend_cached_timeline_items(
+        ShellCacheState::prepend_cached_timeline_items(
             &account.account_key,
             &account.store_dir,
             room.room_id().as_str(),
@@ -344,7 +362,8 @@ impl ShellManager {
 
     async fn live_redacted_event_ids(&self, account_key: &str, room: &Room) -> Vec<String> {
         match self
-            .timeline_registry
+            .timeline_service
+            .registry()
             .live_redacted_event_ids(account_key, room)
             .await
         {
@@ -364,7 +383,8 @@ impl ShellManager {
         context_limit: u16,
     ) -> Vec<String> {
         match self
-            .timeline_registry
+            .timeline_service
+            .registry()
             .focused_redacted_event_ids(account_key, room, event_id, context_limit)
             .await
         {

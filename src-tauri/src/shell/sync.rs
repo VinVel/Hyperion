@@ -96,18 +96,14 @@ impl ShellSyncManager {
         Self::default()
     }
 
-    pub async fn ensure_started_for_manager(
+    pub async fn ensure_started_for_account(
         &self,
-        manager: &AccountManager,
         app: &tauri::AppHandle,
+        account_manager: &AccountManager,
+        account: AccountClientSnapshot,
     ) -> Result<(), String> {
-        let Some(active_account) = manager.active_account_client(app).await? else {
-            self.stop_all_accounts().await;
-            return Ok(());
-        };
-
-        self.stop_other_accounts(&active_account.account_key).await;
-        self.ensure_started(app, manager.clone(), active_account)
+        self.stop_other_accounts(&account.account_key).await;
+        self.ensure_started(app, account_manager.clone(), account)
             .await
     }
 

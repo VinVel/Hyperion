@@ -134,7 +134,7 @@ impl AccountManager {
             .map_err(|err| format!("Failed to recreate account store directory: {err}"))
     }
 
-    pub(super) async fn ensure_loaded(&self, app: &AppHandle) -> Result<(), String> {
+    pub(crate) async fn ensure_loaded(&self, app: &AppHandle) -> Result<(), String> {
         if self.restore_is_completed() {
             return Ok(());
         }

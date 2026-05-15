@@ -3,6 +3,7 @@ name: CI
 on:
   pull_request:
   push:
+  workflow_call:
   workflow_dispatch:
 
 permissions:
@@ -63,6 +64,7 @@ jobs:
             runner: windows-latest
             kind: desktop
             target: x86_64-pc-windows-msvc
+            artifact: ci-build-windows-x64
             rust_targets: x86_64-pc-windows-msvc
             install_bun: true
             install_linux_deps: false
@@ -74,6 +76,7 @@ jobs:
             runner: windows-11-arm
             kind: desktop
             target: aarch64-pc-windows-msvc
+            artifact: ci-build-windows-arm64
             rust_targets: aarch64-pc-windows-msvc
             install_bun: true
             install_linux_deps: false
@@ -85,6 +88,7 @@ jobs:
             runner: macos-26-intel
             kind: desktop
             target: x86_64-apple-darwin
+            artifact: ci-build-macos-intel
             rust_targets: x86_64-apple-darwin
             install_bun: true
             install_linux_deps: false
@@ -96,6 +100,7 @@ jobs:
             runner: macos-26
             kind: desktop
             target: aarch64-apple-darwin
+            artifact: ci-build-macos-arm64
             rust_targets: aarch64-apple-darwin
             install_bun: true
             install_linux_deps: false
@@ -107,6 +112,7 @@ jobs:
             runner: ubuntu-24.04
             kind: linux
             target: x86_64-unknown-linux-gnu
+            artifact: ci-build-linux-x64-gnu
             rust_targets: x86_64-unknown-linux-gnu
             install_bun: true
             install_linux_deps: true
@@ -118,6 +124,7 @@ jobs:
             runner: ubuntu-24.04-arm
             kind: linux
             target: aarch64-unknown-linux-gnu
+            artifact: ci-build-linux-arm64-gnu
             rust_targets: aarch64-unknown-linux-gnu
             install_bun: true
             install_linux_deps: true
@@ -129,6 +136,7 @@ jobs:
             runner: ubuntu-24.04
             kind: linux
             target: riscv64gc-unknown-linux-gnu
+            artifact: ci-build-linux-riscv64-gnu
             rust_targets: riscv64gc-unknown-linux-gnu
             install_bun: false
             install_linux_deps: false
@@ -140,6 +148,7 @@ jobs:
             runner: ubuntu-latest
             kind: android
             target: aarch64
+            artifact: ci-build-android-arm64-v8a
             rust_targets: aarch64-linux-android
             install_bun: true
             install_linux_deps: false
@@ -151,6 +160,7 @@ jobs:
             runner: ubuntu-latest
             kind: android
             target: armv7
+            artifact: ci-build-android-armeabi-v7a
             rust_targets: armv7-linux-androideabi
             install_bun: true
             install_linux_deps: false
@@ -162,6 +172,7 @@ jobs:
             runner: ubuntu-latest
             kind: android
             target: i686
+            artifact: ci-build-android-x86
             rust_targets: i686-linux-android
             install_bun: true
             install_linux_deps: false
@@ -173,6 +184,7 @@ jobs:
             runner: ubuntu-latest
             kind: android
             target: x86_64
+            artifact: ci-build-android-x86_64
             rust_targets: x86_64-linux-android
             install_bun: true
             install_linux_deps: false
@@ -184,6 +196,7 @@ jobs:
             runner: ubuntu-latest
             kind: android
             target: ""
+            artifact: ci-build-android-universal
             rust_targets: |
               aarch64-linux-android
               armv7-linux-androideabi
@@ -199,6 +212,7 @@ jobs:
             runner: macos-15
             kind: ios
             target: aarch64-sim
+            artifact: ci-build-ios-simulator
             rust_targets: aarch64-apple-ios-sim
             install_bun: true
             install_linux_deps: false
@@ -373,3 +387,60 @@ jobs:
             --target "${{ matrix.target }}" \
             --verbose \
             --config "$TAURI_SKIP_FRONTEND_BUILD_CONFIG"
+
+      - name: Package desktop raw build directory
+        if: ${{ matrix.kind == 'desktop' || matrix.kind == 'linux' }}
+        shell: bash
+        run: |
+          mkdir -p ci-artifacts
+          tar \
+            -C "target/${{ matrix.target }}/debug" \
+            -cf "ci-artifacts/${{ matrix.artifact }}.tar" \
+            .
+
+      - name: Upload desktop raw build archive
+        if: ${{ matrix.kind == 'desktop' || matrix.kind == 'linux' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.artifact }}
+          if-no-files-found: error
+          retention-days: 7
+          path: ci-artifacts/${{ matrix.artifact }}.tar
+
+      - name: Package Android build artifacts
+        if: ${{ matrix.kind == 'android' }}
+        shell: bash
+        run: |
+          mkdir -p ci-artifacts
+          tar \
+            -C "src-tauri/gen/android/app/build/outputs" \
+            -cf "ci-artifacts/${{ matrix.artifact }}.tar" \
+            .
+
+      - name: Upload Android build artifact archive
+        if: ${{ matrix.kind == 'android' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.artifact }}
+          if-no-files-found: error
+          retention-days: 7
+          path: ci-artifacts/${{ matrix.artifact }}.tar
+
+      - name: Package iOS simulator build artifacts
+        if: ${{ matrix.kind == 'ios' }}
+        shell: bash
+        run: |
+          mkdir -p ci-artifacts
+          tar \
+            -C "src-tauri/gen/apple/build" \
+            -cf "ci-artifacts/${{ matrix.artifact }}.tar" \
+            .
+
+      - name: Upload iOS simulator build artifact archive
+        if: ${{ matrix.kind == 'ios' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.artifact }}
+          if-no-files-found: error
+          retention-days: 7
+          path: ci-artifacts/${{ matrix.artifact }}.tar

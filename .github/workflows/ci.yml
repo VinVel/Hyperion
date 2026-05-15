@@ -4,6 +4,11 @@ on:
   pull_request:
   push:
   workflow_call:
+    inputs:
+      upload_build_artifacts:
+        required: false
+        type: boolean
+        default: false
   workflow_dispatch:
 
 permissions:
@@ -16,46 +21,12 @@ concurrency:
 env:
   CI: true
   CARGO_INCREMENTAL: 0
-  TAURI_SKIP_FRONTEND_BUILD_CONFIG: '{"build":{"beforeBuildCommand":""}}'
 
 jobs:
-  prepare-frontend:
-    name: Prepare frontend dist
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v6
-        with:
-          submodules: recursive
-
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install JavaScript dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Build frontend dist
-        run: bun run build
-
-      - name: Upload frontend dist
-        uses: actions/upload-artifact@v6
-        with:
-          name: ci-frontend-dist
-          if-no-files-found: error
-          retention-days: 7
-          path: dist/
-
   build:
     name: ${{ matrix.name }}
-    needs: prepare-frontend
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 150
-    env:
-      CROSS_CONFIG: ${{ github.workspace }}/Cross.toml
     strategy:
       fail-fast: false
       matrix:
@@ -66,9 +37,7 @@ jobs:
             target: x86_64-pc-windows-msvc
             artifact: ci-build-windows-x64
             rust_targets: x86_64-pc-windows-msvc
-            install_bun: true
             install_linux_deps: false
-            install_cross: false
             install_android: false
             build: tauri-desktop
 
@@ -78,9 +47,7 @@ jobs:
             target: aarch64-pc-windows-msvc
             artifact: ci-build-windows-arm64
             rust_targets: aarch64-pc-windows-msvc
-            install_bun: true
             install_linux_deps: false
-            install_cross: false
             install_android: false
             build: tauri-desktop
 
@@ -90,9 +57,7 @@ jobs:
             target: x86_64-apple-darwin
             artifact: ci-build-macos-intel
             rust_targets: x86_64-apple-darwin
-            install_bun: true
             install_linux_deps: false
-            install_cross: false
             install_android: false
             build: tauri-desktop
 
@@ -102,9 +67,7 @@ jobs:
             target: aarch64-apple-darwin
             artifact: ci-build-macos-arm64
             rust_targets: aarch64-apple-darwin
-            install_bun: true
             install_linux_deps: false
-            install_cross: false
             install_android: false
             build: tauri-desktop
 
@@ -114,9 +77,7 @@ jobs:
             target: x86_64-unknown-linux-gnu
             artifact: ci-build-linux-x64-gnu
             rust_targets: x86_64-unknown-linux-gnu
-            install_bun: true
             install_linux_deps: true
-            install_cross: false
             install_android: false
             build: tauri-desktop
 
@@ -126,23 +87,9 @@ jobs:
             target: aarch64-unknown-linux-gnu
             artifact: ci-build-linux-arm64-gnu
             rust_targets: aarch64-unknown-linux-gnu
-            install_bun: true
             install_linux_deps: true
-            install_cross: false
             install_android: false
             build: tauri-desktop
-
-          - name: Linux riscv64 GNU
-            runner: ubuntu-24.04
-            kind: linux
-            target: riscv64gc-unknown-linux-gnu
-            artifact: ci-build-linux-riscv64-gnu
-            rust_targets: riscv64gc-unknown-linux-gnu
-            install_bun: false
-            install_linux_deps: false
-            install_cross: true
-            install_android: false
-            build: cross
 
           - name: Android arm64-v8a
             runner: ubuntu-latest
@@ -150,9 +97,7 @@ jobs:
             target: aarch64
             artifact: ci-build-android-arm64-v8a
             rust_targets: aarch64-linux-android
-            install_bun: true
             install_linux_deps: false
-            install_cross: false
             install_android: true
             build: android-split
 
@@ -162,9 +107,7 @@ jobs:
             target: armv7
             artifact: ci-build-android-armeabi-v7a
             rust_targets: armv7-linux-androideabi
-            install_bun: true
             install_linux_deps: false
-            install_cross: false
             install_android: true
             build: android-split
 
@@ -174,9 +117,7 @@ jobs:
             target: i686
             artifact: ci-build-android-x86
             rust_targets: i686-linux-android
-            install_bun: true
             install_linux_deps: false
-            install_cross: false
             install_android: true
             build: android-split
 
@@ -186,9 +127,7 @@ jobs:
             target: x86_64
             artifact: ci-build-android-x86_64
             rust_targets: x86_64-linux-android
-            install_bun: true
             install_linux_deps: false
-            install_cross: false
             install_android: true
             build: android-split
 
@@ -202,9 +141,7 @@ jobs:
               armv7-linux-androideabi
               i686-linux-android
               x86_64-linux-android
-            install_bun: true
             install_linux_deps: false
-            install_cross: false
             install_android: true
             build: android-universal
 
@@ -214,9 +151,7 @@ jobs:
             target: aarch64-sim
             artifact: ci-build-ios-simulator
             rust_targets: aarch64-apple-ios-sim
-            install_bun: true
             install_linux_deps: false
-            install_cross: false
             install_android: false
             build: ios-simulator
 
@@ -225,12 +160,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           submodules: recursive
-
-      - name: Download frontend dist
-        uses: actions/download-artifact@v8
-        with:
-          name: ci-frontend-dist
-          path: dist
 
       - name: Install Linux native system dependencies
         if: ${{ matrix.install_linux_deps }}
@@ -256,13 +185,11 @@ jobs:
           targets: ${{ matrix.rust_targets }}
 
       - name: Install Bun
-        if: ${{ matrix.install_bun }}
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
       - name: Install JavaScript dependencies
-        if: ${{ matrix.install_bun }}
         run: bun install --frozen-lockfile
 
       - name: Set up Java
@@ -289,16 +216,6 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.1.12297006" >> "$GITHUB_ENV"
           echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.1.12297006" >> "$GITHUB_ENV"
 
-      - name: Install cross
-        if: ${{ matrix.install_cross }}
-        shell: bash
-        run: cargo install cross --git https://github.com/cross-rs/cross --locked
-
-      - name: Verify Docker availability
-        if: ${{ matrix.install_cross }}
-        shell: bash
-        run: docker version
-
       - name: Provide cargo-tauri wrapper for Xcode
         if: ${{ matrix.build == 'ios-simulator' }}
         shell: bash
@@ -309,7 +226,7 @@ jobs:
           if [[ "${1:-}" == "tauri" ]]; then
             shift
           fi
-          exec bun run tauri "$@"
+          exec bun tauri "$@"
           EOF
           chmod +x "$HOME/.cargo/bin/cargo-tauri"
 
@@ -317,79 +234,46 @@ jobs:
         if: ${{ matrix.build == 'tauri-desktop' }}
         shell: bash
         run: |
-          bun run tauri build \
+          bun tauri build \
             --debug \
             --target "${{ matrix.target }}" \
             --no-bundle \
-            --verbose \
-            --config "$TAURI_SKIP_FRONTEND_BUILD_CONFIG"
-
-      - name: Build Linux target natively
-        if: ${{ matrix.build == 'cargo' }}
-        shell: bash
-        run: |
-          cargo build \
-            --manifest-path src-tauri/Cargo.toml \
-            --target "${{ matrix.target }}" \
-            --verbose
-
-      - name: Build Linux target with cross
-        if: ${{ matrix.build == 'cross' }}
-        shell: bash
-        run: |
-          target_env="${{ matrix.target }}"
-          target_env_underscore="${target_env//-/_}"
-
-          echo "Using cross config at: $CROSS_CONFIG"
-          export PKG_CONFIG_ALLOW_CROSS=1
-          export PKG_CONFIG_SYSROOT_DIR=/
-          export TARGET_PKG_CONFIG_ALLOW_CROSS=1
-          export TARGET_PKG_CONFIG_SYSROOT_DIR=/
-          export "PKG_CONFIG_ALLOW_CROSS_${target_env_underscore}=1"
-          export "PKG_CONFIG_SYSROOT_DIR_${target_env_underscore}=/"
-
-          cross build \
-            --manifest-path src-tauri/Cargo.toml \
-            --target "${{ matrix.target }}" \
             --verbose
 
       - name: Build ABI-specific Android APK
         if: ${{ matrix.build == 'android-split' }}
         shell: bash
         run: |
-          bun run tauri android build \
+          bun tauri android build \
             --ci \
             --debug \
             --apk \
             --split-per-abi \
             --target "${{ matrix.target }}" \
-            --verbose \
-            --config "$TAURI_SKIP_FRONTEND_BUILD_CONFIG"
+            --verbose
 
       - name: Build universal Android APK
         if: ${{ matrix.build == 'android-universal' }}
         shell: bash
         run: |
-          bun run tauri android build \
+          bun tauri android build \
             --ci \
             --debug \
             --apk \
-            --verbose \
-            --config "$TAURI_SKIP_FRONTEND_BUILD_CONFIG"
+            --verbose
 
       - name: Build iOS simulator app
         if: ${{ matrix.build == 'ios-simulator' }}
         shell: bash
         run: |
-          bun run tauri ios build \
+          bun tauri ios build \
             --ci \
             --debug \
             --target "${{ matrix.target }}" \
-            --verbose \
-            --config "$TAURI_SKIP_FRONTEND_BUILD_CONFIG"
+            --verbose
 
       - name: Package desktop raw build directory
-        if: ${{ matrix.kind == 'desktop' || matrix.kind == 'linux' }}
+        if: ${{ inputs.upload_build_artifacts && (matrix.kind == 'desktop' || matrix.kind == 'linux') }}
         shell: bash
         run: |
           mkdir -p ci-artifacts
@@ -399,16 +283,16 @@ jobs:
             .
 
       - name: Upload desktop raw build archive
-        if: ${{ matrix.kind == 'desktop' || matrix.kind == 'linux' }}
+        if: ${{ inputs.upload_build_artifacts && (matrix.kind == 'desktop' || matrix.kind == 'linux') }}
         uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact }}
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 1
           path: ci-artifacts/${{ matrix.artifact }}.tar
 
       - name: Package Android build artifacts
-        if: ${{ matrix.kind == 'android' }}
+        if: ${{ inputs.upload_build_artifacts && matrix.kind == 'android' }}
         shell: bash
         run: |
           mkdir -p ci-artifacts
@@ -418,16 +302,16 @@ jobs:
             .
 
       - name: Upload Android build artifact archive
-        if: ${{ matrix.kind == 'android' }}
+        if: ${{ inputs.upload_build_artifacts && matrix.kind == 'android' }}
         uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact }}
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 1
           path: ci-artifacts/${{ matrix.artifact }}.tar
 
       - name: Package iOS simulator build artifacts
-        if: ${{ matrix.kind == 'ios' }}
+        if: ${{ inputs.upload_build_artifacts && matrix.kind == 'ios' }}
         shell: bash
         run: |
           mkdir -p ci-artifacts
@@ -437,10 +321,10 @@ jobs:
             .
 
       - name: Upload iOS simulator build artifact archive
-        if: ${{ matrix.kind == 'ios' }}
+        if: ${{ inputs.upload_build_artifacts && matrix.kind == 'ios' }}
         uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact }}
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 1
           path: ci-artifacts/${{ matrix.artifact }}.tar

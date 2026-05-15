@@ -206,7 +206,7 @@ Legend:
 - [❌] Web support
 - [✔️] aarch64 support (for android also armv7)
 - [✔️] x86_64 support (excluding iOS, for android also x86)
-- [✔️] Riscv64 support (Linux only)
+- [❌] Riscv64 support 
 
 # Experimental / Advanced Features
 

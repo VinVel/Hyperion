@@ -14,7 +14,6 @@ concurrency:
 env:
   CI: true
   CARGO_INCREMENTAL: 0
-  TAURI_SKIP_FRONTEND_BUILD_CONFIG: '{"build":{"beforeBuildCommand":""}}'
 
 jobs:
   ci:
@@ -22,6 +21,8 @@ jobs:
     uses: ./.github/workflows/ci.yml
     permissions:
       contents: read
+    with:
+      upload_build_artifacts: true
 
   bundle-desktop:
     name: Bundle ${{ matrix.name }}
@@ -38,9 +39,7 @@ jobs:
             artifact: ci-build-windows-x64
             bundle_artifact: debug-bundles-windows-x64
             rust_targets: x86_64-pc-windows-msvc
-            install_bun: true
             install_linux_deps: false
-            install_cargo_tauri: false
 
           - name: Windows arm64
             runner: windows-11-arm
@@ -48,9 +47,7 @@ jobs:
             artifact: ci-build-windows-arm64
             bundle_artifact: debug-bundles-windows-arm64
             rust_targets: aarch64-pc-windows-msvc
-            install_bun: true
             install_linux_deps: false
-            install_cargo_tauri: false
 
           - name: macOS Intel
             runner: macos-26-intel
@@ -58,9 +55,7 @@ jobs:
             artifact: ci-build-macos-intel
             bundle_artifact: debug-bundles-macos-intel
             rust_targets: x86_64-apple-darwin
-            install_bun: true
             install_linux_deps: false
-            install_cargo_tauri: false
 
           - name: macOS arm64
             runner: macos-26
@@ -68,9 +63,7 @@ jobs:
             artifact: ci-build-macos-arm64
             bundle_artifact: debug-bundles-macos-arm64
             rust_targets: aarch64-apple-darwin
-            install_bun: true
             install_linux_deps: false
-            install_cargo_tauri: false
 
           - name: Linux x64 GNU
             runner: ubuntu-24.04
@@ -78,9 +71,7 @@ jobs:
             artifact: ci-build-linux-x64-gnu
             bundle_artifact: debug-bundles-linux-x64-gnu
             rust_targets: x86_64-unknown-linux-gnu
-            install_bun: true
             install_linux_deps: true
-            install_cargo_tauri: false
 
           - name: Linux arm64 GNU
             runner: ubuntu-24.04-arm
@@ -88,19 +79,7 @@ jobs:
             artifact: ci-build-linux-arm64-gnu
             bundle_artifact: debug-bundles-linux-arm64-gnu
             rust_targets: aarch64-unknown-linux-gnu
-            install_bun: true
             install_linux_deps: true
-            install_cargo_tauri: false
-
-          - name: Linux riscv64 GNU
-            runner: ubuntu-24.04
-            target: riscv64gc-unknown-linux-gnu
-            artifact: ci-build-linux-riscv64-gnu
-            bundle_artifact: debug-bundles-linux-riscv64-gnu
-            rust_targets: riscv64gc-unknown-linux-gnu
-            install_bun: false
-            install_linux_deps: true
-            install_cargo_tauri: true
 
     steps:
       - name: Check out repository
@@ -149,38 +128,20 @@ jobs:
           targets: ${{ matrix.rust_targets }}
 
       - name: Install Bun
-        if: ${{ matrix.install_bun }}
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
       - name: Install JavaScript dependencies
-        if: ${{ matrix.install_bun }}
         run: bun install --frozen-lockfile
 
-      - name: Install Rust Tauri CLI
-        if: ${{ matrix.install_cargo_tauri }}
-        run: cargo install tauri-cli --version "^2.0.0" --locked
-
-      - name: Bundle desktop target with Bun
-        if: ${{ matrix.install_bun }}
+      - name: Bundle desktop target
         shell: bash
         run: |
           bun tauri bundle \
             --debug \
             --target "${{ matrix.target }}" \
-            --verbose \
-            --config "$TAURI_SKIP_FRONTEND_BUILD_CONFIG"
-
-      - name: Bundle desktop target with Rust Tauri CLI
-        if: ${{ matrix.install_cargo_tauri }}
-        shell: bash
-        run: |
-          cargo tauri bundle \
-            --debug \
-            --target "${{ matrix.target }}" \
-            --verbose \
-            --config "$TAURI_SKIP_FRONTEND_BUILD_CONFIG"
+            --verbose
 
       - name: Package desktop debug bundles
         shell: bash

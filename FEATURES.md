@@ -15,12 +15,12 @@ Legend:
 - [✔️] Multi-account support
 - [✔️] Session restore
 - [✔️] Device management
-- [] Cross-signing
+- [✔️] Cross-signing
 - [✔️] Interactive verification (SAS)
 - [❌] QR code verification
-- [] Secret storage (SSSS)
+- [✔️] Secret storage (SSSS)
 - [] Dehydrated devices
-- [] Soft logout handling
+- [✔️] Soft logout handling
 - [] Account deactivation
 
 # Room Management
@@ -64,7 +64,7 @@ Legend:
 - [] Code block rendering
 - [] Spoiler formatting
 - [] Rich text formatting
-- [] Message search
+- [✔️] Message search
 - [] Mentions
 - [] Room mentions
 - [] Message permalinks
@@ -114,12 +114,12 @@ Legend:
 - [✔️] Encrypted group chats
 - [✔️] Key backup
 - [✔️] Key export/import
-- [] Secure key sharing
+- [✔️] Secure key sharing
 - [✔️] Automatic session recovery
 - [] Unverified device warnings
 - [] Device trust management
 - [] Encryption status indicators
-- [] Verification requests
+- [✔️] Verification requests
 - [✔️] Recovery key support
 - [✔️] Recovery passphrase support
 
@@ -147,7 +147,7 @@ Legend:
 - [✔️] Background sync
 - [✔️] Offline message cache
 - [] Offline sending queue
-- [] Local timeline persistence
+- [✔️] Local timeline persistence
 - [] Lazy loading members
 - [✔️] Partial room loading
 - [✔️] Timeline pagination
@@ -211,8 +211,7 @@ Legend:
 # Experimental / Advanced Features
 
 - [✔️] Custom homeserver discovery
-- [❌] Local AI integrations
-- [] End-to-end encrypted search
+- [✔️] End-to-end encrypted search
 - [❌] Multi-session merging
 - [] Custom event rendering
 - [] Plugin system

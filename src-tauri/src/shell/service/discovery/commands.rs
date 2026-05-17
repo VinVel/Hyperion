@@ -13,8 +13,6 @@
  * Project home: hyperion.velcore.net
  */
 
-#[cfg(target_os = "android")]
-use std::sync::Arc;
 use std::{cmp::Reverse, collections::HashSet, fmt::Write, time::Duration};
 
 use futures_util::{
@@ -32,8 +30,6 @@ use matrix_sdk::{
     sleep::sleep,
 };
 use reqwest::Client as HttpClient;
-#[cfg(target_os = "android")]
-use rustls::{ClientConfig, RootCertStore, client::WebPkiServerVerifier};
 
 use crate::{
     account::AccountManager,
@@ -42,6 +38,7 @@ use crate::{
         sync::ShellSyncManager,
         types::{RoomThreadSummary, SpaceSummary},
     },
+    utils::http::external_http_client,
 };
 
 use super::super::{room_list::snapshot_room_list_for_account, runtime::ShellDiscoveryService};
@@ -430,10 +427,7 @@ async fn search_matrixrooms_info(
         "{MATRIXROOMS_INFO_BASE_URL}/search/{}/{limit}/{offset}",
         encode_path_segment(query)
     );
-    #[cfg(target_os = "android")]
     let http_client = discovery_http_client()?;
-    #[cfg(not(target_os = "android"))]
-    let http_client = discovery_http_client();
 
     let response = http_client
         .get(url)
@@ -707,30 +701,9 @@ fn parse_via_servers(via: Vec<String>) -> Result<Vec<OwnedServerName>, String> {
         .collect()
 }
 
-#[cfg(target_os = "android")]
 fn discovery_http_client() -> Result<HttpClient, String> {
-    let mut root_store = RootCertStore::empty();
-    root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-
-    let native_certs = rustls_native_certs::load_native_certs().certs;
-    root_store.add_parsable_certificates(native_certs);
-
-    let verifier = WebPkiServerVerifier::builder(Arc::new(root_store))
-        .build()
-        .map_err(|error| format!("Failed to configure Android TLS verifier: {error}"))?;
-    let tls_config = ClientConfig::builder()
-        .with_webpki_verifier(verifier)
-        .with_no_client_auth();
-
-    HttpClient::builder()
-        .tls_backend_preconfigured(tls_config)
-        .build()
-        .map_err(|error| format!("Failed to build Android discovery HTTP client: {error}"))
-}
-
-#[cfg(not(target_os = "android"))]
-fn discovery_http_client() -> HttpClient {
-    HttpClient::new()
+    external_http_client()
+        .map_err(|error| format!("Failed to build discovery HTTP client: {error}"))
 }
 
 async fn join_room_by_id_or_alias_with_timeout(

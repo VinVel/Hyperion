@@ -17,6 +17,7 @@
 mod account;
 mod settings;
 mod shell;
+mod utils;
 
 use account::{
     AccountManager, AccountSummary, HomeserverDirectory, LoginRequest, RegisterAccountRequest,

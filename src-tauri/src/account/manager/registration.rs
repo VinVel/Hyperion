@@ -19,13 +19,15 @@ use matrix_sdk::{
         Request as MatrixRegistrationRequest, Response as MatrixRegistrationResponse,
     },
 };
-use reqwest::Client as HttpClient;
 use tauri::AppHandle;
 
 use super::AccountManager;
-use crate::account::types::{
-    HomeserverDirectory, HomeserverDirectoryEntry, RegisterAccountRequest, RegistrationFlow,
-    RegistrationOutcome,
+use crate::{
+    account::types::{
+        HomeserverDirectory, HomeserverDirectoryEntry, RegisterAccountRequest, RegistrationFlow,
+        RegistrationOutcome,
+    },
+    utils::http::external_http_client,
 };
 
 const HOMESERVER_DIRECTORY_URL: &str = "https://servers.joinmatrix.org/servers.json";
@@ -34,7 +36,7 @@ impl AccountManager {
     pub async fn list_registration_homeservers(&self) -> Result<HomeserverDirectory, String> {
         // Fetch the directory on demand so the UI always sees the latest
         // registration metadata published by joinmatrix.org.
-        let http_client = HttpClient::new();
+        let http_client = external_http_client()?;
         let response = http_client
             .get(HOMESERVER_DIRECTORY_URL)
             .send()

@@ -19,6 +19,8 @@ export const sizing = {
   iconLarge: "1.4rem",
   iconButtonSize: "3.55rem",
   iconButtonCompactMinHeight: "3.4rem",
+  titlebarButtonWidth: "2.75rem",
+  titlebarIconSize: "1.65rem",
   brandLogoSize: "2.85rem",
   appNavLogoSize: "2.3rem",
   loginAvatarSize: "4.75rem",

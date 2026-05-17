@@ -19,6 +19,156 @@
   padding: var(--spacing-safe-area-padding);
 }
 
+.ui-window-frame {
+  --window-titlebar-height: 2.75rem;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: var(--window-titlebar-height) minmax(0, 1fr);
+  background: var(--surface);
+  color: var(--on-surface);
+}
+
+.ui-window-titlebar {
+  height: var(--window-titlebar-height);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--outline-variant) 62%, transparent);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  color: var(--on-surface-variant);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.ui-window-titlebar-brand,
+.ui-window-titlebar-controls,
+.ui-window-titlebar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ui-window-titlebar-brand {
+  height: 100%;
+  padding-inline: var(--spacing-gap-medium);
+}
+
+.ui-window-titlebar-icon {
+  width: var(--sizing-titlebar-icon-size);
+  height: var(--sizing-titlebar-icon-size);
+  border-radius: var(--shape-radius-small);
+  box-shadow: var(--elevation-outline-subtle);
+}
+
+.ui-window-titlebar-drag-region {
+  height: 100%;
+  min-width: 0;
+}
+
+.ui-window-titlebar-controls {
+  height: 100%;
+}
+
+.ui-window-titlebar-button {
+  width: var(--sizing-titlebar-button-width);
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+}
+
+.ui-window-titlebar-button:hover {
+  background: color-mix(
+    in srgb,
+    var(--surface-container-high) 72%,
+    transparent
+  );
+  color: var(--on-surface);
+}
+
+.ui-window-titlebar-button--close:hover {
+  background: var(--error);
+  color: var(--on-error);
+}
+
+.ui-window-titlebar-button svg {
+  width: var(--sizing-icon-small);
+  height: var(--sizing-icon-small);
+}
+
+.ui-window-frame-content {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ui-scroll-area {
+  --scrollbar-size: 0.5rem;
+  --scrollbar-reserved-gutter: calc(
+    var(--scrollbar-size) + var(--spacing-gap-medium)
+  );
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.ui-scroll-area--custom {
+  padding-inline-end: var(--scrollbar-reserved-gutter);
+  overflow: hidden;
+}
+
+.ui-scroll-area__viewport {
+  min-width: 0;
+  min-height: 0;
+}
+
+.ui-scroll-area--custom .ui-scroll-area__viewport {
+  margin-inline-end: calc(var(--scrollbar-reserved-gutter) * -1);
+  padding-inline-end: var(--scrollbar-reserved-gutter);
+}
+
+.ui-scroll-area--custom > .os-scrollbar-vertical {
+  right: calc((var(--scrollbar-reserved-gutter) - var(--scrollbar-size)) * 0.5);
+}
+
+.os-scrollbar.os-theme-hyperion {
+  box-sizing: border-box;
+  --os-size: var(--scrollbar-size);
+  --os-padding-perpendicular: 0.125rem;
+  --os-padding-axis: 0.125rem;
+  --os-track-border-radius: var(--shape-radius-round);
+  --os-track-bg: transparent;
+  --os-track-bg-hover: transparent;
+  --os-track-bg-active: transparent;
+  --os-handle-bg: color-mix(
+    in srgb,
+    var(--on-surface-variant) 56%,
+    transparent
+  );
+  --os-handle-bg-hover: color-mix(
+    in srgb,
+    var(--on-surface-variant) 72%,
+    transparent
+  );
+  --os-handle-bg-active: color-mix(in srgb, var(--primary) 84%, transparent);
+  --os-handle-border-radius: var(--shape-radius-round);
+  --os-handle-min-size: 2.25rem;
+  --os-handle-perpendicular-size: 100%;
+  --os-handle-perpendicular-size-hover: 100%;
+  --os-handle-perpendicular-size-active: 100%;
+}
+
+.os-scrollbar.os-theme-hyperion.os-scrollbar-horizontal {
+  height: var(--os-size);
+}
+
+.os-scrollbar.os-theme-hyperion.os-scrollbar-vertical {
+  width: var(--os-size);
+}
+
 .ui-screen-header,
 .ui-screen-main {
   max-width: var(--layout-content-width);
@@ -52,7 +202,7 @@
 }
 
 .ui-overlay {
-  position: fixed;
+  position: absolute;
   inset: 0;
   display: grid;
   padding: var(--spacing-safe-area-padding);

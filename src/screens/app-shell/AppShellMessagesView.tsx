@@ -20,6 +20,8 @@ import {
   Button,
   EmptyState,
   Pill,
+  ScrollArea,
+  type ScrollAreaHandle,
   Typography,
 } from "../../components/ui";
 import {
@@ -71,7 +73,7 @@ export default function AppShellMessagesView({
   onThreadKindFilterChange,
   onToggleSortMenu,
 }: AppShellMessagesViewProps) {
-  const timelineRef = useRef<HTMLDivElement | null>(null);
+  const timelineRef = useRef<ScrollAreaHandle | null>(null);
   const previousTimelineRoomIdRef = useRef<string | null>(null);
   const canSendMessages = selectedRoomSummary?.canSendMessages === true;
   const composerIsEmpty = composerValue.trim().length === 0;
@@ -126,7 +128,7 @@ export default function AppShellMessagesView({
   }
 
   useLayoutEffect(() => {
-    const timelineElement = timelineRef.current;
+    const timelineElement = timelineRef.current?.getScrollElement();
     if (!timelineElement || !selectedTimeline) {
       previousTimelineRoomIdRef.current = selectedTimeline?.roomId ?? null;
       return;
@@ -189,7 +191,11 @@ export default function AppShellMessagesView({
               <Pill tone="secondary">{messageCount} messages</Pill>
             </header>
 
-            <div ref={timelineRef} className="app-shell-room-timeline">
+            <ScrollArea
+              ref={timelineRef}
+              className="app-shell-room-timeline"
+              contentClassName="app-shell-room-timeline-content"
+            >
               {selectedTimeline?.nextBefore ? (
                 <div className="app-shell-room-timeline-controls">
                   <Button
@@ -205,7 +211,7 @@ export default function AppShellMessagesView({
               ) : null}
 
               {renderTimelineItems()}
-            </div>
+            </ScrollArea>
 
             <div className="app-shell-room-composer">
               <div className="app-shell-composer-row">

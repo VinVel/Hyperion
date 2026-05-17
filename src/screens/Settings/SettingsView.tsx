@@ -16,7 +16,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
-import { BackButton, Card, Typography } from "../../components/ui";
+import { BackButton, Card, ScrollArea, Typography } from "../../components/ui";
 import Account from "./Account";
 import Appearance from "./Appearance";
 import Calls from "./Calls";
@@ -153,7 +153,10 @@ export default function SettingsView({
         className="app-shell-main-pane app-shell-main-pane--full settings-view-root"
         aria-label="Settings"
       >
-        <div className="settings-view-mobile-detail">
+        <ScrollArea
+          className="settings-view-mobile-detail"
+          contentClassName="settings-view-mobile-detail-content"
+        >
           <header className="settings-view-mobile-detail-head">
             <div className="settings-view-heading-row">
               <BackButton onClick={() => setMobileOpenedSectionId(null)} />
@@ -170,7 +173,7 @@ export default function SettingsView({
             onSignOut={handleSignOut}
             sectionId={mobileSection.id}
           />
-        </div>
+        </ScrollArea>
       </section>
     );
   }
@@ -198,7 +201,11 @@ export default function SettingsView({
         <div className="settings-view-columns">
           <nav className="settings-view-nav" aria-label="Settings sections">
             <Card className="settings-view-nav-card">
-              <div className="settings-view-nav-list" role="list">
+              <ScrollArea
+                className="settings-view-nav-list"
+                contentClassName="settings-view-nav-list-content"
+                role="list"
+              >
                 {settingsSections.map((section) => {
                   const isActive = section.id === activeSectionId;
 
@@ -219,19 +226,22 @@ export default function SettingsView({
                     </button>
                   );
                 })}
-              </div>
+              </ScrollArea>
             </Card>
           </nav>
 
           {!isMobile ? (
-            <div className="settings-view-detail">
+            <ScrollArea
+              className="settings-view-detail"
+              contentClassName="settings-view-detail-content"
+            >
               <SettingsSectionContent
                 activeAccount={activeAccount}
                 onAddAccount={onAddAccount}
                 onSignOut={handleSignOut}
                 sectionId={activeSection.id}
               />
-            </div>
+            </ScrollArea>
           ) : null}
         </div>
       </div>

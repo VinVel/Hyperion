@@ -92,9 +92,13 @@
 
 .settings-view-nav-list {
   flex: 1 1 auto;
-  gap: var(--spacing-gap-small);
-  overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+.settings-view-nav-list-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-gap-small);
 }
 
 .settings-view-nav-item {
@@ -141,9 +145,17 @@
 
 .settings-view-detail,
 .settings-view-mobile-detail {
-  overflow-y: auto;
+  --scrollbar-reserved-gutter: calc(
+    var(--scrollbar-size) + var(--spacing-gap-extra-large)
+  );
   overscroll-behavior: contain;
-  padding-right: 0.125rem;
+}
+
+.settings-view-detail-content,
+.settings-view-mobile-detail-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-gap-large);
 }
 
 .settings-view-card {
@@ -366,15 +378,17 @@
 
 .settings-view-verification-dialog {
   position: relative;
-  display: grid;
   width: min(42rem, 100%);
   max-height: min(82dvh, 44rem);
-  gap: var(--spacing-gap-extra-large);
-  overflow: auto;
   padding: var(--spacing-panel-padding-large);
   border-radius: var(--shape-radius-small);
   background: var(--surface-container);
   box-shadow: var(--elevation-panel-raised), var(--elevation-outline-subtle);
+}
+
+.settings-view-verification-dialog-content {
+  display: grid;
+  gap: var(--spacing-gap-extra-large);
 }
 
 .settings-view-verification-head {

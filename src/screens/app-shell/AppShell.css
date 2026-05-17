@@ -15,24 +15,25 @@
 
 .app-shell-root {
   padding: 0;
-  height: 100dvh;
-  min-height: 100dvh;
+  --app-shell-viewport-height: calc(100dvh - var(--window-titlebar-height));
+  height: var(--app-shell-viewport-height);
+  min-height: var(--app-shell-viewport-height);
   overflow: hidden;
 }
 
 .app-shell-screen {
   width: 100%;
   max-width: none;
-  height: 100dvh;
-  min-height: 100dvh;
+  height: var(--app-shell-viewport-height);
+  min-height: var(--app-shell-viewport-height);
   overflow: hidden;
   padding-block: 0;
 }
 
 .app-shell-layout {
   position: relative;
-  height: 100dvh;
-  min-height: 100dvh;
+  height: var(--app-shell-viewport-height);
+  min-height: var(--app-shell-viewport-height);
   overflow: hidden;
   display: grid;
   grid-template-columns: var(--layout-app-rail-width) minmax(0, 1fr);
@@ -42,8 +43,10 @@
 .app-shell-rail {
   position: sticky;
   top: 0;
+  z-index: 5;
   align-self: start;
-  min-height: var(--layout-viewport-min-height);
+  height: 100%;
+  min-height: 0;
   justify-content: space-between;
   padding-block: max(1rem, env(safe-area-inset-top))
     max(1rem, env(safe-area-inset-bottom));
@@ -66,6 +69,7 @@
 .app-shell-room-timeline,
 .app-shell-space-copy,
 .app-shell-search-dialog,
+.app-shell-search-results-scroll-content,
 .app-shell-search-results,
 .app-shell-search-group,
 .app-shell-search-group-list {
@@ -104,7 +108,7 @@
   border-radius: var(--shape-radius-small);
   background: var(--surface-container);
   box-shadow: var(--elevation-panel-raised), var(--elevation-outline-subtle);
-  z-index: 3;
+  z-index: 6;
 }
 
 .app-shell-account-popover-head {
@@ -271,7 +275,6 @@
 
 .app-shell-main-pane--full {
   min-height: clamp(32rem, 70dvh, 48rem);
-  overflow-y: auto;
 }
 
 .app-shell-room,
@@ -306,9 +309,13 @@
 
 .app-shell-room-timeline {
   flex: 1 1 auto;
-  gap: var(--spacing-gap-large);
   min-height: 0;
-  overflow-y: auto;
+}
+
+.app-shell-room-timeline-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-gap-large);
 }
 
 .app-shell-room-timeline-controls {
@@ -588,7 +595,19 @@
   right: auto;
   width: min(20rem, 80vw);
   max-height: 18rem;
-  overflow-y: auto;
+  overflow: hidden;
+}
+
+.app-shell-discovery-invite-target-list {
+  max-height: calc(
+    18rem - var(--spacing-card-padding) - var(--spacing-card-padding)
+  );
+  min-height: 0;
+}
+
+.app-shell-discovery-menu-invite-content {
+  display: grid;
+  gap: var(--spacing-gap-extra-small);
 }
 
 .app-shell-discovery-menu-option {
@@ -623,6 +642,7 @@
 .app-shell-discovery-results,
 .app-shell-discovery-result-list,
 .app-shell-discovery-detail,
+.app-shell-discovery-detail-description,
 .app-shell-discovery-detail-copy,
 .app-shell-discovery-invite {
   min-width: 0;
@@ -630,15 +650,20 @@
 
 .app-shell-discovery-results,
 .app-shell-discovery-result-list,
-.app-shell-discovery-detail {
+.app-shell-discovery-detail,
+.app-shell-discovery-detail-description-content {
   display: flex;
   flex-direction: column;
 }
 
 .app-shell-discovery-results {
   min-height: 0;
+}
+
+.app-shell-discovery-results-content {
+  display: flex;
+  flex-direction: column;
   gap: var(--spacing-gap-large);
-  overflow-y: auto;
 }
 
 .app-shell-discovery-result-list {
@@ -699,8 +724,8 @@
 
 .app-shell-discovery-detail {
   position: relative;
+  min-height: 0;
   gap: var(--spacing-gap-large);
-  overflow-y: auto;
   padding: var(--spacing-panel-padding);
   border-radius: var(--shape-radius-small);
   background: color-mix(
@@ -708,6 +733,18 @@
     var(--surface-container-high) 72%,
     transparent
   );
+}
+
+.app-shell-discovery-detail-description {
+  flex: 1 1 auto;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+
+.app-shell-discovery-detail-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-gap-large);
 }
 
 .app-shell-discovery-detail-head {
@@ -781,12 +818,22 @@
   position: relative;
   width: var(--layout-global-search-width);
   max-height: min(80dvh, 42rem);
+  min-height: 0;
   gap: var(--spacing-gap-extra-large);
-  overflow: auto;
+  overflow: hidden;
   padding: var(--spacing-panel-padding-large);
   border-radius: var(--shape-radius-small);
   background: var(--surface-container);
   box-shadow: var(--elevation-panel-raised), var(--elevation-outline-subtle);
+}
+
+.app-shell-search-results-scroll {
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+
+.app-shell-search-results-scroll-content {
+  gap: var(--spacing-gap-extra-large);
 }
 
 .app-shell-search-head {
@@ -852,8 +899,8 @@
   .app-shell-screen,
   .app-shell-layout,
   .app-shell-workspace {
-    height: 100dvh;
-    min-height: 100dvh;
+    height: var(--app-shell-viewport-height);
+    min-height: var(--app-shell-viewport-height);
     overflow: hidden;
   }
 
@@ -874,8 +921,8 @@
   .app-shell-root--thread-selected .app-shell-layout,
   .app-shell-root--thread-selected
     .app-shell-workspace--messages.app-shell-workspace--thread-selected {
-    height: 100dvh;
-    min-height: 100dvh;
+    height: var(--app-shell-viewport-height);
+    min-height: var(--app-shell-viewport-height);
     overflow: hidden;
   }
 
@@ -982,7 +1029,9 @@
   }
 
   .app-shell-main-pane {
-    min-height: calc(100dvh - var(--layout-mobile-bottom-bar-height));
+    min-height: calc(
+      var(--app-shell-viewport-height) - var(--layout-mobile-bottom-bar-height)
+    );
     overflow: hidden;
     padding-bottom: calc(
       var(--layout-mobile-bottom-bar-height) + var(--spacing-gap-large)
@@ -995,13 +1044,13 @@
 
   .app-shell-room {
     min-height: calc(
-      100dvh - var(--layout-mobile-bottom-bar-height) -
+      var(--app-shell-viewport-height) -
+        var(--layout-mobile-bottom-bar-height) -
         (2 * var(--spacing-panel-padding))
     );
   }
 
   .app-shell-room-timeline {
-    overflow-y: auto;
     overscroll-behavior: contain;
     padding-bottom: var(--spacing-gap-medium);
   }
@@ -1030,7 +1079,9 @@
 
   .app-shell-discovery-panel {
     width: 100vw;
-    height: calc(100dvh - var(--layout-mobile-bottom-bar-height));
+    height: calc(
+      var(--app-shell-viewport-height) - var(--layout-mobile-bottom-bar-height)
+    );
     border-radius: 0;
     box-shadow: none;
   }

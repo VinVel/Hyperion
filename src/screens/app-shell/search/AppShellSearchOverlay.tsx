@@ -14,7 +14,7 @@
  */
 
 import { Blocks, Hash, MessageSquareMore, Search } from "lucide-react";
-import { ToolbarField, Typography } from "../../../components/ui";
+import { ScrollArea, ToolbarField, Typography } from "../../../components/ui";
 import type { AuthenticatedShellView } from "../appShellAdapters";
 import type { SearchResultKind, SearchResultGroup } from "./types";
 
@@ -78,56 +78,64 @@ export default function AppShellSearchOverlay({
           </Typography>
         ) : null}
 
-        {results.length > 0 ? (
-          <div className="app-shell-search-results">
-            {results.map((resultGroup) => (
-              <section
-                key={resultGroup.kind}
-                className="app-shell-search-group"
-              >
-                <Typography variant="label" className="app-shell-section-label">
-                  {resultGroup.title}
-                </Typography>
-                <div className="app-shell-search-group-list">
-                  {resultGroup.items.map((item) => (
-                    <button
-                      key={item.id}
-                      className="app-shell-search-result"
-                      type="button"
-                      onClick={() =>
-                        onSelectResult(
-                          item.threadId,
-                          item.targetView,
-                          item.eventId,
-                        )
-                      }
-                    >
-                      <span className="app-shell-search-result-icon">
-                        <SearchResultIcon kind={resultGroup.kind} />
-                      </span>
-                      <span className="app-shell-search-result-copy">
-                        <span className="app-shell-search-result-title">
-                          {item.title}
+        <ScrollArea
+          className="app-shell-search-results-scroll"
+          contentClassName="app-shell-search-results-scroll-content"
+        >
+          {results.length > 0 ? (
+            <div className="app-shell-search-results">
+              {results.map((resultGroup) => (
+                <section
+                  key={resultGroup.kind}
+                  className="app-shell-search-group"
+                >
+                  <Typography
+                    variant="label"
+                    className="app-shell-section-label"
+                  >
+                    {resultGroup.title}
+                  </Typography>
+                  <div className="app-shell-search-group-list">
+                    {resultGroup.items.map((item) => (
+                      <button
+                        key={item.id}
+                        className="app-shell-search-result"
+                        type="button"
+                        onClick={() =>
+                          onSelectResult(
+                            item.threadId,
+                            item.targetView,
+                            item.eventId,
+                          )
+                        }
+                      >
+                        <span className="app-shell-search-result-icon">
+                          <SearchResultIcon kind={resultGroup.kind} />
                         </span>
-                        <span className="app-shell-search-result-description">
-                          {item.description}
+                        <span className="app-shell-search-result-copy">
+                          <span className="app-shell-search-result-title">
+                            {item.title}
+                          </span>
+                          <span className="app-shell-search-result-description">
+                            {item.description}
+                          </span>
                         </span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        ) : globalSearchQuery.trim().length > 0 ? (
-          <Typography className="app-shell-search-empty" muted variant="body">
-            No results matched this query.
-          </Typography>
-        ) : (
-          <Typography className="app-shell-search-empty" muted variant="body">
-            Start typing to search
-          </Typography>
-        )}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          ) : globalSearchQuery.trim().length > 0 ? (
+            <Typography className="app-shell-search-empty" muted variant="body">
+              No results matched this query.
+            </Typography>
+          ) : (
+            <Typography className="app-shell-search-empty" muted variant="body">
+              Start typing to search
+            </Typography>
+          )}
+        </ScrollArea>
       </section>
     </div>
   );

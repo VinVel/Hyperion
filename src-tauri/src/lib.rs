@@ -361,6 +361,7 @@ pub fn run() {
         .manage(ShellManager::new())
         .plugin(dialog::init())
         .plugin(fs::init())
+        .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             #[cfg(mobile)]

@@ -26,7 +26,12 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, ToolbarField, Typography } from "../../../components/ui";
+import {
+  Button,
+  ScrollArea,
+  ToolbarField,
+  Typography,
+} from "../../../components/ui";
 import {
   discoverySourceLabel,
   mapDiscoveryEntity,
@@ -536,7 +541,10 @@ function DiscoveryResultSection({
   onSelect,
 }: DiscoveryResultSectionProps) {
   return (
-    <section className="app-shell-discovery-results">
+    <ScrollArea
+      className="app-shell-discovery-results"
+      contentClassName="app-shell-discovery-results-content"
+    >
       <Typography className="app-shell-section-label" variant="label">
         {title}
       </Typography>
@@ -579,7 +587,7 @@ function DiscoveryResultSection({
           {emptyLabel}
         </Typography>
       )}
-    </section>
+    </ScrollArea>
   );
 }
 
@@ -614,16 +622,16 @@ function DiscoveryDetail({
 }: DiscoveryDetailProps) {
   if (!selectedEntity) {
     return (
-      <aside className="app-shell-discovery-detail">
+      <div className="app-shell-discovery-detail">
         <Typography muted variant="body">
           Select a result to view details.
         </Typography>
-      </aside>
+      </div>
     );
   }
 
-  return (
-    <aside className="app-shell-discovery-detail">
+  const detailHead = (
+    <>
       <Button
         aria-label="Close discovery detail"
         className="app-shell-discovery-mobile-back"
@@ -647,34 +655,68 @@ function DiscoveryDetail({
           </Typography>
         </span>
       </div>
+    </>
+  );
+
+  if (selectedEntity.kind !== "user") {
+    return (
+      <div className="app-shell-discovery-detail">
+        {detailHead}
+
+        {selectedEntity.description ? (
+          <ScrollArea
+            className="app-shell-discovery-detail-description"
+            contentClassName="app-shell-discovery-detail-description-content"
+          >
+            <Typography variant="body">{selectedEntity.description}</Typography>
+          </ScrollArea>
+        ) : null}
+
+        <Button
+          disabled={selectedEntity.alreadyJoined || isJoining}
+          variant="primary"
+          onClick={onJoin}
+        >
+          <span>{joinButtonLabel(selectedEntity, isJoining)}</span>
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="app-shell-discovery-detail">
+      {detailHead}
 
       {selectedEntity.description ? (
         <Typography variant="body">{selectedEntity.description}</Typography>
       ) : null}
 
-      {selectedEntity.kind === "user" ? (
-        <div className="app-shell-discovery-invite">
-          <div className="app-shell-discovery-select-menu">
-            <button
-              aria-expanded={isInviteTargetMenuOpen}
-              className="app-shell-discovery-select-trigger"
-              disabled={inviteTargets.length === 0}
-              type="button"
-              onClick={onToggleInviteTargetMenu}
-            >
-              <span className="app-shell-discovery-select-copy">
-                <span className="app-shell-discovery-select-label">
-                  Invite to
-                </span>
-                <span className="app-shell-discovery-select-title">
-                  {selectedInviteTarget?.title ?? "No invite targets"}
-                </span>
+      <div className="app-shell-discovery-invite">
+        <div className="app-shell-discovery-select-menu">
+          <button
+            aria-expanded={isInviteTargetMenuOpen}
+            className="app-shell-discovery-select-trigger"
+            disabled={inviteTargets.length === 0}
+            type="button"
+            onClick={onToggleInviteTargetMenu}
+          >
+            <span className="app-shell-discovery-select-copy">
+              <span className="app-shell-discovery-select-label">
+                Invite to
               </span>
-              <ChevronDown aria-hidden="true" />
-            </button>
+              <span className="app-shell-discovery-select-title">
+                {selectedInviteTarget?.title ?? "No invite targets"}
+              </span>
+            </span>
+            <ChevronDown aria-hidden="true" />
+          </button>
 
-            {isInviteTargetMenuOpen ? (
-              <div className="app-shell-discovery-menu app-shell-discovery-menu--invite">
+          {isInviteTargetMenuOpen ? (
+            <div className="app-shell-discovery-menu app-shell-discovery-menu--invite">
+              <ScrollArea
+                className="app-shell-discovery-invite-target-list"
+                contentClassName="app-shell-discovery-menu-invite-content"
+              >
                 {inviteTargets.map((target) => (
                   <button
                     key={target.roomId}
@@ -692,28 +734,20 @@ function DiscoveryDetail({
                     ) : null}
                   </button>
                 ))}
-              </div>
-            ) : null}
-          </div>
-          <Button
-            disabled={isInviting || inviteTargets.length === 0}
-            variant="primary"
-            onClick={onInvite}
-          >
-            <Send aria-hidden="true" />
-            <span>{isInviting ? "Inviting" : "Invite"}</span>
-          </Button>
+              </ScrollArea>
+            </div>
+          ) : null}
         </div>
-      ) : (
         <Button
-          disabled={selectedEntity.alreadyJoined || isJoining}
+          disabled={isInviting || inviteTargets.length === 0}
           variant="primary"
-          onClick={onJoin}
+          onClick={onInvite}
         >
-          <span>{joinButtonLabel(selectedEntity, isJoining)}</span>
+          <Send aria-hidden="true" />
+          <span>{isInviting ? "Inviting" : "Invite"}</span>
         </Button>
-      )}
-    </aside>
+      </div>
+    </div>
   );
 }
 

@@ -14,7 +14,7 @@
  */
 
 import { ArrowDownUp, Check, ChevronDown } from "lucide-react";
-import { Typography } from "../../components/ui";
+import { ScrollArea, Typography } from "../../components/ui";
 import {
   type RoomThreadKindFilter,
   type RoomThreadSort,
@@ -164,7 +164,12 @@ export default function ConversationSidebar({
         </div>
       </div>
 
-      <div className="conversations-thread-list">{renderThreadList()}</div>
+      <ScrollArea
+        className="conversations-thread-list"
+        contentClassName="conversations-thread-list-content"
+      >
+        {renderThreadList()}
+      </ScrollArea>
     </aside>
   );
 }

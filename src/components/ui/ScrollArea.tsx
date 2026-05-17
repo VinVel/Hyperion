@@ -1,0 +1,108 @@
+/*
+ * Copyright (c) 2026 VinVel
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, version 3 only.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * Project home: hyperion.velcore.net
+ */
+
+import type { PartialOptions } from "overlayscrollbars";
+import { useOverlayScrollbars } from "overlayscrollbars-react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  type HTMLAttributes,
+  type ReactNode,
+} from "react";
+import { classNames } from "./classNames";
+
+export type ScrollAreaHandle = {
+  getScrollElement: () => HTMLElement | null;
+};
+
+type ScrollAreaProps = HTMLAttributes<HTMLDivElement> & {
+  children: ReactNode;
+  contentClassName?: string;
+  options?: PartialOptions;
+};
+
+const defaultScrollAreaOptions: PartialOptions = {
+  scrollbars: {
+    autoHide: "never",
+    clickScroll: true,
+    dragScroll: true,
+    theme: "os-theme-hyperion",
+    visibility: "auto",
+  },
+};
+
+export const ScrollArea = forwardRef<ScrollAreaHandle, ScrollAreaProps>(
+  function ScrollArea(
+    { className, children, contentClassName, options, ...props },
+    ref,
+  ) {
+    const rootRef = useRef<HTMLDivElement | null>(null);
+    const viewportRef = useRef<HTMLDivElement | null>(null);
+    const [initialize, getOverlayScrollbars] = useOverlayScrollbars({
+      options: options ?? defaultScrollAreaOptions,
+      defer: true,
+    });
+
+    useEffect(() => {
+      const rootElement = rootRef.current;
+      const viewportElement = viewportRef.current;
+      if (!rootElement || !viewportElement) {
+        return;
+      }
+
+      initialize({
+        target: rootElement,
+        elements: {
+          viewport: viewportElement,
+          content: viewportElement,
+        },
+      });
+
+      return () => getOverlayScrollbars()?.destroy();
+    }, [getOverlayScrollbars, initialize]);
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        getScrollElement: () =>
+          getOverlayScrollbars()?.elements().viewport ?? viewportRef.current,
+      }),
+      [getOverlayScrollbars],
+    );
+
+    return (
+      <div
+        className={classNames(
+          "ui-scroll-area",
+          "ui-scroll-area--custom",
+          className,
+        )}
+        data-overlayscrollbars-initialize=""
+        ref={rootRef}
+        {...props}
+      >
+        <div
+          className={classNames("ui-scroll-area__viewport", contentClassName)}
+          data-overlayscrollbars-contents=""
+          ref={viewportRef}
+        >
+          {children}
+        </div>
+      </div>
+    );
+  },
+);

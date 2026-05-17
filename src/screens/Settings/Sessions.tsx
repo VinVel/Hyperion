@@ -28,6 +28,7 @@ import {
   Button,
   Card,
   FeedbackMessage,
+  ScrollArea,
   TextField,
   Typography,
   useFeedbackToast,
@@ -867,7 +868,10 @@ function SasVerificationOverlay({
         onClick={onClose}
         type="button"
       />
-      <section className="settings-view-verification-dialog">
+      <ScrollArea
+        className="settings-view-verification-dialog"
+        contentClassName="settings-view-verification-dialog-content"
+      >
         <div className="settings-view-verification-head">
           <div>
             <Typography
@@ -937,7 +941,7 @@ function SasVerificationOverlay({
             They do not match
           </Button>
         </div>
-      </section>
+      </ScrollArea>
     </div>
   );
 }

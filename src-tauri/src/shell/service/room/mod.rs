@@ -28,6 +28,10 @@ use matrix_sdk::{
     },
 };
 
+mod commands;
+pub(super) mod list;
+pub(super) mod timeline;
+
 pub(super) fn resolve_room(client: &matrix_sdk::Client, room_id: &str) -> Result<Room, String> {
     let room_id = RoomId::parse(room_id).map_err(|error| format!("Invalid room id: {error}"))?;
     client

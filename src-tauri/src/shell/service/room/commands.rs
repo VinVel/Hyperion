@@ -21,14 +21,9 @@ use crate::{
     account::AccountManager,
     shell::{
         service::{
-            ShellCacheState, ShellManager, ShellRoomListKind,
-            room::{
-                can_send_messages, homeserver_label, latest_activity_unix_ms, latest_preview_text,
-                participant_label, resolve_room, room_title,
-            },
-            room_list::snapshot_room_list_for_account,
+            RECENT_TIMELINE_WARM_ROOM_COUNT, ShellCacheState, ShellManager, ShellRoomListKind,
+            read_state::{mark_room_read_locally, unread_message_count_for_shell},
             search::{first_visible_grapheme, matches_query, normalize_query, relative_time_label},
-            timeline::cached_timeline_item_count,
         },
         types::{
             GetRoomSummaryRequest, ListRoomThreadsRequest, ListSpacesRequest, RoomSummary,
@@ -39,8 +34,9 @@ use crate::{
 };
 
 use super::{
-    RECENT_TIMELINE_WARM_ROOM_COUNT,
-    read_state::{mark_room_read_locally, unread_message_count_for_shell},
+    can_send_messages, homeserver_label, latest_activity_unix_ms, latest_preview_text,
+    list::snapshot_room_list_for_account, participant_label, resolve_room, room_title,
+    timeline::cached_timeline_item_count,
 };
 
 impl ShellManager {

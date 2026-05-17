@@ -17,8 +17,12 @@ use std::path::{Path, PathBuf};
 
 use rusqlite::{Connection, OptionalExtension, params};
 
+mod cache_state;
+
 use super::super::types::{RoomThreadSummary, RoomTimelineItem, SpaceSummary};
 use crate::utils::time::now_unix_ms;
+
+pub(in crate::shell) use cache_state::ShellCacheState;
 
 // Hyperion only persists timeline view state here. Message/event persistence
 // remains owned by the Matrix SDK event cache and is accessed through SDK APIs.

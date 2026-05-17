@@ -23,13 +23,16 @@ use futures_util::{
 use matrix_sdk::{Room, sleep::sleep};
 use matrix_sdk_ui::room_list_service::{RoomListLoadingState, RoomListService, filters};
 
-use super::{super::sync::ShellSyncManager, ROOM_LIST_SNAPSHOT_PAGE_SIZE, ShellRoomListKind};
+use crate::shell::{
+    service::{ROOM_LIST_SNAPSHOT_PAGE_SIZE, ShellRoomListKind},
+    sync::ShellSyncManager,
+};
 
 // The first shell load may race SyncService startup. Wait briefly for the SDK
 // room list to report that an initial sync has populated the list metadata.
 const ROOM_LIST_INITIAL_LOAD_TIMEOUT_MS: u64 = 3_000;
 
-pub(super) async fn snapshot_room_list_for_account(
+pub(in crate::shell::service) async fn snapshot_room_list_for_account(
     sync_manager: &ShellSyncManager,
     account_key: &str,
     list_kind: ShellRoomListKind,

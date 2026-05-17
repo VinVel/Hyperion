@@ -20,12 +20,10 @@ use std::{
 
 use matrix_sdk::Room;
 
-use super::{
-    room::{
-        current_latest_event_id, current_latest_event_is_own, local_room_state_key,
-        persisted_read_anchor_event_id, unread_message_count,
-    },
-    timeline::count_recent_unread_messages_since,
+use super::room::{
+    current_latest_event_id, current_latest_event_is_own, local_room_state_key,
+    persisted_read_anchor_event_id, timeline::count_recent_unread_messages_since,
+    unread_message_count,
 };
 
 pub(super) fn mark_room_read_locally(

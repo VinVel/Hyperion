@@ -23,9 +23,8 @@ use super::{
     types::{SearchBackfillState, SearchRoomBackfillProgress},
 };
 use crate::{
-    shell::service::{
-        room::{resolve_room, room_title},
-        timeline::fetch_room_timeline_search_updates,
+    shell::service::room::{
+        resolve_room, room_title, timeline::fetch_room_timeline_search_updates,
     },
     utils::time::now_unix_ms,
 };

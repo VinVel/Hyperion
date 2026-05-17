@@ -23,9 +23,11 @@ use tauri::async_runtime::JoinHandle;
 
 use super::{
     RECENT_TIMELINE_REWARM_INTERVAL_MS, RECENT_TIMELINE_WARM_LIMIT,
-    room::{resolve_room, room_title},
+    room::{
+        resolve_room, room_title,
+        timeline::{cached_timeline_items, warm_room_recent_timeline},
+    },
     search::{SearchBackfillCoordinator, SearchIndexer},
-    timeline::{cached_timeline_items, warm_room_recent_timeline},
 };
 use crate::{
     shell::{engine::ShellTimelineRegistry, types::RoomThreadSummary},

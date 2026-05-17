@@ -15,21 +15,25 @@
 
 use matrix_sdk::{Room, ruma::EventId};
 
-use crate::account::{AccountClientSnapshot, AccountManager};
-
-use super::{
-    super::sync::emit_shell_room_updated,
-    DEFAULT_EVENT_CONTEXT_LIMIT, DEFAULT_TIMELINE_LIMIT, MAX_RESTORED_TIMELINE_ITEMS, ShellManager,
-    cache_state::ShellCacheState,
-    caching::restored_timeline_limit,
-    paging::{
-        focused_timeline_page_token, load_live_room_timeline, load_paginated_room_timeline,
-        parse_timeline_page_token,
+use crate::{
+    account::{AccountClientSnapshot, AccountManager},
+    shell::{
+        service::{
+            DEFAULT_EVENT_CONTEXT_LIMIT, DEFAULT_TIMELINE_LIMIT, MAX_RESTORED_TIMELINE_ITEMS,
+            ShellCacheState, ShellManager,
+            caching::restored_timeline_limit,
+            paging::{
+                focused_timeline_page_token, load_live_room_timeline, load_paginated_room_timeline,
+                parse_timeline_page_token,
+            },
+            read_state::mark_room_read_locally,
+        },
+        sync::emit_shell_room_updated,
+        types::{GetRoomEventContextRequest, GetRoomTimelineRequest, RoomTimeline},
     },
-    read_state::mark_room_read_locally,
-    room::{resolve_room, room_title},
 };
-use crate::shell::types::{GetRoomEventContextRequest, GetRoomTimelineRequest, RoomTimeline};
+
+use super::super::{resolve_room, room_title};
 
 impl ShellManager {
     pub async fn get_room_timeline(

@@ -19,17 +19,19 @@ use std::{
 };
 
 use super::{
-    caching::{
-        cached_room_thread_summaries, cached_room_timeline, cached_space_summaries,
-        merge_cached_room_timeline_refresh, prepend_cached_room_timeline_items,
-        remember_room_thread_summaries, remember_room_timeline_item_count,
-        remember_space_summaries, remembered_room_timeline_item_count,
-    },
-    paging::visible_count_after_live_page,
-    search::{matches_query, normalize_query},
+    cached_room_thread_summaries, cached_room_timeline, cached_space_summaries,
+    merge_cached_room_timeline_refresh, prepend_cached_room_timeline_items,
+    remember_room_thread_summaries, remember_room_timeline_item_count, remember_space_summaries,
+    remembered_room_timeline_item_count,
 };
-use crate::shell::types::{
-    ListRoomThreadsRequest, ListSpacesRequest, RoomSummary, RoomThreadSummary, SpaceSummary,
+use crate::shell::{
+    service::{
+        paging::visible_count_after_live_page,
+        search::{matches_query, normalize_query},
+    },
+    types::{
+        ListRoomThreadsRequest, ListSpacesRequest, RoomSummary, RoomThreadSummary, SpaceSummary,
+    },
 };
 
 #[derive(Clone, Default)]
@@ -40,11 +42,14 @@ pub(crate) struct ShellCacheState {
 }
 
 impl ShellCacheState {
-    pub(super) fn new() -> Self {
+    pub(in crate::shell::service) fn new() -> Self {
         Self::default()
     }
 
-    pub(super) fn room_thread_cache_was_served(&self, account_key: &str) -> bool {
+    pub(in crate::shell::service) fn room_thread_cache_was_served(
+        &self,
+        account_key: &str,
+    ) -> bool {
         let served_accounts = self
             .room_thread_cache_served_accounts
             .read()
@@ -52,7 +57,7 @@ impl ShellCacheState {
         served_accounts.contains(account_key)
     }
 
-    pub(super) fn mark_room_thread_cache_served(&self, account_key: &str) {
+    pub(in crate::shell::service) fn mark_room_thread_cache_served(&self, account_key: &str) {
         let mut served_accounts = self
             .room_thread_cache_served_accounts
             .write()
@@ -60,7 +65,7 @@ impl ShellCacheState {
         served_accounts.insert(account_key.to_owned());
     }
 
-    pub(super) fn clear_served_room_thread_cache(&self, account_key: &str) {
+    pub(in crate::shell::service) fn clear_served_room_thread_cache(&self, account_key: &str) {
         let mut served_accounts = self
             .room_thread_cache_served_accounts
             .write()
@@ -68,7 +73,7 @@ impl ShellCacheState {
         served_accounts.remove(account_key);
     }
 
-    pub(super) fn clear_all_served_room_thread_caches(&self) {
+    pub(in crate::shell::service) fn clear_all_served_room_thread_caches(&self) {
         let mut served_accounts = self
             .room_thread_cache_served_accounts
             .write()
@@ -76,7 +81,7 @@ impl ShellCacheState {
         served_accounts.clear();
     }
 
-    pub(super) fn space_cache_was_served(&self, account_key: &str) -> bool {
+    pub(in crate::shell::service) fn space_cache_was_served(&self, account_key: &str) -> bool {
         let served_accounts = self
             .space_cache_served_accounts
             .read()
@@ -84,7 +89,7 @@ impl ShellCacheState {
         served_accounts.contains(account_key)
     }
 
-    pub(super) fn mark_space_cache_served(&self, account_key: &str) {
+    pub(in crate::shell::service) fn mark_space_cache_served(&self, account_key: &str) {
         let mut served_accounts = self
             .space_cache_served_accounts
             .write()
@@ -92,7 +97,7 @@ impl ShellCacheState {
         served_accounts.insert(account_key.to_owned());
     }
 
-    pub(super) fn clear_served_space_cache(&self, account_key: &str) {
+    pub(in crate::shell::service) fn clear_served_space_cache(&self, account_key: &str) {
         let mut served_accounts = self
             .space_cache_served_accounts
             .write()
@@ -100,7 +105,7 @@ impl ShellCacheState {
         served_accounts.remove(account_key);
     }
 
-    pub(super) fn clear_all_served_space_caches(&self) {
+    pub(in crate::shell::service) fn clear_all_served_space_caches(&self) {
         let mut served_accounts = self
             .space_cache_served_accounts
             .write()
@@ -108,7 +113,11 @@ impl ShellCacheState {
         served_accounts.clear();
     }
 
-    pub(super) fn room_timeline_cache_was_served(&self, account_key: &str, room_id: &str) -> bool {
+    pub(in crate::shell::service) fn room_timeline_cache_was_served(
+        &self,
+        account_key: &str,
+        room_id: &str,
+    ) -> bool {
         let served_keys = self
             .room_timeline_cache_served_keys
             .read()
@@ -116,7 +125,11 @@ impl ShellCacheState {
         served_keys.contains(&Self::room_cache_key(account_key, room_id))
     }
 
-    pub(super) fn mark_room_timeline_cache_served(&self, account_key: &str, room_id: &str) {
+    pub(in crate::shell::service) fn mark_room_timeline_cache_served(
+        &self,
+        account_key: &str,
+        room_id: &str,
+    ) {
         let mut served_keys = self
             .room_timeline_cache_served_keys
             .write()
@@ -124,7 +137,7 @@ impl ShellCacheState {
         served_keys.insert(Self::room_cache_key(account_key, room_id));
     }
 
-    pub(super) fn clear_served_room_timeline_caches(&self, account_key: &str) {
+    pub(in crate::shell::service) fn clear_served_room_timeline_caches(&self, account_key: &str) {
         let account_prefix = format!("{account_key}::");
         let mut served_keys = self
             .room_timeline_cache_served_keys
@@ -133,7 +146,7 @@ impl ShellCacheState {
         served_keys.retain(|cache_key| !cache_key.starts_with(&account_prefix));
     }
 
-    pub(super) fn clear_all_served_room_timeline_caches(&self) {
+    pub(in crate::shell::service) fn clear_all_served_room_timeline_caches(&self) {
         let mut served_keys = self
             .room_timeline_cache_served_keys
             .write()
@@ -141,7 +154,7 @@ impl ShellCacheState {
         served_keys.clear();
     }
 
-    pub(super) fn cached_room_threads(
+    pub(in crate::shell::service) fn cached_room_threads(
         account_key: &str,
         store_dir: &std::path::Path,
         request: &ListRoomThreadsRequest,
@@ -171,7 +184,7 @@ impl ShellCacheState {
         )
     }
 
-    pub(super) fn cached_room_summary(
+    pub(in crate::shell::service) fn cached_room_summary(
         account_key: &str,
         store_dir: &std::path::Path,
         room_id: &str,
@@ -198,7 +211,7 @@ impl ShellCacheState {
         })
     }
 
-    pub(super) fn remember_room_threads(
+    pub(in crate::shell::service) fn remember_room_threads(
         account_key: &str,
         store_dir: &std::path::Path,
         summaries: &[RoomThreadSummary],
@@ -208,7 +221,7 @@ impl ShellCacheState {
         }
     }
 
-    pub(super) fn cached_spaces(
+    pub(in crate::shell::service) fn cached_spaces(
         store_dir: &std::path::Path,
         request: &ListSpacesRequest,
     ) -> Option<Vec<SpaceSummary>> {
@@ -234,13 +247,16 @@ impl ShellCacheState {
         )
     }
 
-    pub(super) fn remember_spaces(store_dir: &std::path::Path, summaries: &[SpaceSummary]) {
+    pub(in crate::shell::service) fn remember_spaces(
+        store_dir: &std::path::Path,
+        summaries: &[SpaceSummary],
+    ) {
         if let Err(error) = remember_space_summaries(store_dir, summaries) {
             eprintln!("Failed to persist cached spaces: {error}");
         }
     }
 
-    pub(super) fn cached_room_timeline(
+    pub(in crate::shell::service) fn cached_room_timeline(
         account_key: &str,
         store_dir: &std::path::Path,
         room_id: &str,
@@ -254,7 +270,7 @@ impl ShellCacheState {
         }
     }
 
-    pub(super) fn merge_refreshed_timeline(
+    pub(in crate::shell::service) fn merge_refreshed_timeline(
         account_key: &str,
         store_dir: &std::path::Path,
         room_id: &str,
@@ -274,7 +290,7 @@ impl ShellCacheState {
         }
     }
 
-    pub(super) fn prepend_cached_timeline_items(
+    pub(in crate::shell::service) fn prepend_cached_timeline_items(
         account_key: &str,
         store_dir: &std::path::Path,
         room_id: &str,
@@ -288,7 +304,7 @@ impl ShellCacheState {
         }
     }
 
-    pub(super) fn remembered_timeline_item_count(
+    pub(in crate::shell::service) fn remembered_timeline_item_count(
         account_key: &str,
         store_dir: &std::path::Path,
         room_id: &str,
@@ -302,7 +318,7 @@ impl ShellCacheState {
         }
     }
 
-    pub(super) fn remember_timeline_item_count_after_pagination(
+    pub(in crate::shell::service) fn remember_timeline_item_count_after_pagination(
         account_key: &str,
         store_dir: &std::path::Path,
         room_id: &str,

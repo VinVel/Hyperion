@@ -41,7 +41,7 @@ use crate::{
     utils::{http::external_http_client, url::encode_path_segment},
 };
 
-use super::super::{room_list::snapshot_room_list_for_account, runtime::ShellDiscoveryService};
+use super::super::{room::list::snapshot_room_list_for_account, runtime::ShellDiscoveryService};
 
 use super::types::{
     DiscoveryEntity, DiscoveryEntityKind, DiscoverySource, InviteTarget, InviteUserToRoomRequest,

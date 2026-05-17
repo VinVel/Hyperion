@@ -27,7 +27,11 @@ use matrix_sdk::{
     },
 };
 
-use super::{super::types::RoomTimelineItem, room::resolve_room};
+mod commands;
+
+use crate::shell::types::RoomTimelineItem;
+
+use super::resolve_room;
 
 // Unread badges need a recent history fallback when the room list has updated
 // but the local event cache for an unfocused room is still too cold to count.
@@ -36,7 +40,7 @@ const UNREAD_COUNT_BACKFILL_LIMIT: u16 = 80;
 // fall back to the SDK aggregate instead of scanning deep history in room lists.
 const UNREAD_COUNT_BACKFILL_MAX_PAGES: usize = 2;
 
-pub(super) async fn warm_room_recent_timeline(
+pub(in crate::shell::service) async fn warm_room_recent_timeline(
     client: &matrix_sdk::Client,
     room_id: &str,
     target_limit: u16,
@@ -67,7 +71,10 @@ pub(super) async fn count_unread_messages_since(room: &Room, event_id: &str) -> 
     )
 }
 
-pub(super) async fn count_recent_unread_messages_since(room: &Room, event_id: &str) -> Option<u64> {
+pub(in crate::shell::service) async fn count_recent_unread_messages_since(
+    room: &Room,
+    event_id: &str,
+) -> Option<u64> {
     if let Some(cached_count) = count_unread_messages_since(room, event_id).await {
         return Some(cached_count);
     }
@@ -99,13 +106,15 @@ pub(super) async fn count_recent_unread_messages_since(room: &Room, event_id: &s
     None
 }
 
-pub(super) async fn cached_timeline_item_count(room: &Room) -> Option<usize> {
+pub(in crate::shell::service) async fn cached_timeline_item_count(room: &Room) -> Option<usize> {
     let items = cached_timeline_items(room).await.ok()?;
 
     Some(items.len())
 }
 
-pub(super) async fn cached_timeline_items(room: &Room) -> Result<Vec<RoomTimelineItem>, String> {
+pub(in crate::shell::service) async fn cached_timeline_items(
+    room: &Room,
+) -> Result<Vec<RoomTimelineItem>, String> {
     let Ok((room_event_cache, _drop_handles)) = room.event_cache().await else {
         return Ok(Vec::new());
     };
@@ -150,7 +159,7 @@ pub(super) async fn fetch_room_timeline_chunk(
     Ok((items, response.end))
 }
 
-pub(super) async fn fetch_room_timeline_search_updates(
+pub(in crate::shell::service) async fn fetch_room_timeline_search_updates(
     room: &Room,
     limit: u16,
     from: Option<&str>,
@@ -186,10 +195,10 @@ pub(super) async fn fetch_room_timeline_search_updates(
 }
 
 #[derive(Default)]
-pub(super) struct TimelineSearchUpdates {
-    pub(super) items: Vec<RoomTimelineItem>,
-    pub(super) redacted_event_ids: Vec<String>,
-    pub(super) next_token: Option<String>,
+pub(in crate::shell::service) struct TimelineSearchUpdates {
+    pub(in crate::shell::service) items: Vec<RoomTimelineItem>,
+    pub(in crate::shell::service) redacted_event_ids: Vec<String>,
+    pub(in crate::shell::service) next_token: Option<String>,
 }
 
 #[derive(Clone, Copy)]

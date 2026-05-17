@@ -17,21 +17,16 @@ use matrix_sdk::Room;
 
 use crate::account::AccountManager;
 
-mod cache_state;
 mod caching;
 pub mod discovery;
 mod global_search;
 mod paging;
 mod read_state;
 mod room;
-mod room_commands;
-mod room_list;
 mod runtime;
 mod search;
-mod timeline;
-mod timeline_commands;
 
-pub(super) use self::cache_state::ShellCacheState;
+pub(super) use self::caching::ShellCacheState;
 
 use self::runtime::{ShellDiscoveryService, ShellSearchService, ShellTimelineService};
 

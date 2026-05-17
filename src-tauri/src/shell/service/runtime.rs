@@ -24,10 +24,13 @@ use tauri::async_runtime::JoinHandle;
 use super::{
     RECENT_TIMELINE_REWARM_INTERVAL_MS, RECENT_TIMELINE_WARM_LIMIT,
     room::{resolve_room, room_title},
-    search::{SearchBackfillCoordinator, SearchIndexer, now_unix_ms},
+    search::{SearchBackfillCoordinator, SearchIndexer},
     timeline::{cached_timeline_items, warm_room_recent_timeline},
 };
-use crate::shell::{engine::ShellTimelineRegistry, types::RoomThreadSummary};
+use crate::{
+    shell::{engine::ShellTimelineRegistry, types::RoomThreadSummary},
+    utils::time::now_unix_ms,
+};
 
 #[derive(Clone, Default)]
 pub(super) struct ShellTimelineService {

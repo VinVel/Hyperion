@@ -13,11 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-use std::{
-    fs, io,
-    path::Path,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{fs, io, path::Path};
 
 use rusqlite::Connection;
 
@@ -25,6 +21,7 @@ use super::{
     errors::{SearchError, SearchResult},
     types::{SearchConnection, SearchPaths},
 };
+use crate::utils::time::now_unix_ms;
 
 const SEARCH_DATABASE_DIR_NAME: &str = "hyperion-search";
 const SEARCH_DATABASE_FILE_NAME: &str = "search.sqlite3";
@@ -83,7 +80,7 @@ fn move_corrupt_database_aside(paths: &SearchPaths) -> SearchResult<()> {
         return Ok(());
     };
 
-    let suffix = unix_timestamp_ms();
+    let suffix = now_unix_ms();
     for path in [
         paths.database_path.clone(),
         format!("{database_path}-wal").into(),
@@ -107,13 +104,6 @@ fn move_corrupt_database_aside(paths: &SearchPaths) -> SearchResult<()> {
     }
 
     Ok(())
-}
-
-fn unix_timestamp_ms() -> u128 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis()
 }
 
 pub(super) fn initialize_connection_schema(connection: &Connection) -> SearchResult<()> {

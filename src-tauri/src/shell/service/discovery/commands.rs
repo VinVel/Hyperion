@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-use std::{cmp::Reverse, collections::HashSet, fmt::Write, time::Duration};
+use std::{cmp::Reverse, collections::HashSet, time::Duration};
 
 use futures_util::{
     future::{Either, select},
@@ -38,7 +38,7 @@ use crate::{
         sync::ShellSyncManager,
         types::{RoomThreadSummary, SpaceSummary},
     },
-    utils::http::external_http_client,
+    utils::{http::external_http_client, url::encode_path_segment},
 };
 
 use super::super::{room_list::snapshot_room_list_for_account, runtime::ShellDiscoveryService};
@@ -763,20 +763,6 @@ fn push_unique_server(servers: &mut Vec<String>, server_name: &str) {
 
 fn join_rule_label(join_rule: &JoinRuleKind) -> String {
     join_rule.to_string()
-}
-
-fn encode_path_segment(value: &str) -> String {
-    let mut encoded = String::new();
-
-    for byte in value.bytes() {
-        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
-            encoded.push(char::from(byte));
-        } else {
-            let _ = write!(encoded, "%{byte:02X}");
-        }
-    }
-
-    encoded
 }
 
 #[cfg(test)]

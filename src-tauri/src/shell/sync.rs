@@ -16,7 +16,6 @@
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 use futures_util::{StreamExt, pin_mut};
@@ -30,6 +29,7 @@ use crate::{
     account::{AccountClientSnapshot, AccountManager},
     settings::sessions::register_session_verification_event_handler,
     shell::types::RoomTimelineItem,
+    utils::time::now_unix_ms,
 };
 
 pub const SHELL_SYNC_UPDATED_EVENT: &str = "hyperion://shell-sync-updated";
@@ -652,11 +652,4 @@ fn focused_room_id_from_state(
         .expect("shell sync manager focused-rooms lock poisoned")
         .get(account_key)
         .map(|focused_room| focused_room.room_id.clone())
-}
-
-fn now_unix_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX))
-        .unwrap_or_default()
 }

@@ -20,12 +20,14 @@ use tauri::async_runtime::{JoinHandle, Mutex as AsyncMutex};
 
 use super::{
     indexer::SearchIndexer,
-    legacy::now_unix_ms,
     types::{SearchBackfillState, SearchRoomBackfillProgress},
 };
-use crate::shell::service::{
-    room::{resolve_room, room_title},
-    timeline::fetch_room_timeline_search_updates,
+use crate::{
+    shell::service::{
+        room::{resolve_room, room_title},
+        timeline::fetch_room_timeline_search_updates,
+    },
+    utils::time::now_unix_ms,
 };
 
 // Backfill pages should stay small until search indexing has real-world

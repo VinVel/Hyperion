@@ -30,6 +30,6 @@ pub(super) mod types;
 pub(super) use backfill::SearchBackfillCoordinator;
 pub(super) use indexer::SearchIndexer;
 pub(super) use legacy::{
-    first_visible_grapheme, matches_query, normalize_query, now_unix_ms, relative_time_label,
+    first_visible_grapheme, matches_query, normalize_query, relative_time_label,
 };
 pub(super) use status::SearchStatusReporter;

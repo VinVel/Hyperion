@@ -27,7 +27,7 @@ use crate::{
         HomeserverDirectory, HomeserverDirectoryEntry, RegisterAccountRequest, RegistrationFlow,
         RegistrationOutcome,
     },
-    utils::http::external_http_client,
+    utils::{http::external_http_client, url::ensure_https_url},
 };
 
 const HOMESERVER_DIRECTORY_URL: &str = "https://servers.joinmatrix.org/servers.json";
@@ -249,13 +249,5 @@ fn derive_registration_flow(homeserver: &HomeserverDirectoryEntry) -> Registrati
         RegistrationFlow::ExternalLink
     } else {
         RegistrationFlow::InfoOnly
-    }
-}
-
-fn ensure_https_url(value: &str) -> String {
-    if value.contains("://") {
-        value.to_owned()
-    } else {
-        format!("https://{value}")
     }
 }

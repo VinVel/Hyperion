@@ -23,7 +23,6 @@ use std::{
     fs,
     io::Write,
     path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, FilePath};
@@ -33,6 +32,7 @@ use crate::{
     account::{AccountClientSnapshot, AccountManager},
     settings::account as account_settings,
     shell::service::ShellManager,
+    utils::time::now_unix_ms,
 };
 
 pub use super::types::{
@@ -681,11 +681,4 @@ fn backup_state_label(server_backup_enabled: bool, server_backup_exists: Option<
     } else {
         String::from("Unknown")
     }
-}
-
-fn now_unix_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX))
-        .unwrap_or_default()
 }

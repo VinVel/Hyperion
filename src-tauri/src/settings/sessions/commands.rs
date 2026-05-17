@@ -13,8 +13,6 @@
  * Project home: hyperion.velcore.net
  */
 
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use matrix_sdk::{
     Client,
     encryption::{
@@ -41,6 +39,7 @@ use tauri::{AppHandle, Emitter};
 use crate::{
     account::{AccountClientSnapshot, AccountManager},
     settings::account as account_settings,
+    utils::time::now_unix_ms,
 };
 
 pub use super::types::{
@@ -868,11 +867,4 @@ fn pending_state(flow_id: &str, label: &str) -> VerificationState {
         cancelled: false,
         cancel_reason: None,
     }
-}
-
-fn now_unix_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX))
-        .unwrap_or_default()
 }

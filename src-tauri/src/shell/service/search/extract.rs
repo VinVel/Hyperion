@@ -13,11 +13,11 @@
  * Project home: hyperion.velcore.net
  */
 
-use super::{
-    legacy::now_unix_ms,
-    types::{SearchDocument, SearchEntityType},
+use super::types::{SearchDocument, SearchEntityType};
+use crate::{
+    shell::types::{RoomThreadSummary, RoomTimelineItem, SpaceSummary},
+    utils::time::now_unix_ms,
 };
-use crate::shell::types::{RoomThreadSummary, RoomTimelineItem, SpaceSummary};
 
 pub(super) fn room_document(account_key: &str, summary: &RoomThreadSummary) -> SearchDocument {
     let updated_at_unix_ms = now_unix_ms();

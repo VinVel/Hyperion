@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::utils::time::now_unix_ms;
 
 pub(in crate::shell::service) fn normalize_query(query: Option<&str>) -> Option<String> {
     query
@@ -38,18 +38,6 @@ pub(in crate::shell::service) fn first_visible_grapheme(value: &str) -> Option<S
         .chars()
         .next()
         .map(|ch| ch.to_uppercase().collect())
-}
-
-// Shell timestamps only need a coarse "now" anchor for relative labels,
-// search updates, and warmup throttling.
-pub(in crate::shell::service) fn now_unix_ms() -> u64 {
-    u64::try_from(
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis(),
-    )
-    .unwrap_or(u64::MAX)
 }
 
 pub(in crate::shell::service) fn relative_time_label(timestamp_unix_ms: u64) -> String {

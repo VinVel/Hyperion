@@ -20,11 +20,13 @@ use tauri::async_runtime::Mutex as AsyncMutex;
 use super::{
     database::{open_search_connection, search_paths_for_store},
     extract,
-    legacy::now_unix_ms,
     repository::SearchRepository,
     types::{SearchBackfillState, SearchRoomBackfillProgress},
 };
-use crate::shell::types::{RoomThreadSummary, RoomTimelineItem, SpaceSummary};
+use crate::{
+    shell::types::{RoomThreadSummary, RoomTimelineItem, SpaceSummary},
+    utils::time::now_unix_ms,
+};
 
 #[derive(Clone, Default)]
 pub(in crate::shell::service) struct SearchIndexer {

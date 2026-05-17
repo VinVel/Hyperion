@@ -27,10 +27,7 @@ use crate::{
                 participant_label, resolve_room, room_title,
             },
             room_list::snapshot_room_list_for_account,
-            search::{
-                first_visible_grapheme, matches_query, normalize_query, now_unix_ms,
-                relative_time_label,
-            },
+            search::{first_visible_grapheme, matches_query, normalize_query, relative_time_label},
             timeline::cached_timeline_item_count,
         },
         types::{
@@ -38,6 +35,7 @@ use crate::{
             RoomThreadSummary, SendRoomMessageRequest, SendRoomMessageResponse, SpaceSummary,
         },
     },
+    utils::time::now_unix_ms,
 };
 
 use super::{

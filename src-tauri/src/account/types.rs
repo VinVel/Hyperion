@@ -89,7 +89,6 @@ pub struct HomeserverDirectory {
 pub struct HomeserverDirectoryEntry {
     #[serde(default)]
     pub server_id: String,
-    #[serde(default)]
     pub homeserver_url: Option<String>,
     #[serde(default)]
     pub registration_flow: RegistrationFlow,
@@ -97,57 +96,33 @@ pub struct HomeserverDirectoryEntry {
     pub supports_display_name: bool,
     #[serde(default)]
     pub name: String,
-    #[serde(default)]
     pub client_domain: Option<String>,
-    #[serde(default)]
     pub homepage: Option<String>,
-    #[serde(default)]
     pub isp: Option<String>,
-    #[serde(default)]
     pub staff_jur: Option<String>,
-    #[serde(default)]
     pub rules: Option<String>,
-    #[serde(default)]
     pub privacy: Option<String>,
-    #[serde(default)]
     pub using_vanilla_reg: Option<bool>,
-    #[serde(default)]
     pub description: Option<String>,
-    #[serde(default)]
     pub reg_method: Option<String>,
-    #[serde(default)]
     pub reg_link: Option<String>,
-    #[serde(default)]
     pub reg_note: Option<String>,
-    #[serde(default)]
     pub software: Option<String>,
-    #[serde(default)]
     pub version: Option<String>,
-    #[serde(default)]
     pub captcha: Option<bool>,
-    #[serde(default)]
     pub captcha_note: Option<String>,
-    #[serde(default)]
     pub email: Option<bool>,
-    #[serde(default)]
     pub longstanding: Option<bool>,
     #[serde(default)]
     pub languages: Vec<String>,
     #[serde(default)]
     pub features: Vec<String>,
-    #[serde(default)]
     pub online_status: Option<i64>,
-    #[serde(default)]
     pub server_domain: Option<String>,
-    #[serde(default)]
     pub ver_status: Option<i64>,
-    #[serde(default)]
     pub room_directory: Option<i64>,
-    #[serde(default)]
     pub sliding_sync: Option<bool>,
-    #[serde(default)]
     pub ipv6: Option<bool>,
-    #[serde(default)]
     pub cloudflare: Option<bool>,
     #[serde(default, flatten)]
     pub extra_fields: BTreeMap<String, Value>,

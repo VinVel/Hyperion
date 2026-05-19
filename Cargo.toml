@@ -8,9 +8,9 @@ resolver = "3"
 [workspace.dependencies]
 tauri-plugin-mobile-webview-overlay = { path = "plugins/tauri-plugin-mobile-webview-overlay" }
 tauri-plugin-app-events = { path = "plugins/tauri-plugin-app-events" }
-tauri = { version = "2.11.1", default-features = false }
-tauri-build = "2.6.1"
-tauri-plugin = "2.6.1"
+tauri = { version = "2.11.2", default-features = false }
+tauri-build = "2.6.2"
+tauri-plugin = "2.6.2"
 tauri-plugin-opener = "2.5.4"
 tauri-plugin-dialog = "2.7.1"
 tauri-plugin-fs = "2.5.1"

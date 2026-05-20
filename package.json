@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "lint": "eslint . && prettier . --write",
-    "update": "bun run scripts/updateCatalog.ts"
+    "update": "bun run scripts/updateCatalog.ts",
+    "add": "bun run scripts/addToCatalog.ts"
   },
   "workspaces": {
     "packages": [

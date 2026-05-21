@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-import { UserRoundPlus, LogOut } from "lucide-react";
+import { UserPlus, LogOut } from "lucide-react";
 import { useState } from "react";
 import {
   Button,
@@ -74,7 +74,7 @@ export default function Account({ onAddAccount, onSignOut }: AccountProps) {
 
         <div className="settings-view-action-row">
           <Button onClick={onAddAccount} variant="secondary">
-            <UserRoundPlus aria-hidden="true" />
+            <UserPlus aria-hidden="true" />
             Add account
           </Button>
 

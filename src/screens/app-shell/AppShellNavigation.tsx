@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-import { Blocks, MessagesSquare, Plus, Search } from "lucide-react";
+import { Blocks, MessagesSquare, Compass, Search } from "lucide-react";
 import { AppRail, AppRailButton } from "../../components/ui";
 import {
   type AccountSummary,
@@ -89,7 +89,7 @@ export default function AppShellNavigation({
             isActive={isDiscoveryOpen}
             onClick={onOpenDiscovery}
           >
-            <Plus aria-hidden="true" />
+            <Compass aria-hidden="true" />
           </AppRailButton>
 
           <div className="app-shell-account-center">
@@ -169,7 +169,7 @@ export default function AppShellNavigation({
           type="button"
           onClick={onOpenDiscovery}
         >
-          <Plus aria-hidden="true" />
+          <Compass aria-hidden="true" />
         </button>
 
         <button

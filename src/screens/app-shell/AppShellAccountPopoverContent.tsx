@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-import { Cog } from "lucide-react";
+import { Bolt } from "lucide-react";
 import { Button, Typography } from "../../components/ui";
 import { type AccountSummary, accountInitials } from "./appShellAdapters";
 
@@ -85,7 +85,7 @@ export default function AppShellAccountPopoverContent({
 
       <div className="app-shell-account-actions">
         <Button className="app-shell-settings-button" onClick={onOpenSettings}>
-          <Cog aria-hidden="true" />
+          <Bolt aria-hidden="true" />
           <span>Settings</span>
         </Button>
       </div>

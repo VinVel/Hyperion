@@ -22,7 +22,7 @@ import {
   Hash,
   Search,
   Send,
-  UserRound,
+  User,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -52,9 +52,9 @@ const discoveryResultPageSize = 20;
 const discoveryKindOptions: Array<{
   kind: DiscoveryKind;
   label: string;
-  icon: typeof UserRound;
+  icon: typeof User;
 }> = [
-  { kind: "user", label: "Users", icon: UserRound },
+  { kind: "user", label: "Users", icon: User },
   { kind: "room", label: "Rooms", icon: Hash },
   { kind: "space", label: "Spaces", icon: Blocks },
 ];
@@ -753,7 +753,7 @@ function DiscoveryDetail({
 
 function DiscoveryIcon({ kind }: { kind: DiscoveryKind }) {
   if (kind === "user") {
-    return <UserRound aria-hidden="true" />;
+    return <User aria-hidden="true" />;
   }
 
   if (kind === "space") {

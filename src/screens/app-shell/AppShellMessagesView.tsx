@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-import { MessageCircleMore, SendHorizontal } from "lucide-react";
+import { MessageSquareMore, SendHorizontal } from "lucide-react";
 import { type KeyboardEvent } from "react";
 import {
   BackButton,
@@ -218,7 +218,7 @@ export default function AppShellMessagesView({
         ) : (
           <EmptyState
             copy="Choose a room from the left to open its conversation."
-            graphic={<MessageCircleMore aria-hidden="true" />}
+            graphic={<MessageSquareMore aria-hidden="true" />}
             title="Pick a chat"
           />
         )}

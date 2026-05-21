@@ -115,6 +115,9 @@ pub(in crate::shell::service) async fn cached_timeline_item_count(room: &Room) -
 pub(in crate::shell::service) async fn cached_timeline_items(
     room: &Room,
 ) -> Result<Vec<RoomTimelineItem>, String> {
+    // Stage 5 keeps this as an internal recovery-only SDK cache read for
+    // unread counts and recent-room warmup. It is not used as visible timeline
+    // authority or as a reply-preview fallback.
     let Ok((room_event_cache, _drop_handles)) = room.event_cache().await else {
         return Ok(Vec::new());
     };
@@ -137,6 +140,9 @@ pub(super) async fn fetch_room_timeline_chunk(
     limit: u16,
     from: Option<&str>,
 ) -> Result<(Vec<RoomTimelineItem>, Option<String>), String> {
+    // Stage 5 keeps this bounded /messages read for coordinator-owned warmup
+    // and unread recovery. Visible pagination is backed by SDK UI timelines
+    // and reconciled before cache writes.
     let response = room
         .messages(backward_shell_timeline_options(
             limit,
@@ -164,6 +170,9 @@ pub(in crate::shell::service) async fn fetch_room_timeline_search_updates(
     limit: u16,
     from: Option<&str>,
 ) -> Result<TimelineSearchUpdates, String> {
+    // Search backfill uses Matrix /messages because it indexes historical
+    // durable events without mutating the visible timeline/cache projection.
+    // Stage 5 routes callers through ShellSyncCoordinator before reaching here.
     let response = room
         .messages(backward_shell_timeline_options(
             limit,

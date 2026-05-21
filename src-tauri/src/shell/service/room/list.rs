@@ -23,9 +23,8 @@ use futures_util::{
 use matrix_sdk::{Room, sleep::sleep};
 use matrix_sdk_ui::room_list_service::{RoomListLoadingState, RoomListService, filters};
 
-use crate::shell::{
-    service::{ROOM_LIST_SNAPSHOT_PAGE_SIZE, ShellRoomListKind},
-    sync::ShellSyncManager,
+use crate::shell::service::{
+    ROOM_LIST_SNAPSHOT_PAGE_SIZE, ShellRoomListKind, sync_coordinator::ShellSyncCoordinator,
 };
 
 // The first shell load may race SyncService startup. Wait briefly for the SDK
@@ -33,11 +32,11 @@ use crate::shell::{
 const ROOM_LIST_INITIAL_LOAD_TIMEOUT_MS: u64 = 3_000;
 
 pub(in crate::shell::service) async fn snapshot_room_list_for_account(
-    sync_manager: &ShellSyncManager,
+    sync_coordinator: &ShellSyncCoordinator,
     account_key: &str,
     list_kind: ShellRoomListKind,
 ) -> Result<Vec<Room>, String> {
-    let room_list_service = sync_manager
+    let room_list_service = sync_coordinator
         .room_list_service(account_key)
         .ok_or_else(|| String::from("The active shell room list service is not available"))?;
 

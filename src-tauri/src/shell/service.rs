@@ -25,12 +25,17 @@ mod read_state;
 mod room;
 mod runtime;
 mod search;
+pub(super) mod sync;
+mod sync_coordinator;
+pub(super) mod timeline_reconciliation;
 
 pub(super) use self::caching::ShellCacheState;
+pub(super) use self::sync::{emit_shell_room_updated, emit_shell_timeline_updated};
 
-use self::runtime::{ShellDiscoveryService, ShellSearchService, ShellTimelineService};
-
-use super::sync::ShellSyncManager;
+use self::{
+    runtime::{ShellDiscoveryService, ShellSearchService},
+    sync_coordinator::{RoomFocusMode, RoomInterestKind, ShellSyncCoordinator},
+};
 
 // The default room-open page should feel immediate, but still show enough
 // surrounding context that the user does not land in a "single screen" view.
@@ -61,9 +66,8 @@ pub(super) enum ShellRoomListKind {
 
 #[derive(Clone, Default)]
 pub struct ShellManager {
-    sync_manager: ShellSyncManager,
+    sync_coordinator: ShellSyncCoordinator,
     cache_state: ShellCacheState,
-    timeline_service: ShellTimelineService,
     search_service: ShellSearchService,
     discovery_service: ShellDiscoveryService,
 }
@@ -71,9 +75,8 @@ pub struct ShellManager {
 impl ShellManager {
     pub fn new() -> Self {
         Self {
-            sync_manager: ShellSyncManager::new(),
+            sync_coordinator: ShellSyncCoordinator::new(),
             cache_state: ShellCacheState::new(),
-            timeline_service: ShellTimelineService::new(),
             search_service: ShellSearchService::new(),
             discovery_service: ShellDiscoveryService::new(),
         }
@@ -86,27 +89,26 @@ impl ShellManager {
     ) -> Result<(), String> {
         account_manager.ensure_loaded(app).await?;
         let Some(account) = account_manager.active_account_client_loaded() else {
-            self.sync_manager.stop_all_accounts().await;
+            self.sync_coordinator.stop_all_accounts().await;
             return Ok(());
         };
 
-        self.sync_manager
-            .ensure_started_for_account(app, account_manager, account)
+        self.sync_coordinator
+            .ensure_account_running(app, account_manager, account)
             .await
     }
 
     pub async fn stop_account(&self, account_key: &str) {
-        self.timeline_service
+        self.sync_coordinator
             .stop_account_warmups(account_key)
             .await;
         self.search_service
             .backfill_coordinator()
             .stop_account(account_key)
             .await;
-        self.sync_manager.stop_account(account_key).await;
-        self.timeline_service
-            .registry()
-            .clear_account(account_key)
+        self.sync_coordinator.stop_account(account_key).await;
+        self.sync_coordinator
+            .clear_account_timeline_state(account_key)
             .await;
         self.cache_state.clear_served_room_thread_cache(account_key);
         self.cache_state.clear_served_space_cache(account_key);
@@ -115,17 +117,24 @@ impl ShellManager {
     }
 
     pub async fn stop_all_accounts(&self) {
-        self.timeline_service.stop_all_warmups().await;
+        self.sync_coordinator.stop_all_warmups().await;
         self.search_service.backfill_coordinator().stop_all().await;
-        self.sync_manager.stop_all_accounts().await;
-        self.timeline_service.registry().clear_all().await;
+        self.sync_coordinator.stop_all_accounts().await;
+        self.sync_coordinator.clear_all_timeline_state().await;
         self.cache_state.clear_all_served_room_thread_caches();
         self.cache_state.clear_all_served_space_caches();
         self.cache_state.clear_all_served_room_timeline_caches();
     }
 
     fn mark_room_focused(&self, account_key: &str, room_id: &str) {
-        self.sync_manager.touch_focused_room(account_key, room_id);
+        self.sync_coordinator.observe_room(
+            account_key,
+            room_id,
+            RoomInterestKind::ActiveRoomOpen,
+            "shell.active_room",
+            "visible room selection",
+            RoomFocusMode::Focused,
+        );
     }
 
     fn ensure_sync_in_background(&self, app: &tauri::AppHandle, account_manager: &AccountManager) {
@@ -149,8 +158,7 @@ impl ShellManager {
         room: &Room,
     ) {
         let redacted_event_ids = match self
-            .timeline_service
-            .registry()
+            .sync_coordinator
             .live_redacted_event_ids(account_key, room)
             .await
         {
@@ -179,8 +187,7 @@ impl ShellManager {
         context_limit: u16,
     ) {
         let redacted_event_ids = match self
-            .timeline_service
-            .registry()
+            .sync_coordinator
             .focused_redacted_event_ids(account_key, room, event_id, context_limit)
             .await
         {

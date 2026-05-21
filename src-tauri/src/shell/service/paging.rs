@@ -17,9 +17,9 @@ use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use matrix_sdk::{Room, ruma::EventId};
 
 use super::{
-    super::{engine::ShellTimelineRegistry, types::RoomTimelineItem},
-    DEFAULT_EVENT_CONTEXT_LIMIT, RECENT_TIMELINE_WARM_LIMIT,
+    DEFAULT_EVENT_CONTEXT_LIMIT, RECENT_TIMELINE_WARM_LIMIT, sync_coordinator::ShellSyncCoordinator,
 };
+use crate::shell::types::RoomTimelineItem;
 
 // Timeline-backed pagination uses backend-owned opaque tokens because
 // matrix-sdk-ui tracks pagination state inside the live timeline instance rather
@@ -30,13 +30,13 @@ const TIMELINE_UI_PAGE_TOKEN_PREFIX: &str = "timeline-ui-page:";
 const TIMELINE_UI_EVENT_PAGE_TOKEN_PREFIX: &str = "timeline-ui-event:";
 
 pub(super) async fn load_live_room_timeline(
-    timeline_registry: &ShellTimelineRegistry,
+    sync_coordinator: &ShellSyncCoordinator,
     account_key: &str,
     room: &Room,
     visible_limit: u16,
     page_size: u16,
 ) -> Result<(Vec<RoomTimelineItem>, Option<String>), String> {
-    let (items, hit_start) = timeline_registry
+    let (items, hit_start) = sync_coordinator
         .ensure_live_timeline_window(
             account_key,
             room,
@@ -58,7 +58,7 @@ pub(super) async fn load_live_room_timeline(
 }
 
 pub(super) async fn load_paginated_room_timeline(
-    timeline_registry: &ShellTimelineRegistry,
+    sync_coordinator: &ShellSyncCoordinator,
     account_key: &str,
     room: &Room,
     limit: u16,
@@ -68,7 +68,7 @@ pub(super) async fn load_paginated_room_timeline(
         let owned_event_id = EventId::parse(&event_id)
             .map_err(|error| format!("Invalid focused event id: {error}"))?
             .clone();
-        let (items, hit_start) = timeline_registry
+        let (items, hit_start) = sync_coordinator
             .paginate_focused_timeline_backwards(
                 account_key,
                 room,
@@ -89,7 +89,7 @@ pub(super) async fn load_paginated_room_timeline(
     }
 
     if let Some(page_index) = before.and_then(parse_timeline_page_token) {
-        let (items, hit_start) = timeline_registry
+        let (items, hit_start) = sync_coordinator
             .paginate_live_timeline_backwards(account_key, room, limit, page_index)
             .await?;
 

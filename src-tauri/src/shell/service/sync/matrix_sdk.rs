@@ -32,17 +32,15 @@ use crate::{
     utils::time::now_unix_ms,
 };
 
+// These shell event constants and emitters moved with the SDK adapter to keep
+// this refactor behavior-preserving. A later events-module cleanup should move
+// them out of the low-level Matrix SDK sync adapter.
 pub const SHELL_SYNC_UPDATED_EVENT: &str = "hyperion://shell-sync-updated";
 pub const SHELL_TIMELINE_UPDATED_EVENT: &str = "hyperion://shell-timeline-updated";
 pub const SHELL_TYPING_UPDATED_EVENT: &str = "hyperion://shell-typing-updated";
 pub const SHELL_SYNC_STATUS_EVENT: &str = "hyperion://shell-sync-status";
 pub const SHELL_SESSION_DEAUTHORIZED_EVENT: &str = "hyperion://session-deauthorized";
 
-// Focused-room subscriptions drive low-latency active-room edits/redactions.
-// Reassert them often enough to survive sync recovery without cancelling every
-// in-flight request on ordinary timeline refreshes.
-const FOCUSED_ROOM_RESUBSCRIBE_SECONDS: u64 = 5;
-const FOCUSED_ROOM_RESUBSCRIBE_MS: u64 = FOCUSED_ROOM_RESUBSCRIBE_SECONDS * 1_000;
 // The active account keeps a broad room-list observer alive so SyncService has
 // a visible range immediately after login instead of waiting for a UI command.
 const ACTIVE_ROOM_LIST_OBSERVER_PAGE_SIZE: usize = 10_000;
@@ -83,7 +81,6 @@ struct ShellTypingUpdatedPayload {
 #[derive(Clone)]
 struct FocusedRoomState {
     room_id: String,
-    last_touched_unix_ms: u64,
 }
 
 struct RunningAccountSync {
@@ -116,59 +113,35 @@ impl ShellSyncManager {
             .await
     }
 
-    pub fn touch_focused_room(&self, account_key: &str, room_id: &str) {
-        let now = now_unix_ms();
-        let should_subscribe = {
+    pub fn set_focused_room(&self, account_key: &str, room_id: &str) {
+        {
             let mut focused_rooms = self
                 .focused_rooms
                 .write()
                 .expect("shell sync manager focused-rooms lock poisoned");
 
-            let should_subscribe = focused_rooms.get(account_key).is_none_or(|focused_room| {
-                focused_room.room_id != room_id
-                    || now.saturating_sub(focused_room.last_touched_unix_ms)
-                        >= FOCUSED_ROOM_RESUBSCRIBE_MS
-            });
-
             focused_rooms.insert(
                 account_key.to_owned(),
                 FocusedRoomState {
                     room_id: room_id.to_owned(),
-                    last_touched_unix_ms: now,
                 },
             );
-
-            should_subscribe
-        };
-
-        if !should_subscribe {
-            return;
         }
 
-        let running_accounts = self
-            .running_accounts
-            .read()
-            .expect("shell sync manager running-accounts lock poisoned");
-        let sync_service = running_accounts
+        self.subscribe_to_focused_room_for_account(account_key, room_id);
+    }
+
+    pub fn clear_focused_room(&self, account_key: &str, room_id: &str) {
+        let mut focused_rooms = self
+            .focused_rooms
+            .write()
+            .expect("shell sync manager focused-rooms lock poisoned");
+
+        if focused_rooms
             .get(account_key)
-            .map(|running_account| running_account.sync_service.clone());
-        drop(running_accounts);
-
-        if let Some(sync_service) = sync_service {
-            let owned_room_id = match RoomId::parse(room_id) {
-                Ok(room_id) => room_id.clone(),
-                Err(error) => {
-                    eprintln!("Failed to parse focused room id {room_id}: {error}");
-                    return;
-                }
-            };
-
-            tauri::async_runtime::spawn(async move {
-                let room_list_service = sync_service.room_list_service();
-                room_list_service
-                    .subscribe_to_rooms(&[owned_room_id.as_ref()])
-                    .await;
-            });
+            .is_some_and(|focused_room| focused_room.room_id == room_id)
+        {
+            focused_rooms.remove(account_key);
         }
     }
 
@@ -377,6 +350,21 @@ impl ShellSyncManager {
             .map(|focused_room| focused_room.room_id.clone())
     }
 
+    fn subscribe_to_focused_room_for_account(&self, account_key: &str, room_id: &str) {
+        let running_accounts = self
+            .running_accounts
+            .read()
+            .expect("shell sync manager running-accounts lock poisoned");
+        let sync_service = running_accounts
+            .get(account_key)
+            .map(|running_account| running_account.sync_service.clone());
+        drop(running_accounts);
+
+        if let Some(sync_service) = sync_service {
+            Self::subscribe_to_focused_room(sync_service, room_id);
+        }
+    }
+
     fn subscribe_to_focused_room(sync_service: Arc<SyncService>, room_id: &str) {
         let owned_room_id = match RoomId::parse(room_id) {
             Ok(room_id) => room_id.clone(),
@@ -547,7 +535,7 @@ fn emit_session_deauthorized(app: &tauri::AppHandle, account_key: &str) {
     }
 }
 
-pub(super) fn emit_shell_room_updated(
+pub(in crate::shell) fn emit_shell_room_updated(
     app: &tauri::AppHandle,
     account_key: &str,
     room_id: &str,
@@ -565,7 +553,7 @@ pub(super) fn emit_shell_room_updated(
     }
 }
 
-pub(super) fn emit_shell_timeline_updated(
+pub(in crate::shell) fn emit_shell_timeline_updated(
     app: &tauri::AppHandle,
     account_key: &str,
     room_id: &str,
@@ -585,7 +573,7 @@ pub(super) fn emit_shell_timeline_updated(
     }
 }
 
-pub(super) fn emit_shell_typing_updated(
+pub(in crate::shell) fn emit_shell_typing_updated(
     app: &tauri::AppHandle,
     account_key: &str,
     room_id: &str,

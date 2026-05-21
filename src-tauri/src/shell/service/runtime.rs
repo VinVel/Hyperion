@@ -267,6 +267,7 @@ impl ShellSearchService {
     pub(super) async fn schedule_search_backfill(
         &self,
         client: matrix_sdk::Client,
+        sync_coordinator: super::sync_coordinator::ShellSyncCoordinator,
         account_key: &str,
         store_dir: &Path,
         room_candidates: Vec<(String, u64)>,
@@ -274,6 +275,7 @@ impl ShellSearchService {
         self.backfill_coordinator
             .schedule_recent_rooms(
                 client,
+                sync_coordinator,
                 account_key,
                 store_dir,
                 self.indexer.clone(),

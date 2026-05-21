@@ -34,14 +34,16 @@ use reqwest::Client as HttpClient;
 use crate::{
     account::AccountManager,
     shell::{
-        service::{ShellCacheState, ShellManager, ShellRoomListKind},
-        sync::ShellSyncManager,
+        service::{
+            ShellCacheState, ShellManager, ShellRoomListKind,
+            sync_coordinator::ShellSyncCoordinator,
+        },
         types::{RoomThreadSummary, SpaceSummary},
     },
     utils::{http::external_http_client, url::encode_path_segment},
 };
 
-use super::super::{room::list::snapshot_room_list_for_account, runtime::ShellDiscoveryService};
+use super::super::runtime::ShellDiscoveryService;
 
 use super::types::{
     DiscoveryEntity, DiscoveryEntityKind, DiscoverySource, InviteTarget, InviteUserToRoomRequest,
@@ -67,7 +69,7 @@ impl ShellManager {
         request: SearchDiscoveryEntitiesRequest,
     ) -> Result<Vec<DiscoveryEntity>, String> {
         self.discovery_service
-            .search_discovery_entities(app, account_manager, &self.sync_manager, request)
+            .search_discovery_entities(app, account_manager, &self.sync_coordinator, request)
             .await
     }
 
@@ -78,7 +80,7 @@ impl ShellManager {
         request: JoinDiscoveryRoomRequest,
     ) -> Result<JoinDiscoveryRoomResponse, String> {
         self.discovery_service
-            .join_discovery_room(app, account_manager, &self.sync_manager, request)
+            .join_discovery_room(app, account_manager, &self.sync_coordinator, request)
             .await
     }
 
@@ -110,7 +112,7 @@ impl ShellDiscoveryService {
         &self,
         app: &tauri::AppHandle,
         account_manager: &AccountManager,
-        sync_manager: &ShellSyncManager,
+        sync_coordinator: &ShellSyncCoordinator,
         request: SearchDiscoveryEntitiesRequest,
     ) -> Result<Vec<DiscoveryEntity>, String> {
         account_manager.ensure_loaded(app).await?;
@@ -120,8 +122,8 @@ impl ShellDiscoveryService {
 
         let limit = bounded_discovery_limit(request.limit);
         let source = request.source.unwrap_or(DiscoverySource::All);
-        let joined_rooms = joined_conversation_ids(sync_manager, &account.account_key).await?;
-        let joined_spaces = joined_space_ids(sync_manager, &account.account_key).await?;
+        let joined_rooms = joined_conversation_ids(sync_coordinator, &account.account_key).await?;
+        let joined_spaces = joined_space_ids(sync_coordinator, &account.account_key).await?;
 
         let offset = request.offset.unwrap_or_default();
         if request.kind == DiscoveryEntityKind::User {
@@ -171,7 +173,7 @@ impl ShellDiscoveryService {
         &self,
         app: &tauri::AppHandle,
         account_manager: &AccountManager,
-        sync_manager: &ShellSyncManager,
+        sync_coordinator: &ShellSyncCoordinator,
         request: JoinDiscoveryRoomRequest,
     ) -> Result<JoinDiscoveryRoomResponse, String> {
         account_manager.ensure_loaded(app).await?;
@@ -185,7 +187,7 @@ impl ShellDiscoveryService {
         let room =
             join_room_by_id_or_alias_with_timeout(&account.client, &room_or_alias, &via).await?;
 
-        ensure_sync_in_background(app, account_manager, sync_manager);
+        ensure_sync_in_background(app, account_manager, sync_coordinator);
 
         Ok(JoinDiscoveryRoomResponse {
             room_id: room.room_id().to_string(),
@@ -248,13 +250,13 @@ impl ShellDiscoveryService {
 }
 
 async fn joined_conversation_ids(
-    sync_manager: &ShellSyncManager,
+    sync_coordinator: &ShellSyncCoordinator,
     account_key: &str,
 ) -> Result<HashSet<String>, String> {
-    let rooms =
-        snapshot_room_list_for_account(sync_manager, account_key, ShellRoomListKind::Conversations)
-            .await
-            .unwrap_or_default();
+    let rooms = sync_coordinator
+        .snapshot_room_list(account_key, ShellRoomListKind::Conversations)
+        .await
+        .unwrap_or_default();
     Ok(rooms
         .into_iter()
         .map(|room| room.room_id().to_string())
@@ -262,13 +264,13 @@ async fn joined_conversation_ids(
 }
 
 async fn joined_space_ids(
-    sync_manager: &ShellSyncManager,
+    sync_coordinator: &ShellSyncCoordinator,
     account_key: &str,
 ) -> Result<HashSet<String>, String> {
-    let spaces =
-        snapshot_room_list_for_account(sync_manager, account_key, ShellRoomListKind::Spaces)
-            .await
-            .unwrap_or_default();
+    let spaces = sync_coordinator
+        .snapshot_room_list(account_key, ShellRoomListKind::Spaces)
+        .await
+        .unwrap_or_default();
     Ok(spaces
         .into_iter()
         .map(|room| room.room_id().to_string())
@@ -278,13 +280,14 @@ async fn joined_space_ids(
 fn ensure_sync_in_background(
     app: &tauri::AppHandle,
     account_manager: &AccountManager,
-    sync_manager: &ShellSyncManager,
+    sync_coordinator: &ShellSyncCoordinator,
 ) {
     let app = app.clone();
     let account_manager = account_manager.clone();
-    let sync_manager = sync_manager.clone();
+    let sync_coordinator = sync_coordinator.clone();
     tauri::async_runtime::spawn(async move {
-        if let Err(error) = ensure_active_account_sync(&app, &account_manager, &sync_manager).await
+        if let Err(error) =
+            ensure_active_account_sync(&app, &account_manager, &sync_coordinator).await
         {
             eprintln!("Failed to refresh shell discovery data in background: {error}");
         }
@@ -294,16 +297,16 @@ fn ensure_sync_in_background(
 async fn ensure_active_account_sync(
     app: &tauri::AppHandle,
     account_manager: &AccountManager,
-    sync_manager: &ShellSyncManager,
+    sync_coordinator: &ShellSyncCoordinator,
 ) -> Result<(), String> {
     account_manager.ensure_loaded(app).await?;
     let Some(account) = account_manager.active_account_client_loaded() else {
-        sync_manager.stop_all_accounts().await;
+        sync_coordinator.stop_all_accounts().await;
         return Ok(());
     };
 
-    sync_manager
-        .ensure_started_for_account(app, account_manager, account)
+    sync_coordinator
+        .ensure_account_running(app, account_manager, account)
         .await
 }
 

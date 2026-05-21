@@ -18,17 +18,14 @@ use matrix_sdk::{Room, ruma::EventId};
 use crate::{
     account::{AccountClientSnapshot, AccountManager},
     shell::{
+        service::emit_shell_room_updated,
         service::{
             DEFAULT_EVENT_CONTEXT_LIMIT, DEFAULT_TIMELINE_LIMIT, MAX_RESTORED_TIMELINE_ITEMS,
             ShellCacheState, ShellManager,
             caching::restored_timeline_limit,
-            paging::{
-                focused_timeline_page_token, load_live_room_timeline, load_paginated_room_timeline,
-                parse_timeline_page_token,
-            },
+            paging::{focused_timeline_page_token, parse_timeline_page_token},
             read_state::mark_room_read_locally,
         },
-        sync::emit_shell_room_updated,
         types::{
             GetRoomEventContextRequest, GetRoomTimelineRequest, ResolveRoomReplyPreviewRequest,
             RoomTimeline, RoomTimelineItem, RoomTimelineReplyPreview,
@@ -57,8 +54,8 @@ impl ShellManager {
             return Ok(cached_timeline);
         }
 
-        self.sync_manager
-            .ensure_started_for_account(app, account_manager, account.clone())
+        self.sync_coordinator
+            .ensure_account_running(app, account_manager, account.clone())
             .await?;
 
         let room = resolve_room(&account.client, &request.room_id)?;
@@ -100,8 +97,8 @@ impl ShellManager {
             return Err(String::from("No active account is available"));
         };
 
-        self.sync_manager
-            .ensure_started_for_account(app, account_manager, account.clone())
+        self.sync_coordinator
+            .ensure_account_running(app, account_manager, account.clone())
             .await?;
 
         let room = resolve_room(&account.client, &request.room_id)?;
@@ -111,8 +108,7 @@ impl ShellManager {
             .clone();
         let context_limit = request.context_limit.unwrap_or(DEFAULT_EVENT_CONTEXT_LIMIT);
         let mut items = self
-            .timeline_service
-            .registry()
+            .sync_coordinator
             .focused_timeline_items(&account.account_key, &room, event_id.clone(), context_limit)
             .await?;
         apply_timeline_presentation(&mut items, room.room_id().as_str());
@@ -183,27 +179,13 @@ impl ShellManager {
             ));
         }
 
-        self.sync_manager
-            .ensure_started_for_account(app, account_manager, account.clone())
+        self.sync_coordinator
+            .ensure_account_running(app, account_manager, account.clone())
             .await?;
 
         let room = resolve_room(&account.client, &request.room_id)?;
-        match super::cached_timeline_items(&room).await {
-            Ok(cached_items) => {
-                if let Some(reply_preview) =
-                    reply_preview_from_available_items(request.event_id.as_str(), &cached_items)
-                {
-                    return Ok(reply_preview);
-                }
-            }
-            Err(error) => {
-                eprintln!("Failed to inspect cached replied message preview: {error}");
-            }
-        }
-
         let focused_items = match self
-            .timeline_service
-            .registry()
+            .sync_coordinator
             .focused_timeline_items(
                 &account.account_key,
                 &room,
@@ -300,8 +282,8 @@ impl ShellManager {
             return Ok(());
         };
 
-        self.sync_manager
-            .ensure_started_for_account(app, account_manager, account.clone())
+        self.sync_coordinator
+            .ensure_account_running(app, account_manager, account.clone())
             .await?;
 
         let room = resolve_room(&account.client, &request.room_id)?;
@@ -329,7 +311,7 @@ impl ShellManager {
 
     fn prepare_room_timeline_load(&self, account: &AccountClientSnapshot, room: &Room) {
         self.mark_room_focused(&account.account_key, room.room_id().as_str());
-        self.timeline_service.schedule_room_timeline_warmup(
+        self.sync_coordinator.schedule_room_timeline_warmup(
             account.client.clone(),
             &account.account_key,
             &account.store_dir,
@@ -347,14 +329,11 @@ impl ShellManager {
     ) -> Result<(Vec<crate::shell::types::RoomTimelineItem>, Option<String>), String> {
         let page_limit = request.limit.unwrap_or(DEFAULT_TIMELINE_LIMIT);
         if request.before.is_none() {
-            self.timeline_service
-                .registry()
+            self.sync_coordinator
                 .subscribe_live_timeline_updates(app.clone(), &account.account_key, room)
                 .await?;
-            self.timeline_service
-                .registry()
-                .subscribe_typing_updates(app.clone(), &account.account_key, room)
-                .await?;
+            self.sync_coordinator
+                .subscribe_typing_updates(app.clone(), &account.account_key, room);
             let remembered_count = ShellCacheState::remembered_timeline_item_count(
                 &account.account_key,
                 &account.store_dir,
@@ -362,24 +341,20 @@ impl ShellManager {
             );
             let restored_limit =
                 restored_timeline_limit(page_limit, remembered_count, MAX_RESTORED_TIMELINE_ITEMS);
-            return load_live_room_timeline(
-                self.timeline_service.registry(),
-                &account.account_key,
-                room,
-                restored_limit,
-                page_limit,
-            )
-            .await;
+            return self
+                .sync_coordinator
+                .load_live_room_timeline(&account.account_key, room, restored_limit, page_limit)
+                .await;
         }
 
-        load_paginated_room_timeline(
-            self.timeline_service.registry(),
-            &account.account_key,
-            room,
-            page_limit,
-            request.before.as_deref(),
-        )
-        .await
+        self.sync_coordinator
+            .load_paginated_room_timeline(
+                &account.account_key,
+                room,
+                page_limit,
+                request.before.as_deref(),
+            )
+            .await
     }
 
     async fn after_room_timeline_load(
@@ -396,12 +371,11 @@ impl ShellManager {
         if request.before.is_none()
             && let Some(latest_item) = items.last()
         {
-            self.timeline_service
-                .registry()
+            self.sync_coordinator
                 .mark_live_timeline_as_read(&account.account_key, room)
                 .await?;
             mark_room_read_locally(
-                self.timeline_service.locally_read_room_state(),
+                self.sync_coordinator.locally_read_room_state(),
                 &account.account_key,
                 room.room_id().as_str(),
                 latest_item.event_id(),
@@ -464,8 +438,7 @@ impl ShellManager {
 
     async fn live_redacted_event_ids(&self, account_key: &str, room: &Room) -> Vec<String> {
         match self
-            .timeline_service
-            .registry()
+            .sync_coordinator
             .live_redacted_event_ids(account_key, room)
             .await
         {
@@ -485,8 +458,7 @@ impl ShellManager {
         context_limit: u16,
     ) -> Vec<String> {
         match self
-            .timeline_service
-            .registry()
+            .sync_coordinator
             .focused_redacted_event_ids(account_key, room, event_id, context_limit)
             .await
         {
@@ -555,17 +527,6 @@ fn reply_preview_from_focused_items(
     };
 
     reply_preview_from_timeline_item(event_id, item)
-}
-
-fn reply_preview_from_available_items(
-    event_id: &str,
-    items: &[RoomTimelineItem],
-) -> Option<RoomTimelineReplyPreview> {
-    let item = items
-        .iter()
-        .find(|candidate_item| candidate_item.event_id() == event_id)?;
-
-    Some(reply_preview_from_timeline_item(event_id.to_owned(), item))
 }
 
 fn reply_preview_from_timeline_item(

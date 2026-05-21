@@ -44,8 +44,7 @@ use crate::{
 
 use super::{
     can_send_messages, homeserver_label, latest_activity_unix_ms, latest_preview_text,
-    list::snapshot_room_list_for_account, participant_label, resolve_room, room_title,
-    timeline::cached_timeline_item_count,
+    participant_label, resolve_room, room_title, timeline::cached_timeline_item_count,
 };
 
 impl ShellManager {
@@ -75,8 +74,8 @@ impl ShellManager {
             return Ok(cached_rooms);
         }
 
-        self.sync_manager
-            .ensure_started_for_account(app, account_manager, account.clone())
+        self.sync_coordinator
+            .ensure_account_running(app, account_manager, account.clone())
             .await?;
 
         let query = normalize_query(request.search_query.as_deref());
@@ -141,6 +140,7 @@ impl ShellManager {
         self.search_service
             .schedule_search_backfill(
                 account.client.clone(),
+                self.sync_coordinator.clone(),
                 &account.account_key,
                 &account.store_dir,
                 rooms
@@ -171,8 +171,8 @@ impl ShellManager {
             return Ok(summary);
         }
 
-        self.sync_manager
-            .ensure_started_for_account(app, account_manager, account.clone())
+        self.sync_coordinator
+            .ensure_account_running(app, account_manager, account.clone())
             .await?;
 
         let room = resolve_room(&account.client, &request.room_id)?;
@@ -207,8 +207,8 @@ impl ShellManager {
             return Err(String::from("No active account is available"));
         };
 
-        self.sync_manager
-            .ensure_started_for_account(app, account_manager, account.clone())
+        self.sync_coordinator
+            .ensure_account_running(app, account_manager, account.clone())
             .await?;
 
         let body = request.body.trim();
@@ -218,14 +218,12 @@ impl ShellManager {
 
         let room = resolve_room(&account.client, &request.room_id)?;
         self.mark_room_focused(&account.account_key, room.room_id().as_str());
-        self.timeline_service
-            .registry()
+        self.sync_coordinator
             .subscribe_live_timeline_updates(app.clone(), &account.account_key, &room)
             .await?;
 
         let event_id = self
-            .timeline_service
-            .registry()
+            .sync_coordinator
             .send_live_message(
                 &account.account_key,
                 &room,
@@ -234,15 +232,14 @@ impl ShellManager {
             .await?;
 
         if let Err(error) = self
-            .timeline_service
-            .registry()
+            .sync_coordinator
             .mark_live_timeline_as_read(&account.account_key, &room)
             .await
         {
             eprintln!("Failed to mark sent room message as read: {error}");
         } else if event_id.starts_with('$') {
             mark_room_read_locally(
-                self.timeline_service.locally_read_room_state(),
+                self.sync_coordinator.locally_read_room_state(),
                 &account.account_key,
                 room.room_id().as_str(),
                 &event_id,
@@ -293,8 +290,7 @@ impl ShellManager {
         }
 
         let room = resolve_room(&account.client, &request.room_id)?;
-        self.timeline_service
-            .registry()
+        self.sync_coordinator
             .edit_live_message(
                 &account.account_key,
                 &room,
@@ -316,8 +312,7 @@ impl ShellManager {
         };
 
         let room = resolve_room(&account.client, &request.room_id)?;
-        self.timeline_service
-            .registry()
+        self.sync_coordinator
             .redact_live_message(
                 &account.account_key,
                 &room,
@@ -347,8 +342,7 @@ impl ShellManager {
         let event_id = EventId::parse(&request.event_id)
             .map_err(|error| format!("Invalid reply event id: {error}"))?
             .clone();
-        self.timeline_service
-            .registry()
+        self.sync_coordinator
             .reply_to_live_message(
                 &account.account_key,
                 &room,
@@ -375,8 +369,7 @@ impl ShellManager {
 
         let room = resolve_room(&account.client, &request.room_id)?;
         let added = self
-            .timeline_service
-            .registry()
+            .sync_coordinator
             .toggle_live_reaction(
                 &account.account_key,
                 &room,
@@ -399,13 +392,10 @@ impl ShellManager {
         };
 
         let room = resolve_room(&account.client, &request.room_id)?;
-        self.timeline_service
-            .registry()
-            .subscribe_typing_updates(app.clone(), &account.account_key, &room)
-            .await?;
-        self.timeline_service
-            .registry()
-            .send_typing_notice(&room, request.is_typing)
+        self.sync_coordinator
+            .subscribe_typing_updates(app.clone(), &account.account_key, &room);
+        self.sync_coordinator
+            .send_typing_notice(&account.account_key, &room, request.is_typing)
             .await
     }
 
@@ -432,8 +422,8 @@ impl ShellManager {
             return Ok(cached_spaces);
         }
 
-        self.sync_manager
-            .ensure_started_for_account(app, account_manager, account.clone())
+        self.sync_coordinator
+            .ensure_account_running(app, account_manager, account.clone())
             .await?;
 
         let query = normalize_query(request.search_query.as_deref());
@@ -492,7 +482,7 @@ impl ShellManager {
             .unwrap_or_default();
         let last_activity_unix_ms = latest_activity_unix_ms(room);
         let unread_count = unread_message_count_for_shell(
-            self.timeline_service.locally_read_room_state(),
+            self.sync_coordinator.locally_read_room_state(),
             account_key,
             room,
         )
@@ -541,7 +531,9 @@ impl ShellManager {
         account_key: &str,
         list_kind: ShellRoomListKind,
     ) -> Result<Vec<Room>, String> {
-        snapshot_room_list_for_account(&self.sync_manager, account_key, list_kind).await
+        self.sync_coordinator
+            .snapshot_room_list(account_key, list_kind)
+            .await
     }
 
     async fn best_effort_message_count(&self, room: &Room) -> u64 {
@@ -561,7 +553,7 @@ impl ShellManager {
             .into_iter()
             .take(RECENT_TIMELINE_WARM_ROOM_COUNT)
         {
-            self.timeline_service.schedule_room_timeline_warmup(
+            self.sync_coordinator.schedule_room_timeline_warmup(
                 client.clone(),
                 account_key,
                 store_dir,

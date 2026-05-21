@@ -12,7 +12,10 @@
 
 use crate::{account::AccountManager, shell::types::GlobalSearchIndexStatus};
 
-use super::{ShellManager, runtime::ShellSearchService, search::commands};
+use super::{
+    ShellManager, runtime::ShellSearchService, search::commands,
+    sync_coordinator::ShellSyncCoordinator,
+};
 use crate::shell::types::{GlobalSearchRequest, GlobalSearchResponse};
 
 impl ShellManager {
@@ -23,7 +26,7 @@ impl ShellManager {
         request: GlobalSearchRequest,
     ) -> Result<GlobalSearchResponse, String> {
         self.search_service
-            .global_search(app, account_manager, &self.sync_manager, request)
+            .global_search(app, account_manager, &self.sync_coordinator, request)
             .await
     }
 }
@@ -33,7 +36,7 @@ impl ShellSearchService {
         &self,
         app: &tauri::AppHandle,
         account_manager: &AccountManager,
-        sync_manager: &crate::shell::sync::ShellSyncManager,
+        sync_coordinator: &ShellSyncCoordinator,
         request: GlobalSearchRequest,
     ) -> Result<GlobalSearchResponse, String> {
         account_manager.ensure_loaded(app).await?;
@@ -46,8 +49,8 @@ impl ShellSearchService {
             });
         };
 
-        sync_manager
-            .ensure_started_for_account(app, account_manager, account.clone())
+        sync_coordinator
+            .ensure_account_running(app, account_manager, account.clone())
             .await?;
 
         let query = request.query.trim();

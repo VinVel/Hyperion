@@ -13,6 +13,4 @@
  * Project home: hyperion.velcore.net
  */
 
-mod engine;
-pub mod service;
-pub mod types;
+pub(super) use super::sync::{RoomFocusMode, RoomInterestKind, ShellSyncCoordinator};

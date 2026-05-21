@@ -31,10 +31,13 @@ use tauri::async_runtime::JoinHandle;
 use tauri::async_runtime::Mutex as AsyncMutex;
 
 use super::{
-    sync::{emit_shell_room_updated, emit_shell_timeline_updated, emit_shell_typing_updated},
+    service::{
+        emit_shell_room_updated, emit_shell_timeline_updated,
+        timeline_reconciliation::reconcile_authoritative_timeline_items,
+    },
     types::{
         RoomTimelineItem, RoomTimelineReaction, RoomTimelineReceipt, RoomTimelineReplyPreview,
-        RoomTimelineReplyPreviewState, RoomTimelineSendState, apply_timeline_presentation,
+        RoomTimelineReplyPreviewState, RoomTimelineSendState,
     },
 };
 
@@ -48,10 +51,6 @@ const TIMELINE_LATEST_EVENT_WAIT_STEP_MS: u64 = 50;
 // Restoring a remembered room depth can require multiple SDK UI pagination
 // passes because Matrix SDK may reveal cached events in smaller chunks.
 const TIMELINE_RESTORE_PAGINATION_ATTEMPTS: usize = 8;
-// Matrix SDK local echo and remote echo timestamps can differ slightly while
-// the send queue reconciles transaction IDs, so body-based fallback matching is bounded.
-const LOCAL_ECHO_RECONCILIATION_WINDOW_UNIX_MS: u64 = 120_000;
-
 #[derive(Clone, Default)]
 pub struct ShellTimelineRegistry {
     // Timeline instances are expensive live views with their own background
@@ -65,8 +64,6 @@ pub struct ShellTimelineRegistry {
     // Timeline subscriptions are the live bridge from matrix-sdk-ui into the
     // Tauri shell event stream; snapshots alone do not wake the frontend.
     live_timeline_update_handles: Arc<AsyncMutex<HashMap<String, JoinHandle<()>>>>,
-    // Typing notification subscriptions are room-scoped ephemeral bridges.
-    typing_update_handles: Arc<AsyncMutex<HashMap<String, JoinHandle<()>>>>,
 }
 
 impl ShellTimelineRegistry {
@@ -112,7 +109,7 @@ impl ShellTimelineRegistry {
         let timeline = self.live_timeline(account_key, room).await?;
         let items = timeline.items().await;
 
-        let mut shell_items = items
+        let shell_items = items
             .iter()
             .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
             .rev()
@@ -121,10 +118,11 @@ impl ShellTimelineRegistry {
             .into_iter()
             .rev()
             .collect::<Vec<RoomTimelineItem>>();
-        canonicalize_timeline_items(&mut shell_items);
-        apply_timeline_presentation(&mut shell_items, room.room_id().as_str());
-
-        Ok(shell_items)
+        Ok(reconcile_authoritative_timeline_items(
+            shell_items,
+            room.room_id().as_str(),
+            &[],
+        ))
     }
 
     pub async fn live_redacted_event_ids(
@@ -256,11 +254,15 @@ impl ShellTimelineRegistry {
     ) -> Result<(Vec<RoomTimelineItem>, bool), String> {
         let timeline = self.live_timeline(account_key, room).await?;
         let before_items = timeline.items().await;
-        let mut loaded_shell_items = before_items
+        let loaded_shell_items = before_items
             .iter()
             .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
             .collect::<Vec<_>>();
-        apply_timeline_presentation(&mut loaded_shell_items, room.room_id().as_str());
+        let loaded_shell_items = reconcile_authoritative_timeline_items(
+            loaded_shell_items,
+            room.room_id().as_str(),
+            &[],
+        );
 
         if let Some(loaded_page) =
             loaded_timeline_page(&loaded_shell_items, page_index, usize::from(limit))
@@ -282,14 +284,16 @@ impl ShellTimelineRegistry {
             .map_err(|error| format!("Failed to paginate the live room timeline: {error}"))?;
 
         let after_items = timeline.items().await;
-        let mut new_items = after_items
+        let new_items = after_items
             .iter()
             .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
             .filter(|item| !seen_item_ids.contains(item.event_id()))
             .collect::<Vec<RoomTimelineItem>>();
-        apply_timeline_presentation(&mut new_items, room.room_id().as_str());
 
-        Ok((new_items, hit_start))
+        Ok((
+            reconcile_authoritative_timeline_items(new_items, room.room_id().as_str(), &[]),
+            hit_start,
+        ))
     }
 
     pub async fn focused_timeline(
@@ -340,12 +344,15 @@ impl ShellTimelineRegistry {
             .await?;
         let items = timeline.items().await;
 
-        let mut shell_items = items
+        let shell_items = items
             .iter()
             .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
             .collect::<Vec<RoomTimelineItem>>();
-        apply_timeline_presentation(&mut shell_items, room.room_id().as_str());
-        Ok(shell_items)
+        Ok(reconcile_authoritative_timeline_items(
+            shell_items,
+            room.room_id().as_str(),
+            &[],
+        ))
     }
 
     pub async fn focused_redacted_event_ids(
@@ -376,11 +383,15 @@ impl ShellTimelineRegistry {
             .focused_timeline(account_key, room, event_id, context_limit)
             .await?;
         let before_items = timeline.items().await;
-        let mut loaded_shell_items = before_items
+        let loaded_shell_items = before_items
             .iter()
             .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
             .collect::<Vec<_>>();
-        apply_timeline_presentation(&mut loaded_shell_items, room.room_id().as_str());
+        let loaded_shell_items = reconcile_authoritative_timeline_items(
+            loaded_shell_items,
+            room.room_id().as_str(),
+            &[],
+        );
 
         if let Some(loaded_page) =
             loaded_timeline_page(&loaded_shell_items, page_index, usize::from(limit))
@@ -402,14 +413,16 @@ impl ShellTimelineRegistry {
             .map_err(|error| format!("Failed to paginate the focused room timeline: {error}"))?;
 
         let after_items = timeline.items().await;
-        let mut new_items = after_items
+        let new_items = after_items
             .iter()
             .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
             .filter(|item| !seen_item_ids.contains(item.event_id()))
             .collect::<Vec<RoomTimelineItem>>();
-        apply_timeline_presentation(&mut new_items, room.room_id().as_str());
 
-        Ok((new_items, hit_start))
+        Ok((
+            reconcile_authoritative_timeline_items(new_items, room.room_id().as_str(), &[]),
+            hit_start,
+        ))
     }
 
     pub async fn mark_live_timeline_as_read(
@@ -506,49 +519,6 @@ impl ShellTimelineRegistry {
             .map_err(|error| format!("Failed to toggle the room reaction: {error}"))
     }
 
-    pub async fn send_typing_notice(&self, room: &Room, is_typing: bool) -> Result<(), String> {
-        room.typing_notice(is_typing)
-            .await
-            .map_err(|error| format!("Failed to update typing notice: {error}"))
-    }
-
-    pub async fn subscribe_typing_updates(
-        &self,
-        app: tauri::AppHandle,
-        account_key: &str,
-        room: &Room,
-    ) -> Result<(), String> {
-        let cache_key = Self::cache_key(account_key, room.room_id().as_str());
-        {
-            let handles = self.typing_update_handles.lock().await;
-            if handles.contains_key(&cache_key) {
-                return Ok(());
-            }
-        }
-
-        let (_drop_guard, mut subscriber) = room.subscribe_to_typing_notifications();
-        let account_key = account_key.to_owned();
-        let room_id = room.room_id().to_string();
-        let update_handles = self.typing_update_handles.clone();
-        let cache_key_for_task = cache_key.clone();
-        let handle = tauri::async_runtime::spawn(async move {
-            while let Ok(typing_user_ids) = subscriber.recv().await {
-                let users = typing_user_ids
-                    .into_iter()
-                    .map(|user_id| user_id.to_string())
-                    .collect::<Vec<String>>();
-                emit_shell_typing_updated(&app, &account_key, &room_id, users);
-            }
-
-            let mut handles = update_handles.lock().await;
-            handles.remove(&cache_key_for_task);
-        });
-
-        let mut handles = self.typing_update_handles.lock().await;
-        handles.entry(cache_key).or_insert(handle);
-        Ok(())
-    }
-
     fn cache_key(account_key: &str, room_id: &str) -> String {
         format!("{account_key}::{room_id}")
     }
@@ -586,25 +556,6 @@ impl ShellTimelineRegistry {
             handle.abort();
             drop(handle.await);
         }
-
-        let removed_typing_handles = {
-            let mut handles = self.typing_update_handles.lock().await;
-            let removed_keys = handles
-                .keys()
-                .filter(|cache_key| cache_key.starts_with(&account_prefix))
-                .cloned()
-                .collect::<Vec<String>>();
-
-            removed_keys
-                .into_iter()
-                .filter_map(|cache_key| handles.remove(&cache_key))
-                .collect::<Vec<JoinHandle<()>>>()
-        };
-
-        for handle in removed_typing_handles {
-            handle.abort();
-            drop(handle.await);
-        }
     }
 
     pub async fn clear_all(&self) {
@@ -625,19 +576,6 @@ impl ShellTimelineRegistry {
         };
 
         for handle in removed_handles {
-            handle.abort();
-            drop(handle.await);
-        }
-
-        let removed_typing_handles = {
-            let mut handles = self.typing_update_handles.lock().await;
-            handles
-                .drain()
-                .map(|handle_entry| handle_entry.1)
-                .collect::<Vec<JoinHandle<()>>>()
-        };
-
-        for handle in removed_typing_handles {
             handle.abort();
             drop(handle.await);
         }
@@ -667,74 +605,11 @@ fn timeline_items_to_shell_items<'item>(
     items: impl IntoIterator<Item = &'item Arc<TimelineItem>>,
     room_id: &str,
 ) -> Vec<RoomTimelineItem> {
-    let mut shell_items = items
+    let shell_items = items
         .into_iter()
         .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
         .collect::<Vec<RoomTimelineItem>>();
-    canonicalize_timeline_items(&mut shell_items);
-    apply_timeline_presentation(&mut shell_items, room_id);
-    shell_items
-}
-
-fn canonicalize_timeline_items(items: &mut Vec<RoomTimelineItem>) {
-    let confirmed_remote_items = items
-        .iter()
-        .filter(|item| is_confirmed_own_remote_event(item))
-        .cloned()
-        .collect::<Vec<RoomTimelineItem>>();
-    let mut seen_item_ids = std::collections::HashSet::<String>::new();
-
-    items.retain(|item| {
-        if !seen_item_ids.insert(item.event_id().to_owned()) {
-            return false;
-        }
-
-        if !is_transient_local_echo(item) {
-            return true;
-        }
-
-        !confirmed_remote_items
-            .iter()
-            .any(|confirmed_item| timeline_items_represent_same_send(item, confirmed_item))
-    });
-}
-
-fn is_transient_local_echo(item: &RoomTimelineItem) -> bool {
-    item.is_own_message() && !is_remote_event_id(item.event_id())
-}
-
-fn is_confirmed_own_remote_event(item: &RoomTimelineItem) -> bool {
-    item.is_own_message()
-        && is_remote_event_id(item.event_id())
-        && item.matrix.send_state == RoomTimelineSendState::Sent
-}
-
-fn timeline_items_represent_same_send(
-    local_echo: &RoomTimelineItem,
-    confirmed_item: &RoomTimelineItem,
-) -> bool {
-    if !is_transient_local_echo(local_echo) || !is_confirmed_own_remote_event(confirmed_item) {
-        return false;
-    }
-
-    if let (Some(local_transaction_id), Some(confirmed_transaction_id)) = (
-        local_echo.matrix.transaction_id.as_deref(),
-        confirmed_item.matrix.transaction_id.as_deref(),
-    ) && local_transaction_id == confirmed_transaction_id
-    {
-        return true;
-    }
-
-    let timestamp_delta = local_echo
-        .timestamp_unix_ms()
-        .abs_diff(confirmed_item.timestamp_unix_ms());
-    local_echo.sender_id() == confirmed_item.sender_id()
-        && local_echo.body() == confirmed_item.body()
-        && timestamp_delta <= LOCAL_ECHO_RECONCILIATION_WINDOW_UNIX_MS
-}
-
-fn is_remote_event_id(event_id: &str) -> bool {
-    event_id.starts_with('$')
+    reconcile_authoritative_timeline_items(shell_items, room_id, &[])
 }
 
 fn timeline_item_id_from_string(value: &str) -> Result<TimelineEventItemId, String> {
@@ -975,8 +850,11 @@ mod tests {
         confirmed_event.matrix.transaction_id = Some(String::from("local-txn"));
         confirmed_event.matrix.send_state = RoomTimelineSendState::Sent;
 
-        let mut items = vec![local_echo, confirmed_event];
-        canonicalize_timeline_items(&mut items);
+        let items = reconcile_authoritative_timeline_items(
+            vec![local_echo, confirmed_event],
+            "!room:example.org",
+            &[],
+        );
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].event_id(), "$confirmed");
@@ -991,8 +869,11 @@ mod tests {
 
         let confirmed_event = test_timeline_item(String::from("$other"));
 
-        let mut items = vec![local_echo, confirmed_event];
-        canonicalize_timeline_items(&mut items);
+        let items = reconcile_authoritative_timeline_items(
+            vec![local_echo, confirmed_event],
+            "!room:example.org",
+            &[],
+        );
 
         assert_eq!(items.len(), 2);
     }

@@ -23,8 +23,9 @@ use super::{
     types::{SearchBackfillState, SearchRoomBackfillProgress},
 };
 use crate::{
-    shell::service::room::{
-        resolve_room, room_title, timeline::fetch_room_timeline_search_updates,
+    shell::service::{
+        room::{resolve_room, room_title},
+        sync_coordinator::ShellSyncCoordinator,
     },
     utils::time::now_unix_ms,
 };
@@ -59,6 +60,7 @@ impl SearchBackfillCoordinator {
     pub(in crate::shell::service) async fn schedule_recent_rooms(
         &self,
         client: Client,
+        sync_coordinator: ShellSyncCoordinator,
         account_key: &str,
         store_dir: &Path,
         search_indexer: SearchIndexer,
@@ -79,6 +81,7 @@ impl SearchBackfillCoordinator {
         for (room_id, _activity_timestamp) in room_candidates.into_iter().take(available_slots) {
             self.schedule_room(
                 client.clone(),
+                sync_coordinator.clone(),
                 account_key,
                 store_dir,
                 search_indexer.clone(),
@@ -124,6 +127,7 @@ impl SearchBackfillCoordinator {
     async fn schedule_room(
         &self,
         client: Client,
+        sync_coordinator: ShellSyncCoordinator,
         account_key: &str,
         store_dir: &Path,
         search_indexer: SearchIndexer,
@@ -142,7 +146,15 @@ impl SearchBackfillCoordinator {
         let coordinator = self.clone();
         let task_key_for_cleanup = task_key.clone();
         let handle = tauri::async_runtime::spawn(async move {
-            run_room_backfill(client, &account_key, &store_dir, &search_indexer, &room_id).await;
+            run_room_backfill(
+                client,
+                sync_coordinator,
+                &account_key,
+                &store_dir,
+                &search_indexer,
+                &room_id,
+            )
+            .await;
 
             let mut handles = coordinator.handles.lock().await;
             handles.remove(&task_key_for_cleanup);
@@ -164,13 +176,21 @@ impl SearchBackfillCoordinator {
 
 async fn run_room_backfill(
     client: Client,
+    sync_coordinator: ShellSyncCoordinator,
     account_key: &str,
     store_dir: &Path,
     search_indexer: &SearchIndexer,
     room_id: &str,
 ) {
-    if let Err(error) =
-        run_room_backfill_inner(client, account_key, store_dir, search_indexer, room_id).await
+    if let Err(error) = run_room_backfill_inner(
+        client,
+        &sync_coordinator,
+        account_key,
+        store_dir,
+        search_indexer,
+        room_id,
+    )
+    .await
     {
         let backfill_state = state_for_backfill_error(&error);
         eprintln!("Search backfill failed for {room_id}: {error}");
@@ -196,6 +216,7 @@ async fn run_room_backfill(
 
 async fn run_room_backfill_inner(
     client: Client,
+    sync_coordinator: &ShellSyncCoordinator,
     account_key: &str,
     store_dir: &Path,
     search_indexer: &SearchIndexer,
@@ -226,12 +247,14 @@ async fn run_room_backfill_inner(
             break;
         }
 
-        let updates = fetch_room_timeline_search_updates(
-            &room,
-            BACKFILL_PAGE_SIZE,
-            progress.backfill_token.as_deref(),
-        )
-        .await?;
+        let updates = sync_coordinator
+            .fetch_search_backfill_updates(
+                account_key,
+                &room,
+                BACKFILL_PAGE_SIZE,
+                progress.backfill_token.as_deref(),
+            )
+            .await?;
         if updates.items.is_empty()
             && updates.redacted_event_ids.is_empty()
             && updates.next_token.is_none()

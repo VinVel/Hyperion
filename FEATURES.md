@@ -50,9 +50,9 @@ Legend:
 # Messaging
 
 - [✔️] Send text messages
-- [] Edit messages
-- [] Delete/redact messages
-- [] Reply to messages
+- [✔️] Edit messages
+- [✔️] Delete/redact messages
+- [✔️] Reply to messages
 - [] Threaded conversations
 - [] Reactions
 - [] Polls
@@ -60,14 +60,12 @@ Legend:
 - [] Read receipts
 - [] Fully read markers
 - [] Presence support
-- [] Markdown formatting
+- [✔️] Markdown formatting
 - [] Code block rendering
-- [] Spoiler formatting
-- [] Rich text formatting
 - [✔️] Message search
 - [] Mentions
 - [] Room mentions
-- [] Message permalinks
+- [✔️] Message permalinks
 - [] URL previews
 - [] Stickers
 - [] Emojis / custom emoji packs

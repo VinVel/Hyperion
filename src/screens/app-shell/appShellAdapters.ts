@@ -43,13 +43,115 @@ export type RoomSummary = {
 };
 
 export type BackendRoomTimelineItem = {
+  matrix: {
+    event_id: string;
+    transaction_id?: string | null;
+    sender_id: string;
+    room_id?: string | null;
+    timestamp_unix_ms: number;
+    is_own_message: boolean;
+    content: {
+      kind: "text" | "unable_to_decrypt" | "unsupported";
+      body: string;
+      formatted_body?: string | null;
+      is_edited: boolean;
+      is_redacted: boolean;
+    };
+    send_state: "pending" | "sending" | "sent" | "failed" | "retrying";
+    decryption_state:
+      | "unencrypted"
+      | "decrypted"
+      | "unable_to_decrypt"
+      | "pending";
+    reactions: BackendRoomTimelineReaction[];
+    receipts: BackendRoomTimelineReceipt[];
+    thread?: BackendRoomTimelineThreadRelation | null;
+    attachments: BackendRoomTimelineAttachment[];
+  };
+  presentation: {
+    sender_display_name?: string | null;
+    avatar_url?: string | null;
+    group_position: RoomTimelineGroupPosition;
+    reply_preview?: BackendRoomTimelineReplyPreview | null;
+    permalink?: string | null;
+    capabilities: BackendRoomTimelineItemCapabilities;
+    compact_receipts: BackendRoomTimelineReceipt[];
+    thumbnail?: BackendRoomTimelineThumbnailState | null;
+  };
+};
+
+export type RoomTimelineGroupPosition =
+  | "standalone"
+  | "start"
+  | "middle"
+  | "end";
+
+type BackendRoomTimelineReaction = {
+  key: string;
+  count: number;
+  reacted_by_me: boolean;
+};
+
+type BackendRoomTimelineReceipt = {
+  user_id: string;
+  display_name?: string | null;
+  avatar_url?: string | null;
+  timestamp_unix_ms?: number | null;
+};
+
+type BackendRoomTimelineThreadRelation = {
+  root_event_id: string;
+  latest_event_id?: string | null;
+  reply_count: number;
+};
+
+type BackendRoomTimelineAttachment = {
   event_id: string;
-  sender_id: string;
+  media_type: "image" | "video" | "audio" | "file" | "sticker" | "unknown";
+  filename?: string | null;
+  mime_type?: string | null;
+  width?: number | null;
+  height?: number | null;
+  size_bytes?: number | null;
+};
+
+export type BackendRoomTimelineReplyPreview = {
+  event_id: string;
+  state?: BackendRoomTimelineReplyPreviewState;
+  sender_id?: string | null;
   sender_display_name?: string | null;
-  body: string;
-  timestamp_unix_ms: number;
-  is_edited?: boolean;
-  is_own_message: boolean;
+  body?: string | null;
+  is_redacted: boolean;
+};
+
+type BackendRoomTimelineReplyPreviewState =
+  | "resolved"
+  | "loading"
+  | "deleted_redacted"
+  | "inaccessible"
+  | "failed_to_load"
+  | "invalid_relation";
+
+export type RoomTimelineReplyPreviewState =
+  | "resolved"
+  | "loading"
+  | "deletedRedacted"
+  | "inaccessible"
+  | "failedToLoad"
+  | "invalidRelation";
+
+type BackendRoomTimelineItemCapabilities = {
+  can_edit: boolean;
+  can_redact: boolean;
+  can_reply: boolean;
+  can_react: boolean;
+};
+
+type BackendRoomTimelineThumbnailState = {
+  cache_key: string;
+  width?: number | null;
+  height?: number | null;
+  blurhash?: string | null;
 };
 
 export type BackendRoomTimeline = {
@@ -62,13 +164,51 @@ export type BackendRoomTimeline = {
 
 export type RoomTimelineItem = {
   id: string;
+  transactionId: string | null;
   senderId: string;
   senderDisplayName: string;
+  senderAvatarUrl: string;
   body: string;
+  formattedBody: string;
+  contentKind: "text" | "unableToDecrypt" | "unsupported";
   timestampUnixMs: number;
   timeLabel: string;
   isEdited: boolean;
+  isRedacted: boolean;
   isOwnMessage: boolean;
+  sendState: "pending" | "sending" | "sent" | "failed" | "retrying";
+  decryptionState: "unencrypted" | "decrypted" | "unableToDecrypt" | "pending";
+  groupPosition: RoomTimelineGroupPosition;
+  permalink: string;
+  canEdit: boolean;
+  canRedact: boolean;
+  canReply: boolean;
+  canReact: boolean;
+  reactions: RoomTimelineReaction[];
+  receipts: RoomTimelineReceipt[];
+  replyPreview: RoomTimelineReplyPreview | null;
+};
+
+export type RoomTimelineReaction = {
+  key: string;
+  count: number;
+  reactedByMe: boolean;
+};
+
+export type RoomTimelineReceipt = {
+  userId: string;
+  displayName: string;
+  avatarUrl: string;
+  timestampUnixMs: number | null;
+};
+
+export type RoomTimelineReplyPreview = {
+  eventId: string;
+  state: RoomTimelineReplyPreviewState;
+  senderId: string;
+  senderDisplayName: string;
+  body: string;
+  isRedacted: boolean;
 };
 
 export type RoomTimeline = {
@@ -118,20 +258,130 @@ export function mapRoomTimeline(
 ): RoomTimeline {
   return {
     roomId: backendTimeline.room_id,
-    items: backendTimeline.items.map((item) => ({
-      id: item.event_id,
-      senderId: item.sender_id,
-      senderDisplayName: item.sender_display_name?.trim() || item.sender_id,
-      body: item.body,
-      timestampUnixMs: item.timestamp_unix_ms,
-      timeLabel: formatTimelineTime(item.timestamp_unix_ms),
-      isEdited: item.is_edited ?? false,
-      isOwnMessage: item.is_own_message,
-    })),
+    items: (backendTimeline.items ?? []).map(mapRoomTimelineItem),
     nextBefore: backendTimeline.next_before ?? null,
     focusedEventId: backendTimeline.focused_event_id ?? null,
     redactedEventIds: backendTimeline.redacted_event_ids ?? [],
   };
+}
+
+function mapRoomTimelineItem(item: BackendRoomTimelineItem): RoomTimelineItem {
+  const capabilities = item.presentation.capabilities ?? {
+    can_edit: false,
+    can_redact: false,
+    can_reply: true,
+    can_react: true,
+  };
+
+  return {
+    id: item.matrix.event_id,
+    transactionId: item.matrix.transaction_id ?? null,
+    senderId: item.matrix.sender_id,
+    senderDisplayName:
+      item.presentation.sender_display_name?.trim() || item.matrix.sender_id,
+    senderAvatarUrl: item.presentation.avatar_url ?? "",
+    body: item.matrix.content.body ?? "",
+    formattedBody: item.matrix.content.formatted_body ?? "",
+    contentKind: mapTimelineContentKind(item.matrix.content.kind),
+    timestampUnixMs: item.matrix.timestamp_unix_ms,
+    timeLabel: formatTimelineTime(item.matrix.timestamp_unix_ms),
+    isEdited: item.matrix.content.is_edited,
+    isRedacted: item.matrix.content.is_redacted,
+    isOwnMessage: item.matrix.is_own_message,
+    sendState: item.matrix.send_state,
+    decryptionState: mapTimelineDecryptionState(item.matrix.decryption_state),
+    groupPosition: item.presentation.group_position,
+    permalink: item.presentation.permalink ?? "",
+    canEdit: capabilities.can_edit,
+    canRedact: capabilities.can_redact,
+    canReply: capabilities.can_reply,
+    canReact: capabilities.can_react,
+    reactions: (item.matrix.reactions ?? []).map(mapTimelineReaction),
+    receipts: (item.presentation.compact_receipts ?? []).map(
+      mapTimelineReceipt,
+    ),
+    replyPreview: item.presentation.reply_preview
+      ? mapTimelineReplyPreview(item.presentation.reply_preview)
+      : null,
+  };
+}
+
+export function mapTimelineReplyPreview(
+  replyPreview: BackendRoomTimelineReplyPreview,
+): RoomTimelineReplyPreview {
+  const senderId = replyPreview.sender_id ?? "";
+  return {
+    eventId: replyPreview.event_id,
+    state: mapReplyPreviewState(replyPreview.state),
+    senderId,
+    senderDisplayName:
+      replyPreview.sender_display_name?.trim() || senderId || "Reply",
+    body: replyPreview.body ?? "",
+    isRedacted: replyPreview.is_redacted,
+  };
+}
+
+function mapReplyPreviewState(
+  state: BackendRoomTimelineReplyPreview["state"],
+): RoomTimelineReplyPreviewState {
+  if (state === "deleted_redacted") {
+    return "deletedRedacted";
+  }
+
+  if (state === "failed_to_load") {
+    return "failedToLoad";
+  }
+
+  if (state === "invalid_relation") {
+    return "invalidRelation";
+  }
+
+  if (state === "resolved" || state === "loading" || state === "inaccessible") {
+    return state;
+  }
+
+  return "loading";
+}
+
+function mapTimelineReaction(
+  reaction: BackendRoomTimelineReaction,
+): RoomTimelineReaction {
+  return {
+    key: reaction.key,
+    count: reaction.count,
+    reactedByMe: reaction.reacted_by_me,
+  };
+}
+
+function mapTimelineReceipt(
+  receipt: BackendRoomTimelineReceipt,
+): RoomTimelineReceipt {
+  return {
+    userId: receipt.user_id,
+    displayName: receipt.display_name?.trim() || receipt.user_id,
+    avatarUrl: receipt.avatar_url ?? "",
+    timestampUnixMs: receipt.timestamp_unix_ms ?? null,
+  };
+}
+
+function mapTimelineContentKind(
+  kind: BackendRoomTimelineItem["matrix"]["content"]["kind"],
+): RoomTimelineItem["contentKind"] {
+  if (kind === "unable_to_decrypt") {
+    return "unableToDecrypt";
+  }
+
+  return kind;
+}
+
+function mapTimelineDecryptionState(
+  state: BackendRoomTimelineItem["matrix"]["decryption_state"],
+): RoomTimelineItem["decryptionState"] {
+  if (state === "unable_to_decrypt") {
+    return "unableToDecrypt";
+  }
+
+  return state;
 }
 
 export function mapSpaceSummary(

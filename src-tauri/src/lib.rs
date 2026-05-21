@@ -51,10 +51,12 @@ use shell::{
         },
     },
     types::{
-        GetRoomEventContextRequest, GetRoomSummaryRequest, GetRoomTimelineRequest,
-        GlobalSearchRequest, GlobalSearchResponse, ListRoomThreadsRequest, ListSpacesRequest,
-        RoomSummary, RoomThreadSummary, RoomTimeline, SendRoomMessageRequest,
-        SendRoomMessageResponse, SpaceSummary,
+        EditRoomMessageRequest, GetRoomEventContextRequest, GetRoomSummaryRequest,
+        GetRoomTimelineRequest, GlobalSearchRequest, GlobalSearchResponse, ListRoomThreadsRequest,
+        ListSpacesRequest, RedactRoomMessageRequest, ReplyToRoomMessageRequest,
+        ResolveRoomReplyPreviewRequest, RoomSummary, RoomThreadSummary, RoomTimeline,
+        RoomTimelineReplyPreview, SendRoomMessageRequest, SendRoomMessageResponse,
+        SetRoomTypingRequest, SpaceSummary, ToggleRoomReactionRequest, ToggleRoomReactionResponse,
     },
 };
 
@@ -211,6 +213,18 @@ async fn get_room_event_context(
 }
 
 #[tauri::command]
+async fn resolve_room_reply_preview(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: ResolveRoomReplyPreviewRequest,
+) -> Result<RoomTimelineReplyPreview, String> {
+    shell_manager
+        .resolve_room_reply_preview(&app, &account_manager, request)
+        .await
+}
+
+#[tauri::command]
 async fn send_room_message(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
@@ -219,6 +233,66 @@ async fn send_room_message(
 ) -> Result<SendRoomMessageResponse, String> {
     shell_manager
         .send_room_message(&app, &account_manager, request)
+        .await
+}
+
+#[tauri::command]
+async fn edit_room_message(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: EditRoomMessageRequest,
+) -> Result<(), String> {
+    shell_manager
+        .edit_room_message(&app, &account_manager, request)
+        .await
+}
+
+#[tauri::command]
+async fn redact_room_message(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: RedactRoomMessageRequest,
+) -> Result<(), String> {
+    shell_manager
+        .redact_room_message(&app, &account_manager, request)
+        .await
+}
+
+#[tauri::command]
+async fn reply_to_room_message(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: ReplyToRoomMessageRequest,
+) -> Result<(), String> {
+    shell_manager
+        .reply_to_room_message(&app, &account_manager, request)
+        .await
+}
+
+#[tauri::command]
+async fn toggle_room_reaction(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: ToggleRoomReactionRequest,
+) -> Result<ToggleRoomReactionResponse, String> {
+    shell_manager
+        .toggle_room_reaction(&app, &account_manager, request)
+        .await
+}
+
+#[tauri::command]
+async fn set_room_typing(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: SetRoomTypingRequest,
+) -> Result<(), String> {
+    shell_manager
+        .set_room_typing(&app, &account_manager, request)
         .await
 }
 
@@ -386,7 +460,13 @@ pub fn run() {
             get_room_summary,
             get_room_timeline,
             get_room_event_context,
+            resolve_room_reply_preview,
             send_room_message,
+            edit_room_message,
+            redact_room_message,
+            reply_to_room_message,
+            toggle_room_reaction,
+            set_room_typing,
             list_spaces,
             global_search,
             search_discovery_entities,

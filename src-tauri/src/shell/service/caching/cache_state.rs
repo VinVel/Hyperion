@@ -19,8 +19,8 @@ use std::{
 };
 
 use super::{
-    cached_room_thread_summaries, cached_room_timeline, cached_space_summaries,
-    merge_cached_room_timeline_refresh, prepend_cached_room_timeline_items,
+    cached_room_thread_summaries, cached_room_timeline, cached_room_timeline_item,
+    cached_space_summaries, merge_cached_room_timeline_refresh, prepend_cached_room_timeline_items,
     remember_room_thread_summaries, remember_room_timeline_item_count, remember_space_summaries,
     remembered_room_timeline_item_count,
 };
@@ -265,6 +265,21 @@ impl ShellCacheState {
             Ok(timeline) => timeline,
             Err(error) => {
                 eprintln!("Failed to read cached room timeline: {error}");
+                None
+            }
+        }
+    }
+
+    pub(in crate::shell::service) fn cached_room_timeline_item(
+        account_key: &str,
+        store_dir: &std::path::Path,
+        room_id: &str,
+        event_id: &str,
+    ) -> Option<crate::shell::types::RoomTimelineItem> {
+        match cached_room_timeline_item(account_key, store_dir, room_id, event_id) {
+            Ok(item) => item,
+            Err(error) => {
+                eprintln!("Failed to read cached room timeline item: {error}");
                 None
             }
         }

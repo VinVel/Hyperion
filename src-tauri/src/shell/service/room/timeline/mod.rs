@@ -60,13 +60,13 @@ pub(in crate::shell::service) async fn warm_room_recent_timeline(
 
 pub(super) async fn count_unread_messages_since(room: &Room, event_id: &str) -> Option<u64> {
     let items = cached_timeline_items(room).await.ok()?;
-    let read_event_index = items.iter().position(|item| item.event_id == event_id)?;
+    let read_event_index = items.iter().position(|item| item.event_id() == event_id)?;
 
     Some(
         items
             .iter()
             .skip(read_event_index + 1)
-            .filter(|item| !item.is_own_message)
+            .filter(|item| !item.is_own_message())
             .count() as u64,
     )
 }
@@ -88,16 +88,16 @@ pub(in crate::shell::service) async fn count_recent_unread_messages_since(
                 .await
                 .ok()?;
 
-        if let Some(read_event_index) = items.iter().position(|item| item.event_id == event_id) {
+        if let Some(read_event_index) = items.iter().position(|item| item.event_id() == event_id) {
             unread_count += items
                 .iter()
                 .skip(read_event_index + 1)
-                .filter(|item| !item.is_own_message)
+                .filter(|item| !item.is_own_message())
                 .count() as u64;
             return Some(unread_count);
         }
 
-        unread_count += items.iter().filter(|item| !item.is_own_message).count() as u64;
+        unread_count += items.iter().filter(|item| !item.is_own_message()).count() as u64;
 
         let next_from = next_from?;
         from = Some(next_from);
@@ -251,18 +251,18 @@ fn timeline_item_from_sync_event(
     let (event_id, sender_id, sender_display_name, body, is_edited) =
         message_fields_from_sync_event(parsed)?;
 
-    Some(RoomTimelineItem {
+    Some(RoomTimelineItem::text_message(
         event_id,
-        sender_id: sender_id.clone(),
+        sender_id.clone(),
         sender_display_name,
         body,
-        timestamp_unix_ms: {
+        {
             let timestamp = event.timestamp();
             timestamp.map_or(0, |timestamp| u64::from(timestamp.0))
         },
-        is_edited: Some(is_edited),
-        is_own_message: sender_id == own_user_id.as_str(),
-    })
+        is_edited,
+        sender_id == own_user_id.as_str(),
+    ))
 }
 
 fn message_fields_from_sync_event(

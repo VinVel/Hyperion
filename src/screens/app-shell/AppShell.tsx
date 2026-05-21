@@ -125,22 +125,31 @@ export default function AppShell({
             {shell.activeView === "messages" ? (
               <AppShellMessagesView
                 composerValue={shell.composerValue}
+                activeComposerMode={shell.activeComposerMode}
                 isLoadingOlderMessages={shell.isLoadingOlderMessages}
                 isSendingMessage={shell.isSendingMessage}
                 isSortMenuOpen={shell.isSortMenuOpen}
                 selectedRoomSummary={shell.selectedRoomSummary}
                 selectedThread={shell.selectedThread}
                 selectedTimeline={shell.selectedTimeline}
+                selectedTypingUsers={shell.selectedTypingUsers}
                 threadKindFilter={shell.threadKindFilter}
                 threadSort={shell.threadSort}
                 visibleThreads={shell.visibleThreads}
                 onCloseThread={shell.closeThread}
+                onBeginEditMessage={shell.beginEditMessage}
+                onBeginReplyToMessage={shell.beginReplyToMessage}
+                onCancelComposerMode={shell.cancelComposerMode}
                 onComposerChange={shell.setComposerValue}
                 onLoadOlderMessages={() => void shell.loadOlderMessages()}
                 onOpenThread={shell.selectThread}
+                onRedactMessage={(eventId) => void shell.redactMessage(eventId)}
                 onSelectSort={shell.selectSort}
                 onSendMessage={() => void shell.sendMessage()}
                 onThreadKindFilterChange={shell.setThreadKindFilter}
+                onToggleReaction={(eventId, reactionKey) =>
+                  void shell.toggleReaction(eventId, reactionKey)
+                }
                 onToggleSortMenu={shell.toggleSortMenu}
               />
             ) : null}

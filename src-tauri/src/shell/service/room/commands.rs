@@ -15,7 +15,13 @@
 
 use std::{cmp::Reverse, collections::HashSet};
 
-use matrix_sdk::{Room, ruma::events::room::message::RoomMessageEventContent};
+use matrix_sdk::{
+    Room,
+    ruma::{
+        EventId,
+        events::room::message::{RoomMessageEventContent, RoomMessageEventContentWithoutRelation},
+    },
+};
 
 use crate::{
     account::AccountManager,
@@ -26,8 +32,11 @@ use crate::{
             search::{first_visible_grapheme, matches_query, normalize_query, relative_time_label},
         },
         types::{
-            GetRoomSummaryRequest, ListRoomThreadsRequest, ListSpacesRequest, RoomSummary,
-            RoomThreadSummary, SendRoomMessageRequest, SendRoomMessageResponse, SpaceSummary,
+            EditRoomMessageRequest, GetRoomSummaryRequest, ListRoomThreadsRequest,
+            ListSpacesRequest, RedactRoomMessageRequest, ReplyToRoomMessageRequest, RoomSummary,
+            RoomThreadSummary, SendRoomMessageRequest, SendRoomMessageResponse,
+            SetRoomTypingRequest, SpaceSummary, ToggleRoomReactionRequest,
+            ToggleRoomReactionResponse,
         },
     },
     utils::time::now_unix_ms,
@@ -220,42 +229,184 @@ impl ShellManager {
             .send_live_message(
                 &account.account_key,
                 &room,
-                RoomMessageEventContent::text_plain(body).into(),
+                outbound_room_message_content(body, request.formatted_body.as_deref()).into(),
             )
             .await?;
 
-        self.timeline_service
+        if let Err(error) = self
+            .timeline_service
             .registry()
             .mark_live_timeline_as_read(&account.account_key, &room)
-            .await?;
-        mark_room_read_locally(
-            self.timeline_service.locally_read_room_state(),
-            &account.account_key,
-            room.room_id().as_str(),
-            &event_id,
-        );
-
-        let title = room_title(&room).await?;
-        let sent_item = crate::shell::types::RoomTimelineItem {
-            event_id: event_id.clone(),
-            sender_id: room.own_user_id().to_string(),
-            sender_display_name: None,
-            body: body.to_owned(),
-            timestamp_unix_ms: now_unix_ms(),
-            is_edited: Some(false),
-            is_own_message: true,
-        };
-        self.search_service
-            .index_timeline_items(
+            .await
+        {
+            eprintln!("Failed to mark sent room message as read: {error}");
+        } else if event_id.starts_with('$') {
+            mark_room_read_locally(
+                self.timeline_service.locally_read_room_state(),
                 &account.account_key,
-                &account.store_dir,
                 room.room_id().as_str(),
-                &title,
-                &[sent_item],
-            )
-            .await;
+                &event_id,
+            );
+        }
+
+        if !event_id.is_empty() {
+            let title = room_title(&room)
+                .await
+                .unwrap_or_else(|_| room.room_id().to_string());
+            let sent_item = crate::shell::types::RoomTimelineItem::text_message(
+                event_id.clone(),
+                room.own_user_id().to_string(),
+                None,
+                body.to_owned(),
+                now_unix_ms(),
+                false,
+                true,
+            );
+            self.search_service
+                .index_timeline_items(
+                    &account.account_key,
+                    &account.store_dir,
+                    room.room_id().as_str(),
+                    &title,
+                    &[sent_item],
+                )
+                .await;
+        }
 
         Ok(SendRoomMessageResponse { event_id })
+    }
+
+    pub async fn edit_room_message(
+        &self,
+        app: &tauri::AppHandle,
+        account_manager: &AccountManager,
+        request: EditRoomMessageRequest,
+    ) -> Result<(), String> {
+        account_manager.ensure_loaded(app).await?;
+        let Some(account) = account_manager.active_account_client_loaded() else {
+            return Err(String::from("No active account is available"));
+        };
+
+        let body = request.body.trim();
+        if body.is_empty() {
+            return Err(String::from("Message body must not be empty"));
+        }
+
+        let room = resolve_room(&account.client, &request.room_id)?;
+        self.timeline_service
+            .registry()
+            .edit_live_message(
+                &account.account_key,
+                &room,
+                &request.event_id,
+                outbound_room_message_without_relation(body, request.formatted_body.as_deref()),
+            )
+            .await
+    }
+
+    pub async fn redact_room_message(
+        &self,
+        app: &tauri::AppHandle,
+        account_manager: &AccountManager,
+        request: RedactRoomMessageRequest,
+    ) -> Result<(), String> {
+        account_manager.ensure_loaded(app).await?;
+        let Some(account) = account_manager.active_account_client_loaded() else {
+            return Err(String::from("No active account is available"));
+        };
+
+        let room = resolve_room(&account.client, &request.room_id)?;
+        self.timeline_service
+            .registry()
+            .redact_live_message(
+                &account.account_key,
+                &room,
+                &request.event_id,
+                request.reason.as_deref(),
+            )
+            .await
+    }
+
+    pub async fn reply_to_room_message(
+        &self,
+        app: &tauri::AppHandle,
+        account_manager: &AccountManager,
+        request: ReplyToRoomMessageRequest,
+    ) -> Result<(), String> {
+        account_manager.ensure_loaded(app).await?;
+        let Some(account) = account_manager.active_account_client_loaded() else {
+            return Err(String::from("No active account is available"));
+        };
+
+        let body = request.body.trim();
+        if body.is_empty() {
+            return Err(String::from("Message body must not be empty"));
+        }
+
+        let room = resolve_room(&account.client, &request.room_id)?;
+        let event_id = EventId::parse(&request.event_id)
+            .map_err(|error| format!("Invalid reply event id: {error}"))?
+            .clone();
+        self.timeline_service
+            .registry()
+            .reply_to_live_message(
+                &account.account_key,
+                &room,
+                event_id,
+                outbound_room_message_without_relation(body, request.formatted_body.as_deref()),
+            )
+            .await
+    }
+
+    pub async fn toggle_room_reaction(
+        &self,
+        app: &tauri::AppHandle,
+        account_manager: &AccountManager,
+        request: ToggleRoomReactionRequest,
+    ) -> Result<ToggleRoomReactionResponse, String> {
+        account_manager.ensure_loaded(app).await?;
+        let Some(account) = account_manager.active_account_client_loaded() else {
+            return Err(String::from("No active account is available"));
+        };
+
+        if request.reaction_key.trim().is_empty() {
+            return Err(String::from("Reaction key must not be empty"));
+        }
+
+        let room = resolve_room(&account.client, &request.room_id)?;
+        let added = self
+            .timeline_service
+            .registry()
+            .toggle_live_reaction(
+                &account.account_key,
+                &room,
+                &request.event_id,
+                &request.reaction_key,
+            )
+            .await?;
+        Ok(ToggleRoomReactionResponse { added })
+    }
+
+    pub async fn set_room_typing(
+        &self,
+        app: &tauri::AppHandle,
+        account_manager: &AccountManager,
+        request: SetRoomTypingRequest,
+    ) -> Result<(), String> {
+        account_manager.ensure_loaded(app).await?;
+        let Some(account) = account_manager.active_account_client_loaded() else {
+            return Err(String::from("No active account is available"));
+        };
+
+        let room = resolve_room(&account.client, &request.room_id)?;
+        self.timeline_service
+            .registry()
+            .subscribe_typing_updates(app.clone(), &account.account_key, &room)
+            .await?;
+        self.timeline_service
+            .registry()
+            .send_typing_notice(&room, request.is_typing)
+            .await
     }
 
     pub async fn list_spaces(
@@ -429,10 +580,60 @@ fn space_activity_label(activity_timestamp: u64) -> String {
     relative_time_label(activity_timestamp)
 }
 
+fn outbound_room_message_content(
+    body: &str,
+    formatted_body: Option<&str>,
+) -> RoomMessageEventContent {
+    outbound_room_message_without_relation(body, formatted_body).into()
+}
+
+fn outbound_room_message_without_relation(
+    body: &str,
+    formatted_body: Option<&str>,
+) -> RoomMessageEventContentWithoutRelation {
+    let Some(formatted_body) = formatted_body
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return RoomMessageEventContentWithoutRelation::text_plain(body);
+    };
+
+    RoomMessageEventContentWithoutRelation::text_html(body, formatted_body)
+}
+
 fn space_matches_homeserver(room: &Room, fallback_homeserver_url: &str) -> bool {
     let Some(server_name) = room.room_id().server_name() else {
         return false;
     };
 
     fallback_homeserver_url.contains(server_name.as_str())
+}
+
+#[cfg(test)]
+mod tests {
+    use matrix_sdk::ruma::events::room::message::MessageType;
+
+    use super::outbound_room_message_without_relation;
+
+    #[test]
+    fn outbound_message_uses_plain_text_without_formatted_body() {
+        let content = outbound_room_message_without_relation("Hello", None);
+        let MessageType::Text(text) = content.msgtype else {
+            panic!("expected text message content");
+        };
+
+        assert_eq!(text.body, "Hello");
+        assert!(text.formatted.is_none());
+    }
+
+    #[test]
+    fn outbound_message_serializes_matrix_html_formatting() {
+        let content =
+            outbound_room_message_without_relation("**Oh yeah**", Some("<strong>Oh yeah</strong>"));
+        let serialized = serde_json::to_value(content).expect("message content should serialize");
+
+        assert_eq!(serialized["body"], "**Oh yeah**");
+        assert_eq!(serialized["formatted_body"], "<strong>Oh yeah</strong>");
+        assert_eq!(serialized["format"], "org.matrix.custom.html");
+    }
 }

@@ -1,0 +1,327 @@
+/*
+ * Copyright (c) 2026 VinVel
+ * 
+ * SPDX-License-Identifier: AGPL-3.0-only
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, version 3 only.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ * 
+ * Project home: hyperion.velcore.net
+ */
+
+.room-timeline-host,
+.room-timeline,
+.room-timeline-empty {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.room-timeline-host {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  contain: layout paint;
+  overflow: hidden;
+}
+
+.room-timeline {
+  height: 100%;
+}
+
+.room-timeline-scroller-shell {
+  height: 100%;
+}
+
+.room-timeline-scroller {
+  height: 100%;
+  /* Virtuoso owns scroll anchoring for its measured virtual list. */
+  overflow-anchor: none;
+  overscroll-behavior: contain;
+}
+
+.room-timeline-empty {
+  display: grid;
+  gap: var(--spacing-gap-small);
+  align-content: center;
+  padding: var(--spacing-panel-padding);
+  color: var(--on-surface-variant);
+}
+
+.room-timeline-controls {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-gap-medium) 0 var(--spacing-gap-large);
+}
+
+.room-timeline-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--sizing-room-list-avatar-size) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--spacing-gap-medium);
+  padding: var(--spacing-gap-extra-small)
+    calc(var(--spacing-gap-medium) + var(--sizing-icon-button-size))
+    var(--spacing-gap-extra-small) var(--spacing-gap-medium);
+  border-radius: var(--shape-radius-small);
+}
+
+.room-timeline-row--standalone,
+.room-timeline-row--start {
+  padding-block-start: calc(
+    var(--spacing-gap-extra-small) + var(--spacing-gap-medium)
+  );
+}
+
+.room-timeline-row--middle,
+.room-timeline-row--end {
+  padding-block-start: 0;
+}
+
+.room-timeline-row--focused {
+  background: color-mix(in srgb, var(--secondary-container) 38%, transparent);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--secondary) 54%, transparent);
+}
+
+.room-timeline-actions {
+  --room-timeline-action-button-size: calc(
+    var(--sizing-icon-button-size) * 0.625
+  );
+  --room-timeline-action-icon-size: calc(var(--sizing-icon-small) * 0.875);
+  --room-timeline-action-gap: 0.125rem;
+
+  position: absolute;
+  top: var(--spacing-gap-extra-small);
+  right: var(--spacing-gap-small);
+  z-index: 3;
+  display: flex;
+  gap: var(--room-timeline-action-gap);
+  padding: var(--room-timeline-action-gap);
+  border-radius: var(--shape-radius-small);
+  background: var(--surface-container);
+  box-shadow: var(--elevation-outline-subtle);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-0.25rem);
+  transition:
+    opacity var(--motion-duration-short) var(--motion-easing-standard),
+    transform var(--motion-duration-short) var(--motion-easing-standard);
+  visibility: hidden;
+}
+
+.room-timeline-row--middle .room-timeline-actions,
+.room-timeline-row--end .room-timeline-actions {
+  /*
+   * Compact grouped rows can be shorter than the action bar. Keep the bar's
+   * overflow above the row so the final grouped message cannot create extra
+   * scrollable space below Virtuoso's measured list.
+   */
+  top: auto;
+  bottom: var(--spacing-gap-extra-small);
+}
+
+.room-timeline-row--actions-open .room-timeline-actions {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+  visibility: visible;
+}
+
+.room-timeline-actions .ui-button {
+  width: var(--room-timeline-action-button-size);
+  height: var(--room-timeline-action-button-size);
+  min-height: var(--room-timeline-action-button-size);
+  min-width: 0;
+  flex: 0 0 var(--room-timeline-action-button-size);
+  aspect-ratio: 1;
+  padding: 0;
+}
+
+.room-timeline-actions svg {
+  width: var(--room-timeline-action-icon-size);
+  height: var(--room-timeline-action-icon-size);
+}
+
+.room-timeline-avatar-slot {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--spacing-gap-extra-small);
+}
+
+.room-timeline-avatar-slot--empty {
+  padding-top: 0;
+}
+
+.room-timeline-avatar {
+  width: var(--sizing-room-list-avatar-size);
+  height: var(--sizing-room-list-avatar-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--shape-radius-circle);
+  background: var(--surface-container-high);
+  color: var(--secondary);
+  font-size: var(--typography-body-small-size);
+  font-weight: var(--typography-font-weight-bold);
+}
+
+.room-timeline-message {
+  min-width: 0;
+  display: grid;
+  gap: var(--spacing-gap-extra-small);
+}
+
+.room-timeline-message-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-gap-small);
+  min-width: 0;
+}
+
+.room-timeline-sender {
+  overflow: hidden;
+  color: var(--on-surface);
+  font-weight: var(--typography-font-weight-bold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-timeline-time,
+.room-timeline-edited {
+  color: var(--on-surface-variant);
+  font-size: var(--typography-meta-size);
+}
+
+.room-timeline-time {
+  margin-inline-start: var(--spacing-gap-extra-small);
+}
+
+.room-timeline-body-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-gap-small);
+  min-width: 0;
+}
+
+.room-timeline-reply-preview {
+  width: min(100%, 28rem);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--spacing-gap-small);
+  padding: var(--spacing-gap-small);
+  appearance: none;
+  border: none;
+  border-left: 2px solid var(--secondary);
+  border-radius: var(--shape-radius-small);
+  background: color-mix(
+    in srgb,
+    var(--surface-container-high) 72%,
+    transparent
+  );
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.room-timeline-reply-preview:hover {
+  background: var(--surface-container-high);
+}
+
+.room-timeline-reply-preview:disabled {
+  cursor: default;
+}
+
+.room-timeline-reply-author {
+  color: var(--on-surface);
+  font-weight: var(--typography-font-weight-bold);
+}
+
+.room-timeline-reply-body {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-timeline-body {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.room-timeline-body > :first-child {
+  margin-block-start: 0;
+}
+
+.room-timeline-body > :last-child {
+  margin-block-end: 0;
+}
+
+.room-timeline-body pre {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: var(--spacing-card-padding);
+  border-radius: var(--shape-radius-small);
+  background: var(--surface-container-high);
+}
+
+.room-timeline-body pre code {
+  white-space: inherit;
+}
+
+.room-timeline-body code {
+  font-family: var(--typography-font-family-code);
+}
+
+.room-timeline-body--system {
+  color: var(--on-surface-variant);
+}
+
+.room-timeline-reactions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-gap-extra-small);
+  flex-wrap: wrap;
+}
+
+.room-timeline-reaction {
+  min-height: 1.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-gap-extra-small);
+  padding: 0 var(--spacing-gap-small);
+  border: none;
+  border-radius: var(--shape-radius-small);
+  background: var(--surface-container-high);
+  color: var(--on-surface-variant);
+  cursor: pointer;
+}
+
+.room-timeline-reaction--own,
+.room-timeline-reaction:hover {
+  background: color-mix(in srgb, var(--secondary-container) 72%, transparent);
+  color: var(--on-secondary-container);
+}
+
+@media (max-width: 640px) {
+  .room-timeline-row {
+    grid-template-columns: var(--sizing-room-list-avatar-size) minmax(0, 1fr);
+    padding-inline: 0
+      calc(var(--sizing-icon-button-size) + var(--spacing-gap-small));
+  }
+
+  .room-timeline-actions .ui-button.ui-button--icon-only {
+    width: var(--room-timeline-action-button-size);
+    height: var(--room-timeline-action-button-size);
+    min-height: var(--room-timeline-action-button-size);
+    flex: 0 0 var(--room-timeline-action-button-size);
+    aspect-ratio: 1;
+  }
+}

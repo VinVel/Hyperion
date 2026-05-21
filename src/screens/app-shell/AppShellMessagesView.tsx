@@ -14,14 +14,12 @@
  */
 
 import { MessageCircleMore, SendHorizontal } from "lucide-react";
-import { type KeyboardEvent, useLayoutEffect, useRef } from "react";
+import { type KeyboardEvent } from "react";
 import {
   BackButton,
   Button,
   EmptyState,
   Pill,
-  ScrollArea,
-  type ScrollAreaHandle,
   Typography,
 } from "../../components/ui";
 import {
@@ -31,8 +29,10 @@ import {
   type RoomThreadSummary,
 } from "../conversations";
 import { type RoomSummary, type RoomTimeline } from "./appShellAdapters";
+import { RoomTimelineView } from "./timeline";
 
 type AppShellMessagesViewProps = {
+  activeComposerMode: "message" | "edit" | "reply";
   composerValue: string;
   isLoadingOlderMessages: boolean;
   isSendingMessage: boolean;
@@ -40,20 +40,27 @@ type AppShellMessagesViewProps = {
   selectedRoomSummary: RoomSummary | null;
   selectedThread: RoomThreadSummary | null;
   selectedTimeline: RoomTimeline | null;
+  selectedTypingUsers: string[];
   threadKindFilter: RoomThreadKindFilter;
   threadSort: RoomThreadSort;
   visibleThreads: RoomThreadSummary[];
+  onBeginEditMessage: (eventId: string, body: string) => void;
+  onBeginReplyToMessage: (eventId: string) => void;
+  onCancelComposerMode: () => void;
   onCloseThread: () => void;
   onComposerChange: (value: string) => void;
   onLoadOlderMessages: () => void;
   onOpenThread: (roomId: string) => void;
+  onRedactMessage: (eventId: string) => void;
   onSelectSort: (sort: RoomThreadSort) => void;
   onSendMessage: () => void;
   onThreadKindFilterChange: (value: RoomThreadKindFilter) => void;
+  onToggleReaction: (eventId: string, reactionKey: string) => void;
   onToggleSortMenu: () => void;
 };
 
 export default function AppShellMessagesView({
+  activeComposerMode,
   composerValue,
   isLoadingOlderMessages,
   isSendingMessage,
@@ -61,27 +68,36 @@ export default function AppShellMessagesView({
   selectedRoomSummary,
   selectedThread,
   selectedTimeline,
+  selectedTypingUsers,
   threadKindFilter,
   threadSort,
   visibleThreads,
+  onBeginEditMessage,
+  onBeginReplyToMessage,
+  onCancelComposerMode,
   onCloseThread,
   onComposerChange,
   onLoadOlderMessages,
   onOpenThread,
+  onRedactMessage,
   onSelectSort,
   onSendMessage,
   onThreadKindFilterChange,
+  onToggleReaction,
   onToggleSortMenu,
 }: AppShellMessagesViewProps) {
-  const timelineRef = useRef<ScrollAreaHandle | null>(null);
-  const previousTimelineRoomIdRef = useRef<string | null>(null);
   const canSendMessages = selectedRoomSummary?.canSendMessages === true;
   const composerIsEmpty = composerValue.trim().length === 0;
-  const composerPlaceholder =
-    selectedRoomSummary?.canSendMessages === false
-      ? "You cannot send messages in this room"
-      : "Send a message";
-  const messageCount = selectedTimeline?.items.length ?? 0;
+  let composerPlaceholder = "Send a message";
+  if (selectedRoomSummary?.canSendMessages === false) {
+    composerPlaceholder = "You cannot send messages in this room";
+  } else if (activeComposerMode === "edit") {
+    composerPlaceholder = "Save edited message";
+  } else if (activeComposerMode === "reply") {
+    composerPlaceholder = "Write a reply";
+  }
+  const messageCount = selectedTimeline?.items?.length ?? 0;
+  const typingLabel = typingIndicatorLabel(selectedTypingUsers ?? []);
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key !== "Enter") {
@@ -91,62 +107,6 @@ export default function AppShellMessagesView({
     event.preventDefault();
     onSendMessage();
   }
-
-  function renderTimelineItems() {
-    if (!selectedTimeline?.items.length) {
-      return (
-        <div className="app-shell-timeline-item">
-          <Typography variant="label">No messages yet</Typography>
-          <Typography variant="body">
-            No text messages are available in this room yet.
-          </Typography>
-        </div>
-      );
-    }
-
-    return selectedTimeline.items.map((item) => (
-      <div
-        key={item.id}
-        className={`app-shell-timeline-item${
-          item.isOwnMessage ? " app-shell-timeline-item--own" : ""
-        }${
-          selectedTimeline.focusedEventId === item.id
-            ? " app-shell-timeline-item--highlighted"
-            : ""
-        }`}
-      >
-        <Typography variant="label">
-          {item.senderDisplayName}
-          {item.timeLabel ? ` · ${item.timeLabel}` : ""}
-        </Typography>
-        <Typography variant="body">
-          {item.body}
-          {item.isEdited ? " (edited)" : ""}
-        </Typography>
-      </div>
-    ));
-  }
-
-  useLayoutEffect(() => {
-    const timelineElement = timelineRef.current?.getScrollElement();
-    if (!timelineElement || !selectedTimeline) {
-      previousTimelineRoomIdRef.current = selectedTimeline?.roomId ?? null;
-      return;
-    }
-
-    const roomChanged =
-      previousTimelineRoomIdRef.current !== selectedTimeline.roomId;
-    previousTimelineRoomIdRef.current = selectedTimeline.roomId;
-    if (!roomChanged || selectedTimeline.focusedEventId) {
-      return;
-    }
-
-    timelineElement.scrollTop = timelineElement.scrollHeight;
-  }, [
-    selectedTimeline?.focusedEventId,
-    selectedTimeline?.items.length,
-    selectedTimeline?.roomId,
-  ]);
 
   return (
     <>
@@ -191,34 +151,46 @@ export default function AppShellMessagesView({
               <Pill tone="secondary">{messageCount} messages</Pill>
             </header>
 
-            <ScrollArea
-              ref={timelineRef}
-              className="app-shell-room-timeline"
-              contentClassName="app-shell-room-timeline-content"
-            >
-              {selectedTimeline?.nextBefore ? (
-                <div className="app-shell-room-timeline-controls">
-                  <Button
-                    disabled={isLoadingOlderMessages}
-                    variant="secondary"
-                    onClick={onLoadOlderMessages}
-                  >
-                    {isLoadingOlderMessages
-                      ? "Loading older messages..."
-                      : "Load older messages"}
+            <RoomTimelineView
+              isLoadingOlderMessages={isLoadingOlderMessages}
+              timeline={selectedTimeline}
+              onBeginEditMessage={onBeginEditMessage}
+              onBeginReplyToMessage={onBeginReplyToMessage}
+              onLoadOlderMessages={onLoadOlderMessages}
+              onRedactMessage={onRedactMessage}
+              onToggleReaction={onToggleReaction}
+            />
+
+            <div className="app-shell-room-composer">
+              {typingLabel ? (
+                <div className="app-shell-typing-indicator" aria-live="polite">
+                  <span className="app-shell-typing-dots" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                  <Typography variant="bodySmall" muted>
+                    {typingLabel}
+                  </Typography>
+                </div>
+              ) : null}
+              {activeComposerMode !== "message" ? (
+                <div className="app-shell-composer-context">
+                  <Typography variant="bodySmall" muted>
+                    {activeComposerMode === "edit"
+                      ? "Editing message"
+                      : "Replying to message"}
+                  </Typography>
+                  <Button variant="ghost" onClick={onCancelComposerMode}>
+                    Cancel
                   </Button>
                 </div>
               ) : null}
-
-              {renderTimelineItems()}
-            </ScrollArea>
-
-            <div className="app-shell-room-composer">
               <div className="app-shell-composer-row">
                 <div className="app-shell-composer">
                   <input
                     className="app-shell-composer-input"
-                    disabled={!canSendMessages || isSendingMessage}
+                    disabled={!canSendMessages}
                     placeholder={composerPlaceholder}
                     type="text"
                     value={composerValue}
@@ -253,4 +225,20 @@ export default function AppShellMessagesView({
       </section>
     </>
   );
+}
+
+function typingIndicatorLabel(users: readonly string[] = []): string | null {
+  if (users.length === 0) {
+    return null;
+  }
+
+  if (users.length === 1) {
+    return `${users[0]} is typing`;
+  }
+
+  if (users.length === 2) {
+    return `${users[0]} and ${users[1]} are typing`;
+  }
+
+  return `${users[0]} and ${users.length - 1} others are typing`;
 }

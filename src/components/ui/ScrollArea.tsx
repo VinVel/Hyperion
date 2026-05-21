@@ -20,6 +20,7 @@ import {
   useEffect,
   useImperativeHandle,
   useRef,
+  type RefObject,
   type HTMLAttributes,
   type ReactNode,
 } from "react";
@@ -35,7 +36,13 @@ type ScrollAreaProps = HTMLAttributes<HTMLDivElement> & {
   options?: PartialOptions;
 };
 
-const defaultScrollAreaOptions: PartialOptions = {
+type UseScrollAreaOverlayParams = {
+  options?: PartialOptions;
+  rootRef: RefObject<HTMLElement | null>;
+  viewportRef: RefObject<HTMLElement | null>;
+};
+
+export const defaultScrollAreaOptions: PartialOptions = {
   scrollbars: {
     autoHide: "never",
     clickScroll: true,
@@ -45,6 +52,40 @@ const defaultScrollAreaOptions: PartialOptions = {
   },
 };
 
+export function useScrollAreaOverlay({
+  options,
+  rootRef,
+  viewportRef,
+}: UseScrollAreaOverlayParams) {
+  const [initialize, getOverlayScrollbars] = useOverlayScrollbars({
+    options: options ?? defaultScrollAreaOptions,
+    defer: true,
+  });
+
+  useEffect(() => {
+    const rootElement = rootRef.current;
+    const viewportElement = viewportRef.current;
+    if (!rootElement || !viewportElement) {
+      return;
+    }
+
+    initialize({
+      target: rootElement,
+      elements: {
+        viewport: viewportElement,
+        content: viewportElement,
+      },
+    });
+
+    return () => getOverlayScrollbars()?.destroy();
+  }, [getOverlayScrollbars, initialize, rootRef, viewportRef]);
+
+  return {
+    getScrollElement: () =>
+      getOverlayScrollbars()?.elements().viewport ?? viewportRef.current,
+  };
+}
+
 export const ScrollArea = forwardRef<ScrollAreaHandle, ScrollAreaProps>(
   function ScrollArea(
     { className, children, contentClassName, options, ...props },
@@ -52,36 +93,18 @@ export const ScrollArea = forwardRef<ScrollAreaHandle, ScrollAreaProps>(
   ) {
     const rootRef = useRef<HTMLDivElement | null>(null);
     const viewportRef = useRef<HTMLDivElement | null>(null);
-    const [initialize, getOverlayScrollbars] = useOverlayScrollbars({
-      options: options ?? defaultScrollAreaOptions,
-      defer: true,
+    const scrollAreaOverlay = useScrollAreaOverlay({
+      options,
+      rootRef,
+      viewportRef,
     });
-
-    useEffect(() => {
-      const rootElement = rootRef.current;
-      const viewportElement = viewportRef.current;
-      if (!rootElement || !viewportElement) {
-        return;
-      }
-
-      initialize({
-        target: rootElement,
-        elements: {
-          viewport: viewportElement,
-          content: viewportElement,
-        },
-      });
-
-      return () => getOverlayScrollbars()?.destroy();
-    }, [getOverlayScrollbars, initialize]);
 
     useImperativeHandle(
       ref,
       () => ({
-        getScrollElement: () =>
-          getOverlayScrollbars()?.elements().viewport ?? viewportRef.current,
+        getScrollElement: scrollAreaOverlay.getScrollElement,
       }),
-      [getOverlayScrollbars],
+      [scrollAreaOverlay.getScrollElement],
     );
 
     return (

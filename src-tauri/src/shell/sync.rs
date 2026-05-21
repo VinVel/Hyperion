@@ -34,6 +34,7 @@ use crate::{
 
 pub const SHELL_SYNC_UPDATED_EVENT: &str = "hyperion://shell-sync-updated";
 pub const SHELL_TIMELINE_UPDATED_EVENT: &str = "hyperion://shell-timeline-updated";
+pub const SHELL_TYPING_UPDATED_EVENT: &str = "hyperion://shell-typing-updated";
 pub const SHELL_SYNC_STATUS_EVENT: &str = "hyperion://shell-sync-status";
 pub const SHELL_SESSION_DEAUTHORIZED_EVENT: &str = "hyperion://session-deauthorized";
 
@@ -68,6 +69,14 @@ struct ShellTimelineUpdatedPayload {
     room_id: String,
     items: Vec<RoomTimelineItem>,
     redacted_event_ids: Vec<String>,
+    updated_at_unix_ms: u64,
+}
+
+#[derive(Clone, Serialize)]
+struct ShellTypingUpdatedPayload {
+    account_key: String,
+    room_id: String,
+    users: Vec<String>,
     updated_at_unix_ms: u64,
 }
 
@@ -573,6 +582,24 @@ pub(super) fn emit_shell_timeline_updated(
 
     if let Err(error) = app.emit(SHELL_TIMELINE_UPDATED_EVENT, payload) {
         eprintln!("Failed to emit shell timeline update event: {error}");
+    }
+}
+
+pub(super) fn emit_shell_typing_updated(
+    app: &tauri::AppHandle,
+    account_key: &str,
+    room_id: &str,
+    users: Vec<String>,
+) {
+    let payload = ShellTypingUpdatedPayload {
+        account_key: account_key.to_owned(),
+        room_id: room_id.to_owned(),
+        users,
+        updated_at_unix_ms: now_unix_ms(),
+    };
+
+    if let Err(error) = app.emit(SHELL_TYPING_UPDATED_EVENT, payload) {
+        eprintln!("Failed to emit shell typing update event: {error}");
     }
 }
 

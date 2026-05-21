@@ -29,7 +29,11 @@ use crate::{
             read_state::mark_room_read_locally,
         },
         sync::emit_shell_room_updated,
-        types::{GetRoomEventContextRequest, GetRoomTimelineRequest, RoomTimeline},
+        types::{
+            GetRoomEventContextRequest, GetRoomTimelineRequest, ResolveRoomReplyPreviewRequest,
+            RoomTimeline, RoomTimelineItem, RoomTimelineReplyPreview,
+            RoomTimelineReplyPreviewState, apply_timeline_presentation,
+        },
     },
 };
 
@@ -59,9 +63,10 @@ impl ShellManager {
 
         let room = resolve_room(&account.client, &request.room_id)?;
         self.prepare_room_timeline_load(&account, &room);
-        let (items, next_before) = self
+        let (mut items, next_before) = self
             .load_room_timeline_items(app, &account, &room, &request)
             .await?;
+        apply_timeline_presentation(&mut items, room.room_id().as_str());
         let redacted_event_ids = self
             .live_redacted_event_ids(&account.account_key, &room)
             .await;
@@ -105,11 +110,12 @@ impl ShellManager {
             .map_err(|error| format!("Invalid event id: {error}"))?
             .clone();
         let context_limit = request.context_limit.unwrap_or(DEFAULT_EVENT_CONTEXT_LIMIT);
-        let items = self
+        let mut items = self
             .timeline_service
             .registry()
             .focused_timeline_items(&account.account_key, &room, event_id.clone(), context_limit)
             .await?;
+        apply_timeline_presentation(&mut items, room.room_id().as_str());
         let title = room_title(&room).await?;
         self.search_service
             .index_timeline_items(
@@ -140,6 +146,92 @@ impl ShellManager {
         })
     }
 
+    pub async fn resolve_room_reply_preview(
+        &self,
+        app: &tauri::AppHandle,
+        account_manager: &AccountManager,
+        request: ResolveRoomReplyPreviewRequest,
+    ) -> Result<RoomTimelineReplyPreview, String> {
+        account_manager.ensure_loaded(app).await?;
+        let Some(account) = account_manager.active_account_client_loaded() else {
+            return Err(String::from("No active account is available"));
+        };
+
+        let event_id = match EventId::parse(&request.event_id) {
+            Ok(event_id) => event_id.clone(),
+            Err(_) => {
+                return Ok(RoomTimelineReplyPreview {
+                    event_id: request.event_id,
+                    state: RoomTimelineReplyPreviewState::InvalidRelation,
+                    sender_id: None,
+                    sender_display_name: None,
+                    body: None,
+                    is_redacted: false,
+                });
+            }
+        };
+
+        if let Some(cached_item) = ShellCacheState::cached_room_timeline_item(
+            &account.account_key,
+            &account.store_dir,
+            &request.room_id,
+            event_id.as_str(),
+        ) {
+            return Ok(reply_preview_from_timeline_item(
+                request.event_id,
+                &cached_item,
+            ));
+        }
+
+        self.sync_manager
+            .ensure_started_for_account(app, account_manager, account.clone())
+            .await?;
+
+        let room = resolve_room(&account.client, &request.room_id)?;
+        match super::cached_timeline_items(&room).await {
+            Ok(cached_items) => {
+                if let Some(reply_preview) =
+                    reply_preview_from_available_items(request.event_id.as_str(), &cached_items)
+                {
+                    return Ok(reply_preview);
+                }
+            }
+            Err(error) => {
+                eprintln!("Failed to inspect cached replied message preview: {error}");
+            }
+        }
+
+        let focused_items = match self
+            .timeline_service
+            .registry()
+            .focused_timeline_items(
+                &account.account_key,
+                &room,
+                event_id,
+                DEFAULT_EVENT_CONTEXT_LIMIT,
+            )
+            .await
+        {
+            Ok(items) => items,
+            Err(error) => {
+                eprintln!("Failed to resolve replied message preview: {error}");
+                return Ok(RoomTimelineReplyPreview {
+                    event_id: request.event_id,
+                    state: RoomTimelineReplyPreviewState::FailedToLoad,
+                    sender_id: None,
+                    sender_display_name: None,
+                    body: None,
+                    is_redacted: false,
+                });
+            }
+        };
+
+        Ok(reply_preview_from_focused_items(
+            request.event_id,
+            &focused_items,
+        ))
+    }
+
     fn cached_timeline_response(
         &self,
         app: &tauri::AppHandle,
@@ -160,7 +252,8 @@ impl ShellManager {
             &account.store_dir,
             &request.room_id,
         )?;
-        let (items, next_before) = cached_timeline_window(&items, next_before, request)?;
+        let (mut items, next_before) = cached_timeline_window(&items, next_before, request)?;
+        apply_timeline_presentation(&mut items, request.room_id.as_str());
 
         self.mark_room_focused(&account.account_key, &request.room_id);
         if request.before.is_none() {
@@ -213,9 +306,10 @@ impl ShellManager {
 
         let room = resolve_room(&account.client, &request.room_id)?;
         self.prepare_room_timeline_load(&account, &room);
-        let (items, next_before) = self
+        let (mut items, next_before) = self
             .load_room_timeline_items(app, &account, &room, &request)
             .await?;
+        apply_timeline_presentation(&mut items, room.room_id().as_str());
         let redacted_event_ids = self
             .live_redacted_event_ids(&account.account_key, &room)
             .await;
@@ -256,6 +350,10 @@ impl ShellManager {
             self.timeline_service
                 .registry()
                 .subscribe_live_timeline_updates(app.clone(), &account.account_key, room)
+                .await?;
+            self.timeline_service
+                .registry()
+                .subscribe_typing_updates(app.clone(), &account.account_key, room)
                 .await?;
             let remembered_count = ShellCacheState::remembered_timeline_item_count(
                 &account.account_key,
@@ -306,7 +404,7 @@ impl ShellManager {
                 self.timeline_service.locally_read_room_state(),
                 &account.account_key,
                 room.room_id().as_str(),
-                &latest_item.event_id,
+                latest_item.event_id(),
             );
         }
 
@@ -436,4 +534,132 @@ fn cached_timeline_window(
     };
 
     Some((cached_items, next_before))
+}
+
+fn reply_preview_from_focused_items(
+    event_id: String,
+    focused_items: &[RoomTimelineItem],
+) -> RoomTimelineReplyPreview {
+    let Some(item) = focused_items
+        .iter()
+        .find(|focused_item| focused_item.event_id() == event_id)
+    else {
+        return RoomTimelineReplyPreview {
+            event_id,
+            state: RoomTimelineReplyPreviewState::Inaccessible,
+            sender_id: None,
+            sender_display_name: None,
+            body: None,
+            is_redacted: false,
+        };
+    };
+
+    reply_preview_from_timeline_item(event_id, item)
+}
+
+fn reply_preview_from_available_items(
+    event_id: &str,
+    items: &[RoomTimelineItem],
+) -> Option<RoomTimelineReplyPreview> {
+    let item = items
+        .iter()
+        .find(|candidate_item| candidate_item.event_id() == event_id)?;
+
+    Some(reply_preview_from_timeline_item(event_id.to_owned(), item))
+}
+
+fn reply_preview_from_timeline_item(
+    event_id: String,
+    item: &RoomTimelineItem,
+) -> RoomTimelineReplyPreview {
+    if item.matrix.content.is_redacted {
+        return RoomTimelineReplyPreview {
+            event_id,
+            state: RoomTimelineReplyPreviewState::DeletedRedacted,
+            sender_id: Some(item.sender_id().to_owned()),
+            sender_display_name: item.sender_display_name().map(ToOwned::to_owned),
+            body: None,
+            is_redacted: true,
+        };
+    }
+
+    let body = item.body().trim();
+    if body.is_empty() {
+        return RoomTimelineReplyPreview {
+            event_id,
+            state: RoomTimelineReplyPreviewState::InvalidRelation,
+            sender_id: Some(item.sender_id().to_owned()),
+            sender_display_name: item.sender_display_name().map(ToOwned::to_owned),
+            body: None,
+            is_redacted: false,
+        };
+    }
+
+    RoomTimelineReplyPreview {
+        event_id,
+        state: RoomTimelineReplyPreviewState::Resolved,
+        sender_id: Some(item.sender_id().to_owned()),
+        sender_display_name: item.sender_display_name().map(ToOwned::to_owned),
+        body: Some(body.to_owned()),
+        is_redacted: false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::shell::types::{
+        RoomTimelineItem, RoomTimelineReplyPreviewState, RoomTimelineSendState,
+    };
+
+    use super::reply_preview_from_focused_items;
+
+    #[test]
+    fn reply_preview_resolution_reports_inaccessible_target() {
+        let preview = reply_preview_from_focused_items(String::from("$missing"), &[]);
+
+        assert_eq!(preview.state, RoomTimelineReplyPreviewState::Inaccessible);
+        assert_eq!(preview.event_id, "$missing");
+        assert!(preview.body.is_none());
+    }
+
+    #[test]
+    fn reply_preview_resolution_reports_deleted_target() {
+        let mut item = test_timeline_item("$deleted", "Deleted body");
+        item.matrix.content.is_redacted = true;
+
+        let preview = reply_preview_from_focused_items(String::from("$deleted"), &[item]);
+
+        assert_eq!(
+            preview.state,
+            RoomTimelineReplyPreviewState::DeletedRedacted
+        );
+        assert!(preview.is_redacted);
+        assert!(preview.body.is_none());
+    }
+
+    #[test]
+    fn reply_preview_resolution_reports_resolved_target() {
+        let preview = reply_preview_from_focused_items(
+            String::from("$target"),
+            &[test_timeline_item("$target", "Original body")],
+        );
+
+        assert_eq!(preview.state, RoomTimelineReplyPreviewState::Resolved);
+        assert_eq!(preview.sender_id.as_deref(), Some("@alice:example.org"));
+        assert_eq!(preview.body.as_deref(), Some("Original body"));
+    }
+
+    fn test_timeline_item(event_id: &str, body: &str) -> RoomTimelineItem {
+        let mut item = RoomTimelineItem::text_message(
+            event_id.to_owned(),
+            String::from("@alice:example.org"),
+            Some(String::from("Alice")),
+            body.to_owned(),
+            1,
+            false,
+            false,
+        );
+        item.matrix.send_state = RoomTimelineSendState::Sent;
+        item
+    }
 }

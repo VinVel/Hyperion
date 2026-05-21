@@ -77,28 +77,27 @@ pub(super) fn message_document(
     room_title: &str,
     item: &RoomTimelineItem,
 ) -> Option<SearchDocument> {
-    if item.body.trim().is_empty() || item.body == "Unable to decrypt this message" {
+    if item.body().trim().is_empty() || item.body() == "Unable to decrypt this message" {
         return None;
     }
 
     let updated_at_unix_ms = now_unix_ms();
     Some(SearchDocument {
         account_key: account_key.to_owned(),
-        document_id: message_document_id(account_key, room_id, &item.event_id),
+        document_id: message_document_id(account_key, room_id, item.event_id()),
         entity_type: SearchEntityType::Message,
         room_id: Some(room_id.to_owned()),
         space_id: None,
-        event_id: Some(item.event_id.clone()),
-        sender_id: Some(item.sender_id.clone()),
+        event_id: Some(item.event_id().to_owned()),
+        sender_id: Some(item.sender_id().to_owned()),
         user_id: None,
         title: format!("Message in {room_title}"),
         subtitle: item
-            .sender_display_name
-            .clone()
-            .unwrap_or_else(|| item.sender_id.clone()),
-        body: item.body.clone(),
-        timestamp_unix_ms: item.timestamp_unix_ms,
-        sort_timestamp_unix_ms: item.timestamp_unix_ms,
+            .sender_display_name()
+            .map_or_else(|| item.sender_id().to_owned(), ToOwned::to_owned),
+        body: item.body().to_owned(),
+        timestamp_unix_ms: item.timestamp_unix_ms(),
+        sort_timestamp_unix_ms: item.timestamp_unix_ms(),
         is_deleted: false,
         updated_at_unix_ms,
     })

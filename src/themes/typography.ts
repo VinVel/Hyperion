@@ -15,6 +15,8 @@
 
 export const typography = {
   fontFamilyBase: '"Aptos", "Segoe UI", "Noto Sans", sans-serif',
+  // Code blocks need a stable monospace stack for Markdown rendering.
+  fontFamilyCode: '"Cascadia Mono", "Consolas", "SFMono-Regular", monospace',
   fontWeightRegular: "400",
   fontWeightMedium: "600",
   fontWeightBold: "700",

@@ -44,9 +44,11 @@ import {
   globalSearchStatusNotice,
   mapGlobalSearchResponse,
 } from "./search";
+import { outboundMessageContentFromMarkdown } from "./outboundMarkdown";
 
 const SHELL_SYNC_UPDATED_EVENT = "hyperion://shell-sync-updated";
 const SHELL_TIMELINE_UPDATED_EVENT = "hyperion://shell-timeline-updated";
+const SHELL_TYPING_UPDATED_EVENT = "hyperion://shell-typing-updated";
 
 // Room-list sync can arrive in bursts, so collection refreshes need a modest
 // debounce to avoid rebuilding the whole shell too often.
@@ -73,6 +75,11 @@ const cachedRoomSnapshotsStoragePrefix = "hyperion.appShell.roomSnapshots";
 const shellStartupRetryDelayMilliseconds = [1_000, 3_000, 7_000, 15_000];
 // Keep nudging the cache/live merge path; the SDK still owns the real sync loop.
 const shellCollectionRefreshIntervalMilliseconds = 15_000;
+// Stop our typing notice shortly after the composer becomes idle.
+const roomTypingIdleMilliseconds = 1_500;
+// Local echo timestamps and remote event timestamps can differ slightly, so
+// reconcile provisional own messages within this bounded send window.
+const localEchoReconciliationWindowMilliseconds = 120_000;
 
 type ShellSyncUpdatedPayload = {
   account_key: string;
@@ -89,6 +96,13 @@ type ShellTimelineUpdatedPayload = {
   updated_at_unix_ms: number;
 };
 
+type ShellTypingUpdatedPayload = {
+  account_key: string;
+  room_id: string;
+  users: string[];
+  updated_at_unix_ms: number;
+};
+
 type TimelineJumpTarget = {
   roomId: string;
   eventId: string;
@@ -102,6 +116,12 @@ type FeedbackMessage = {
 type SelectedRoomSnapshot = {
   summary: RoomSummary;
   timeline: RoomTimeline;
+};
+
+type RoomComposerDraft = {
+  body: string;
+  editEventId: string | null;
+  replyEventId: string | null;
 };
 
 type RoomThread = ReturnType<typeof mapRoomThreadSummary>;
@@ -126,6 +146,8 @@ export type UseAppShellStateResult = {
   isSendingMessage: boolean;
   isSortMenuOpen: boolean;
   isThreadOpen: boolean;
+  activeComposerMode: "message" | "edit" | "reply";
+  selectedTypingUsers: string[];
   selectedRoomSummary: RoomSummary | null;
   selectedSpace: SpaceSummary | null;
   selectedThread: ReturnType<typeof mapRoomThreadSummary> | null;
@@ -148,7 +170,13 @@ export type UseAppShellStateResult = {
   selectSort: (sort: RoomThreadSort) => void;
   selectThread: (roomId: string) => void;
   sendMessage: () => Promise<void>;
+  beginEditMessage: (eventId: string, body: string) => void;
+  beginReplyToMessage: (eventId: string) => void;
+  cancelComposerMode: () => void;
+  redactMessage: (eventId: string) => Promise<void>;
+  toggleReaction: (eventId: string, reactionKey: string) => Promise<void>;
   setComposerValue: (value: string) => void;
+  setRoomTyping: (isTyping: boolean) => Promise<void>;
   setGlobalSearchQuery: (value: string) => void;
   setThreadKindFilter: (value: RoomThreadKindFilter) => void;
   switchAccount: (nextAccount: AccountSummary) => Promise<void>;
@@ -234,35 +262,171 @@ function emptyRoomTimeline(roomId: string): RoomTimeline {
   };
 }
 
+function normalizeRoomTimeline(timeline: RoomTimeline): RoomTimeline {
+  return {
+    ...timeline,
+    items: canonicalizeTimelineItems(
+      (timeline.items ?? []).map(normalizeRoomTimelineItem),
+    ),
+    nextBefore: timeline.nextBefore ?? null,
+    focusedEventId: timeline.focusedEventId ?? null,
+    redactedEventIds: timeline.redactedEventIds ?? [],
+  };
+}
+
+function isDurableTimelineItem(item: RoomTimelineItem): boolean {
+  return isRemoteEventId(item.id);
+}
+
+function durableRoomTimeline(timeline: RoomTimeline): RoomTimeline {
+  return {
+    ...timeline,
+    items: timeline.items.filter(isDurableTimelineItem),
+  };
+}
+
+function isRemoteEventId(eventId: string | null | undefined): boolean {
+  return eventId?.startsWith("$") === true;
+}
+
+function isTransientLocalEcho(item: RoomTimelineItem): boolean {
+  return item.isOwnMessage && !isRemoteEventId(item.id);
+}
+
+function isConfirmedOwnRemoteEvent(item: RoomTimelineItem): boolean {
+  return (
+    item.isOwnMessage && isRemoteEventId(item.id) && item.sendState === "sent"
+  );
+}
+
+function timelineItemsRepresentSameSend(
+  localEcho: RoomTimelineItem,
+  confirmedItem: RoomTimelineItem,
+): boolean {
+  if (
+    !isTransientLocalEcho(localEcho) ||
+    !isConfirmedOwnRemoteEvent(confirmedItem)
+  ) {
+    return false;
+  }
+
+  if (
+    localEcho.transactionId &&
+    confirmedItem.transactionId &&
+    localEcho.transactionId === confirmedItem.transactionId
+  ) {
+    return true;
+  }
+
+  const timestampDelta = Math.abs(
+    localEcho.timestampUnixMs - confirmedItem.timestampUnixMs,
+  );
+  return (
+    localEcho.senderId === confirmedItem.senderId &&
+    localEcho.body === confirmedItem.body &&
+    timestampDelta <= localEchoReconciliationWindowMilliseconds
+  );
+}
+
+function canonicalizeTimelineItems(
+  items: RoomTimelineItem[],
+): RoomTimelineItem[] {
+  const confirmedItems = items.filter(isConfirmedOwnRemoteEvent);
+  const seenItemIds = new Set<string>();
+
+  return items.filter((item) => {
+    if (seenItemIds.has(item.id)) {
+      return false;
+    }
+    seenItemIds.add(item.id);
+
+    if (!isTransientLocalEcho(item)) {
+      return true;
+    }
+
+    return !confirmedItems.some((confirmedItem) =>
+      timelineItemsRepresentSameSend(item, confirmedItem),
+    );
+  });
+}
+
+function normalizeRoomTimelineItem(item: RoomTimelineItem): RoomTimelineItem {
+  const senderId = item.senderId ?? "";
+  return {
+    ...item,
+    id: item.id ?? item.transactionId ?? "",
+    transactionId: item.transactionId ?? null,
+    senderId,
+    senderDisplayName: item.senderDisplayName ?? senderId,
+    senderAvatarUrl: item.senderAvatarUrl ?? "",
+    body: item.body ?? "",
+    formattedBody: item.formattedBody ?? "",
+    contentKind: item.contentKind ?? "text",
+    timestampUnixMs: item.timestampUnixMs ?? 0,
+    timeLabel: item.timeLabel ?? "",
+    isEdited: item.isEdited ?? false,
+    isRedacted: item.isRedacted ?? false,
+    isOwnMessage: item.isOwnMessage ?? false,
+    sendState: item.sendState ?? "sent",
+    decryptionState: item.decryptionState ?? "unencrypted",
+    groupPosition: item.groupPosition ?? "standalone",
+    permalink: item.permalink ?? "",
+    canEdit: item.canEdit ?? false,
+    canRedact: item.canRedact ?? false,
+    canReply: item.canReply ?? true,
+    canReact: item.canReact ?? true,
+    reactions: item.reactions ?? [],
+    receipts: item.receipts ?? [],
+    replyPreview: item.replyPreview ?? null,
+  };
+}
+
 function roomTimelineFromUpdatePayload(
   payload: ShellTimelineUpdatedPayload,
 ): RoomTimeline {
-  return mapRoomTimeline({
-    room_id: payload.room_id,
-    items: payload.items,
-    next_before: null,
-    focused_event_id: null,
-    redacted_event_ids: payload.redacted_event_ids,
-  });
+  return normalizeRoomTimeline(
+    mapRoomTimeline({
+      room_id: payload.room_id,
+      items: payload.items,
+      next_before: null,
+      focused_event_id: null,
+      redacted_event_ids: payload.redacted_event_ids,
+    }),
+  );
 }
 
 function readCachedRoomSnapshot(
   accountKey: string,
   roomId: string,
 ): SelectedRoomSnapshot | null {
-  return readCachedJson<SelectedRoomSnapshot | null>(
+  const cachedSnapshot = readCachedJson<SelectedRoomSnapshot | null>(
     cachedRoomSnapshotKey(accountKey, roomId),
     null,
   );
+  if (!cachedSnapshot) {
+    return null;
+  }
+
+  return {
+    ...cachedSnapshot,
+    timeline: durableRoomTimeline(
+      normalizeRoomTimeline(cachedSnapshot.timeline),
+    ),
+  };
 }
 
 function writeCachedRoomSnapshot(
   accountKey: string,
   roomSnapshot: SelectedRoomSnapshot,
 ) {
+  const normalizedRoomSnapshot = {
+    ...roomSnapshot,
+    timeline: durableRoomTimeline(normalizeRoomTimeline(roomSnapshot.timeline)),
+  };
+
   writeCachedJson(
-    cachedRoomSnapshotKey(accountKey, roomSnapshot.timeline.roomId),
-    roomSnapshot,
+    cachedRoomSnapshotKey(accountKey, normalizedRoomSnapshot.timeline.roomId),
+    normalizedRoomSnapshot,
   );
 }
 
@@ -308,12 +472,65 @@ function mergeOlderTimelineItems(
   currentItems: RoomTimelineItem[],
   olderItems: RoomTimelineItem[],
 ): RoomTimelineItem[] {
-  const seenItemIds = new Set(currentItems.map((item) => item.id));
-  const uniqueOlderItems = olderItems.filter(
+  const currentTimelineItems = currentItems ?? [];
+  const olderTimelineItems = olderItems ?? [];
+  const seenItemIds = new Set(currentTimelineItems.map((item) => item.id));
+  const uniqueOlderItems = olderTimelineItems.filter(
     (item) => !seenItemIds.has(item.id),
   );
 
-  return [...uniqueOlderItems, ...currentItems];
+  return canonicalizeTimelineItems([
+    ...uniqueOlderItems,
+    ...currentTimelineItems,
+  ]);
+}
+
+function isProvisionalLocalEcho(item: RoomTimelineItem): boolean {
+  return (
+    item.isOwnMessage &&
+    (item.sendState === "pending" ||
+      item.sendState === "sending" ||
+      item.sendState === "retrying")
+  );
+}
+
+function canReconcileLocalEcho(
+  localEcho: RoomTimelineItem,
+  refreshedItem: RoomTimelineItem,
+): boolean {
+  if (
+    !isProvisionalLocalEcho(localEcho) ||
+    refreshedItem.sendState !== "sent"
+  ) {
+    return false;
+  }
+
+  if (
+    localEcho.transactionId &&
+    refreshedItem.transactionId &&
+    localEcho.transactionId === refreshedItem.transactionId
+  ) {
+    return true;
+  }
+
+  const timestampDelta = Math.abs(
+    localEcho.timestampUnixMs - refreshedItem.timestampUnixMs,
+  );
+  return (
+    localEcho.isOwnMessage === refreshedItem.isOwnMessage &&
+    localEcho.senderId === refreshedItem.senderId &&
+    localEcho.body === refreshedItem.body &&
+    timestampDelta <= localEchoReconciliationWindowMilliseconds
+  );
+}
+
+function hasReconciledRemoteItem(
+  localEcho: RoomTimelineItem,
+  refreshedItems: RoomTimelineItem[],
+): boolean {
+  return refreshedItems.some((refreshedItem) =>
+    canReconcileLocalEcho(localEcho, refreshedItem),
+  );
 }
 
 function mergeTimelineRefresh(
@@ -328,22 +545,42 @@ function mergeTimelineRefresh(
     return refreshedTimeline;
   }
 
-  const redactedItemIds = new Set(refreshedTimeline.redactedEventIds);
-  const currentItemIds = new Set(currentTimeline.items.map((item) => item.id));
-  const refreshedItemsById = new Map(
-    refreshedTimeline.items.map((item) => [item.id, item]),
+  const currentItems = currentTimeline.items ?? [];
+  const refreshedItems = canonicalizeTimelineItems(
+    refreshedTimeline.items ?? [],
   );
-  const mergedItems = currentTimeline.items
-    .filter((item) => !redactedItemIds.has(item.id))
+  const redactedItemIds = new Set(refreshedTimeline.redactedEventIds ?? []);
+  const currentItemIds = new Set(currentItems.map((item) => item.id));
+  const refreshedItemsById = new Map(
+    refreshedItems.map((item) => [item.id, item]),
+  );
+  const mergedItems = currentItems
+    .filter(
+      (item) =>
+        !redactedItemIds.has(item.id) &&
+        !hasReconciledRemoteItem(item, refreshedItems),
+    )
     .map((item) => refreshedItemsById.get(item.id) ?? item);
-  const newRefreshedItems = refreshedTimeline.items.filter(
+  const newRefreshedItems = refreshedItems.filter(
     (item) => !currentItemIds.has(item.id) && !redactedItemIds.has(item.id),
   );
 
-  return {
+  const mergedTimeline = {
     ...refreshedTimeline,
     items: [...mergedItems, ...newRefreshedItems],
     nextBefore: currentTimeline.nextBefore ?? refreshedTimeline.nextBefore,
+  };
+  return {
+    ...mergedTimeline,
+    items: canonicalizeTimelineItems(mergedTimeline.items),
+  };
+}
+
+function emptyComposerDraft(): RoomComposerDraft {
+  return {
+    body: "",
+    editEventId: null,
+    replyEventId: null,
   };
 }
 
@@ -351,9 +588,13 @@ function rememberRoomSnapshot(
   currentSnapshots: Record<string, SelectedRoomSnapshot>,
   roomSnapshot: SelectedRoomSnapshot,
 ): Record<string, SelectedRoomSnapshot> {
+  const normalizedRoomSnapshot = {
+    ...roomSnapshot,
+    timeline: normalizeRoomTimeline(roomSnapshot.timeline),
+  };
   const nextSnapshots = {
     ...currentSnapshots,
-    [roomSnapshot.timeline.roomId]: roomSnapshot,
+    [normalizedRoomSnapshot.timeline.roomId]: normalizedRoomSnapshot,
   };
   const snapshotEntries = Object.entries(nextSnapshots);
   if (snapshotEntries.length <= maximumInMemoryRoomSnapshots) {
@@ -401,7 +642,13 @@ export default function useAppShellState({
   const [timelineJumpTarget, setTimelineJumpTarget] =
     useState<TimelineJumpTarget | null>(null);
   const [composerValue, setComposerValue] = useState("");
-  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [composerDraftsByRoomId, setComposerDraftsByRoomId] = useState<
+    Record<string, RoomComposerDraft>
+  >({});
+  const [typingUsersByRoomId, setTypingUsersByRoomId] = useState<
+    Record<string, string[]>
+  >({});
+  const isSendingMessage = false;
   const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
   const [threadKindFilter, setThreadKindFilter] =
     useState<RoomThreadKindFilter>("direct");
@@ -424,6 +671,23 @@ export default function useAppShellState({
   );
   const [isLoadingShell, setIsLoadingShell] = useState(true);
   const activeAccountKeyRef = useRef(activeAccount.account_key);
+  const sendMessageInFlightRef = useRef(false);
+  const composerDraftsByRoomIdRef = useRef<Record<string, RoomComposerDraft>>(
+    {},
+  );
+
+  const updateComposerDrafts = useCallback(
+    (
+      updateDrafts: (
+        currentDrafts: Record<string, RoomComposerDraft>,
+      ) => Record<string, RoomComposerDraft>,
+    ) => {
+      const nextDrafts = updateDrafts(composerDraftsByRoomIdRef.current);
+      composerDraftsByRoomIdRef.current = nextDrafts;
+      setComposerDraftsByRoomId(nextDrafts);
+    },
+    [],
+  );
 
   const clearAccountRestoringFeedback = useCallback(() => {
     setFeedbackMessage(null);
@@ -525,7 +789,7 @@ export default function useAppShellState({
 
       return {
         summary: mapRoomSummary(backendSummary),
-        timeline: mapRoomTimeline(backendTimeline),
+        timeline: normalizeRoomTimeline(mapRoomTimeline(backendTimeline)),
       };
     },
     [],
@@ -549,8 +813,10 @@ export default function useAppShellState({
     setRoomSnapshotsByRoomId({});
     setTimelineJumpTarget(null);
     setComposerValue("");
+    updateComposerDrafts(() => ({}));
+    setTypingUsersByRoomId({});
     setIsLoadingOlderMessages(false);
-  }, [activeAccount.account_key]);
+  }, [activeAccount.account_key, updateComposerDrafts]);
 
   useEffect(() => {
     let cancelled = false;
@@ -866,6 +1132,35 @@ export default function useAppShellState({
     };
   }, [globalSearchQuery, isGlobalSearchOpen]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const unlistenPromise = listen<ShellTypingUpdatedPayload>(
+      SHELL_TYPING_UPDATED_EVENT,
+      (event) => {
+        if (
+          cancelled ||
+          event.payload.account_key !== activeAccount.account_key
+        ) {
+          return;
+        }
+
+        const remoteTypingUsers = event.payload.users.filter(
+          (userId) => userId !== activeAccount.user_id,
+        );
+        setTypingUsersByRoomId((currentTypingUsers) => ({
+          ...currentTypingUsers,
+          [event.payload.room_id]: remoteTypingUsers,
+        }));
+      },
+    );
+
+    return () => {
+      cancelled = true;
+      void unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, [activeAccount.account_key, activeAccount.user_id]);
+
   const visibleThreads = useMemo(
     () => filterAndSortRoomThreads(roomThreads, threadSort, threadKindFilter),
     [roomThreads, threadKindFilter, threadSort],
@@ -878,8 +1173,21 @@ export default function useAppShellState({
     selectedRoomSummary?.id === selectedThreadId ? selectedRoomSummary : null;
   const selectedTimelineForSelectedThread =
     selectedTimeline?.roomId === selectedThreadId ? selectedTimeline : null;
+  const selectedTypingUsers = selectedThreadId
+    ? (typingUsersByRoomId[selectedThreadId] ?? [])
+    : [];
   const selectedSpace =
     spaces.find((space) => space.id === selectedSpaceId) ?? null;
+  const selectedComposerDraft = selectedThreadId
+    ? (composerDraftsByRoomId[selectedThreadId] ?? emptyComposerDraft())
+    : emptyComposerDraft();
+  let activeComposerMode: UseAppShellStateResult["activeComposerMode"] =
+    "message";
+  if (selectedComposerDraft.editEventId) {
+    activeComposerMode = "edit";
+  } else if (selectedComposerDraft.replyEventId) {
+    activeComposerMode = "reply";
+  }
   const isThreadOpen = activeView === "messages" && selectedThread !== null;
   const switchableAccounts = knownAccounts
     .filter((account) => account.account_key !== activeAccount.account_key)
@@ -890,6 +1198,62 @@ export default function useAppShellState({
       await invoke<BackendRoomThreadSummary[]>("list_room_threads");
     setRoomThreads(backendThreads.map(mapRoomThreadSummary));
   }, []);
+
+  const setRoomTyping = useCallback(
+    async (isTyping: boolean) => {
+      if (!selectedThreadId) {
+        return;
+      }
+
+      await invoke("set_room_typing", {
+        request: {
+          room_id: selectedThreadId,
+          is_typing: isTyping,
+        },
+      });
+    },
+    [selectedThreadId],
+  );
+
+  useEffect(() => {
+    if (!selectedThreadId) {
+      return;
+    }
+
+    const composerHasContent = composerValue.trim().length > 0;
+    if (!composerHasContent) {
+      void setRoomTyping(false).catch(() => {});
+      return;
+    }
+
+    void setRoomTyping(true).catch(() => {});
+    const timeoutId = window.setTimeout(() => {
+      void setRoomTyping(false).catch(() => {});
+    }, roomTypingIdleMilliseconds);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [composerValue, selectedThreadId, setRoomTyping]);
+
+  const updateComposerValue = useCallback(
+    (value: string) => {
+      setComposerValue(value);
+      if (!selectedThreadId) {
+        return;
+      }
+
+      updateComposerDrafts((currentDrafts) => ({
+        ...currentDrafts,
+        [selectedThreadId]: {
+          body: value,
+          editEventId: currentDrafts[selectedThreadId]?.editEventId ?? null,
+          replyEventId: currentDrafts[selectedThreadId]?.replyEventId ?? null,
+        },
+      }));
+    },
+    [selectedThreadId, updateComposerDrafts],
+  );
 
   const openRoomAtLatest = useCallback(
     (roomId: string) => {
@@ -908,17 +1272,27 @@ export default function useAppShellState({
       }
 
       setTimelineJumpTarget(null);
+      setComposerValue(composerDraftsByRoomId[roomId]?.body ?? "");
       setSelectedThreadId(roomId);
       setActiveView("messages");
     },
-    [activeAccount.account_key, roomSnapshotsByRoomId, roomThreads],
+    [
+      activeAccount.account_key,
+      composerDraftsByRoomId,
+      roomSnapshotsByRoomId,
+      roomThreads,
+    ],
   );
 
-  const openRoomAtEvent = useCallback((roomId: string, eventId: string) => {
-    setTimelineJumpTarget({ roomId, eventId });
-    setSelectedThreadId(roomId);
-    setActiveView("messages");
-  }, []);
+  const openRoomAtEvent = useCallback(
+    (roomId: string, eventId: string) => {
+      setTimelineJumpTarget({ roomId, eventId });
+      setComposerValue(composerDraftsByRoomId[roomId]?.body ?? "");
+      setSelectedThreadId(roomId);
+      setActiveView("messages");
+    },
+    [composerDraftsByRoomId],
+  );
 
   const reloadSelectedTimeline = useCallback(
     async (roomId: string) => {
@@ -983,42 +1357,173 @@ export default function useAppShellState({
   );
 
   const sendMessage = useCallback(async () => {
+    if (sendMessageInFlightRef.current) {
+      return;
+    }
+
     if (!selectedThreadId) {
       return;
     }
 
-    const body = composerValue.trim();
-    if (body.length === 0) {
+    const currentDraft =
+      composerDraftsByRoomIdRef.current[selectedThreadId] ??
+      emptyComposerDraft();
+    const submittedComposerValue = currentDraft.body;
+    const outboundContent = outboundMessageContentFromMarkdown(
+      submittedComposerValue,
+    );
+    if (outboundContent.body.length === 0) {
       return;
     }
 
-    setIsSendingMessage(true);
+    sendMessageInFlightRef.current = true;
+    setComposerValue("");
+    updateComposerDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [selectedThreadId]: emptyComposerDraft(),
+    }));
+    setTimelineJumpTarget(null);
+    sendMessageInFlightRef.current = false;
 
     try {
-      await invoke("send_room_message", {
-        request: {
-          room_id: selectedThreadId,
-          body,
-        },
-      });
+      if (currentDraft.editEventId) {
+        await invoke("edit_room_message", {
+          request: {
+            room_id: selectedThreadId,
+            event_id: currentDraft.editEventId,
+            ...outboundContent,
+          },
+        });
+      } else if (currentDraft.replyEventId) {
+        await invoke("reply_to_room_message", {
+          request: {
+            room_id: selectedThreadId,
+            event_id: currentDraft.replyEventId,
+            ...outboundContent,
+          },
+        });
+      } else {
+        await invoke("send_room_message", {
+          request: {
+            room_id: selectedThreadId,
+            ...outboundContent,
+          },
+        });
+      }
 
-      setComposerValue("");
-      setTimelineJumpTarget(null);
-      await Promise.all([
-        reloadSelectedTimeline(selectedThreadId),
-        refreshRoomThreadsAfterSend(),
-      ]);
+      void refreshRoomThreadsAfterSend().catch(() => {});
     } catch {
       setGenericErrorFeedback(setFeedbackMessage, "Message could not be sent.");
-    } finally {
-      setIsSendingMessage(false);
     }
-  }, [
-    composerValue,
-    refreshRoomThreadsAfterSend,
-    reloadSelectedTimeline,
-    selectedThreadId,
-  ]);
+  }, [refreshRoomThreadsAfterSend, selectedThreadId, updateComposerDrafts]);
+
+  const beginEditMessage = useCallback(
+    (eventId: string, body: string) => {
+      if (!selectedThreadId) {
+        return;
+      }
+
+      setComposerValue(body);
+      updateComposerDrafts((currentDrafts) => ({
+        ...currentDrafts,
+        [selectedThreadId]: {
+          body,
+          editEventId: eventId,
+          replyEventId: null,
+        },
+      }));
+    },
+    [selectedThreadId, updateComposerDrafts],
+  );
+
+  const beginReplyToMessage = useCallback(
+    (eventId: string) => {
+      if (!selectedThreadId) {
+        return;
+      }
+
+      updateComposerDrafts((currentDrafts) => ({
+        ...currentDrafts,
+        [selectedThreadId]: {
+          body: currentDrafts[selectedThreadId]?.body ?? composerValue,
+          editEventId: null,
+          replyEventId: eventId,
+        },
+      }));
+    },
+    [composerValue, selectedThreadId, updateComposerDrafts],
+  );
+
+  const cancelComposerMode = useCallback(() => {
+    if (!selectedThreadId) {
+      return;
+    }
+
+    const currentDraft =
+      composerDraftsByRoomIdRef.current[selectedThreadId] ??
+      emptyComposerDraft();
+    const nextBody = currentDraft.editEventId
+      ? ""
+      : currentDraft.body || composerValue;
+    setComposerValue(nextBody);
+    updateComposerDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [selectedThreadId]: {
+        body: nextBody,
+        editEventId: null,
+        replyEventId: null,
+      },
+    }));
+  }, [composerValue, selectedThreadId, updateComposerDrafts]);
+
+  const redactMessage = useCallback(
+    async (eventId: string) => {
+      if (!selectedThreadId) {
+        return;
+      }
+
+      try {
+        await invoke("redact_room_message", {
+          request: {
+            room_id: selectedThreadId,
+            event_id: eventId,
+            reason: null,
+          },
+        });
+        await reloadSelectedTimeline(selectedThreadId);
+      } catch {
+        setGenericErrorFeedback(
+          setFeedbackMessage,
+          "Message could not be deleted.",
+        );
+      }
+    },
+    [reloadSelectedTimeline, selectedThreadId],
+  );
+
+  const toggleReaction = useCallback(
+    async (eventId: string, reactionKey: string) => {
+      if (!selectedThreadId) {
+        return;
+      }
+
+      try {
+        await invoke("toggle_room_reaction", {
+          request: {
+            room_id: selectedThreadId,
+            event_id: eventId,
+            reaction_key: reactionKey,
+          },
+        });
+      } catch {
+        setGenericErrorFeedback(
+          setFeedbackMessage,
+          "Reaction could not be updated.",
+        );
+      }
+    },
+    [selectedThreadId],
+  );
 
   const loadOlderMessages = useCallback(async () => {
     if (
@@ -1212,6 +1717,8 @@ export default function useAppShellState({
     isSendingMessage,
     isSortMenuOpen,
     isThreadOpen,
+    activeComposerMode,
+    selectedTypingUsers,
     selectedRoomSummary: selectedRoomSummaryForSelectedThread,
     selectedSpace,
     selectedThread,
@@ -1225,6 +1732,9 @@ export default function useAppShellState({
     closeGlobalSearch: () => setIsGlobalSearchOpen(false),
     closeDiscovery,
     closeThread: () => setSelectedThreadId(null),
+    beginEditMessage,
+    beginReplyToMessage,
+    cancelComposerMode,
     handleGlobalSearchResult,
     handleDiscoveryError,
     handleDiscoveryInviteSent,
@@ -1242,12 +1752,15 @@ export default function useAppShellState({
     selectSpace: setSelectedSpaceId,
     selectThread: openRoomAtLatest,
     sendMessage,
-    setComposerValue,
+    redactMessage,
+    setRoomTyping,
+    setComposerValue: updateComposerValue,
     setGlobalSearchQuery,
     setThreadKindFilter,
     switchAccount,
     toggleAccountCenter: () =>
       setIsAccountCenterOpen((currentValue) => !currentValue),
     toggleSortMenu: () => setIsSortMenuOpen((currentValue) => !currentValue),
+    toggleReaction,
   };
 }

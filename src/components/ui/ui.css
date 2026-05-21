@@ -148,11 +148,7 @@
     var(--on-surface-variant) 56%,
     transparent
   );
-  --os-handle-bg-hover: color-mix(
-    in srgb,
-    var(--on-surface-variant) 72%,
-    transparent
-  );
+  --os-handle-bg-hover: color-mix(in srgb, var(--primary) 68%, transparent);
   --os-handle-bg-active: color-mix(in srgb, var(--primary) 84%, transparent);
   --os-handle-border-radius: var(--shape-radius-round);
   --os-handle-min-size: 2.25rem;
@@ -901,6 +897,21 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  gap: var(--spacing-gap-medium);
+}
+
+.ui-app-error-boundary {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: var(--spacing-panel-padding);
+  background: var(--surface);
+}
+
+.ui-app-error-boundary__content {
+  max-width: 32rem;
+  display: grid;
+  justify-items: start;
   gap: var(--spacing-gap-medium);
 }
 

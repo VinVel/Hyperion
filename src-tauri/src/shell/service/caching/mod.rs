@@ -367,27 +367,72 @@ pub(super) fn cached_room_timeline(
         .map_err(|error| format!("Failed to prepare cached room timeline query: {error}"))?;
     let rows = statement
         .query_map(params![account_key, room_id], |row| {
-            Ok(RoomTimelineItem {
-                event_id: row.get(0)?,
-                sender_id: row.get(1)?,
-                sender_display_name: row.get(2)?,
-                body: row.get(3)?,
-                timestamp_unix_ms: row.get(4)?,
-                is_edited: row.get(5)?,
-                is_own_message: row.get(6)?,
-            })
+            Ok(RoomTimelineItem::text_message(
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get::<_, Option<bool>>(5)?.unwrap_or(false),
+                row.get(6)?,
+            ))
         })
         .map_err(|error| format!("Failed to read cached room timeline rows: {error}"))?;
 
     let mut items = Vec::new();
     for row in rows {
-        items.push(row.map_err(|error| format!("Cached room timeline row is invalid: {error}"))?);
+        let item = row.map_err(|error| format!("Cached room timeline row is invalid: {error}"))?;
+        if cached_timeline_item_is_durable(&item) {
+            items.push(item);
+        }
     }
     if items.is_empty() {
         return Ok(None);
     }
 
     Ok(Some((items, next_before)))
+}
+
+pub(super) fn cached_room_timeline_item(
+    account_key: &str,
+    store_dir: &Path,
+    room_id: &str,
+    event_id: &str,
+) -> Result<Option<RoomTimelineItem>, String> {
+    let connection = open_timeline_view_state_connection(store_dir)?;
+    let item = connection
+        .query_row(
+            r"
+            SELECT
+                event_id,
+                sender_id,
+                sender_display_name,
+                body,
+                timestamp_unix_ms,
+                is_edited,
+                is_own_message
+            FROM cached_room_timeline_items
+            WHERE account_key = ?1
+              AND room_id = ?2
+              AND event_id = ?3
+            ",
+            params![account_key, room_id, event_id],
+            |row| {
+                Ok(RoomTimelineItem::text_message(
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get::<_, Option<bool>>(5)?.unwrap_or(false),
+                    row.get(6)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|error| format!("Failed to read cached timeline item: {error}"))?;
+
+    Ok(item.filter(cached_timeline_item_is_durable))
 }
 
 pub(super) fn merge_cached_room_timeline_refresh(
@@ -416,18 +461,18 @@ pub(super) fn merge_cached_room_timeline_refresh(
         .collect::<std::collections::HashSet<&str>>();
     let cached_event_ids = cached_items
         .iter()
-        .map(|item| item.event_id.as_str())
+        .map(RoomTimelineItem::event_id)
         .collect::<std::collections::HashSet<&str>>();
     let refreshed_items_by_id = refreshed_items
         .iter()
-        .map(|item| (item.event_id.as_str(), item))
+        .map(|item| (item.event_id(), item))
         .collect::<std::collections::HashMap<&str, &RoomTimelineItem>>();
     let mut merged_items = cached_items
         .iter()
-        .filter(|item| !redacted_event_ids.contains(item.event_id.as_str()))
+        .filter(|item| !redacted_event_ids.contains(item.event_id()))
         .map(|item| {
             refreshed_items_by_id
-                .get(item.event_id.as_str())
+                .get(item.event_id())
                 .map_or_else(|| item.clone(), |refreshed_item| (*refreshed_item).clone())
         })
         .collect::<Vec<RoomTimelineItem>>();
@@ -436,8 +481,8 @@ pub(super) fn merge_cached_room_timeline_refresh(
         refreshed_items
             .iter()
             .filter(|item| {
-                !cached_event_ids.contains(item.event_id.as_str())
-                    && !redacted_event_ids.contains(item.event_id.as_str())
+                !cached_event_ids.contains(item.event_id())
+                    && !redacted_event_ids.contains(item.event_id())
             })
             .cloned(),
     );
@@ -472,11 +517,11 @@ pub(super) fn prepend_cached_room_timeline_items(
 
     let mut seen_event_ids = cached_items
         .iter()
-        .map(|item| item.event_id.clone())
+        .map(|item| item.event_id().to_owned())
         .collect::<std::collections::HashSet<String>>();
     let mut merged_items: Vec<RoomTimelineItem> = Vec::new();
     for item in older_items {
-        if seen_event_ids.insert(item.event_id.clone()) {
+        if seen_event_ids.insert(item.event_id().to_owned()) {
             merged_items.push(item.clone());
         }
     }
@@ -492,6 +537,10 @@ fn write_cached_room_timeline(
     items: &[RoomTimelineItem],
     next_before: Option<&str>,
 ) -> Result<(), String> {
+    let durable_items = items
+        .iter()
+        .filter(|item| cached_timeline_item_is_durable(item))
+        .collect::<Vec<&RoomTimelineItem>>();
     let mut connection = open_timeline_view_state_connection(store_dir)?;
     let transaction = connection
         .transaction()
@@ -550,21 +599,21 @@ fn write_cached_room_timeline(
                 ",
             )
             .map_err(|error| format!("Failed to prepare cached timeline write: {error}"))?;
-        for (item_index, item) in items.iter().enumerate() {
+        for (item_index, item) in durable_items.iter().enumerate() {
             statement
                 .execute(params![
                     account_key,
                     room_id,
                     i64::try_from(item_index)
                         .map_err(|error| format!("Timeline item index is too large: {error}"))?,
-                    item.event_id,
-                    item.sender_id,
-                    item.sender_display_name,
-                    item.body,
-                    i64::try_from(item.timestamp_unix_ms)
+                    item.event_id(),
+                    item.sender_id(),
+                    item.sender_display_name(),
+                    item.body(),
+                    i64::try_from(item.timestamp_unix_ms())
                         .map_err(|error| format!("Timeline timestamp is too large: {error}"))?,
-                    item.is_edited,
-                    item.is_own_message,
+                    item.is_edited(),
+                    item.is_own_message(),
                 ])
                 .map_err(|error| format!("Failed to write cached timeline item: {error}"))?;
         }
@@ -574,6 +623,10 @@ fn write_cached_room_timeline(
         .commit()
         .map_err(|error| format!("Failed to commit cached timeline transaction: {error}"))?;
     Ok(())
+}
+
+fn cached_timeline_item_is_durable(item: &RoomTimelineItem) -> bool {
+    item.event_id().starts_with('$')
 }
 
 fn open_timeline_view_state_connection(store_dir: &Path) -> Result<Connection, String> {
@@ -793,11 +846,41 @@ mod tests {
         assert_eq!(
             items
                 .iter()
-                .map(|item| item.event_id.as_str())
+                .map(RoomTimelineItem::event_id)
                 .collect::<Vec<&str>>(),
             vec!["$1", "$2", "$3"]
         );
         assert_eq!(next_before, Some(timeline_page_token(2)));
+
+        remove_test_dir(&store_root).unwrap();
+    }
+
+    #[test]
+    fn cached_room_timeline_item_reads_direct_event_identity() {
+        let store_root = unique_test_dir();
+        let store_dir = store_root.join("store");
+        fs::create_dir_all(&store_dir).unwrap();
+        let items = vec![test_timeline_item("$1"), test_timeline_item("$2")];
+
+        merge_cached_room_timeline_refresh(
+            ACCOUNT_KEY,
+            &store_dir,
+            ROOM_ID,
+            &items,
+            Some(&timeline_page_token(1)),
+            &[],
+        )
+        .unwrap();
+
+        let item = cached_room_timeline_item(ACCOUNT_KEY, &store_dir, ROOM_ID, "$2")
+            .unwrap()
+            .unwrap();
+        assert_eq!(item.event_id(), "$2");
+        assert!(
+            cached_room_timeline_item(ACCOUNT_KEY, &store_dir, ROOM_ID, "$missing")
+                .unwrap()
+                .is_none()
+        );
 
         remove_test_dir(&store_root).unwrap();
     }
@@ -813,8 +896,8 @@ mod tests {
             test_timeline_item("$3"),
         ];
         let mut edited_item = test_timeline_item("$2");
-        edited_item.body = String::from("Edited body");
-        edited_item.is_edited = Some(true);
+        edited_item.set_body(String::from("Edited body"));
+        edited_item.set_edited(true);
         let refreshed_items = vec![edited_item, test_timeline_item("$4")];
 
         merge_cached_room_timeline_refresh(
@@ -842,15 +925,49 @@ mod tests {
         assert_eq!(
             items
                 .iter()
-                .map(|item| (item.event_id.as_str(), item.body.as_str(), item.is_edited))
-                .collect::<Vec<(&str, &str, Option<bool>)>>(),
+                .map(|item| (item.event_id(), item.body(), item.is_edited()))
+                .collect::<Vec<(&str, &str, bool)>>(),
             vec![
-                ("$1", "Body", Some(false)),
-                ("$2", "Edited body", Some(true)),
-                ("$4", "Body", Some(false)),
+                ("$1", "Body", false),
+                ("$2", "Edited body", true),
+                ("$4", "Body", false),
             ]
         );
         assert_eq!(next_before, Some(timeline_page_token(4)));
+
+        remove_test_dir(&store_root).unwrap();
+    }
+
+    #[test]
+    fn cached_room_timeline_does_not_restore_local_echo_items() {
+        let store_root = unique_test_dir();
+        let store_dir = store_root.join("store");
+        fs::create_dir_all(&store_dir).unwrap();
+        let items = vec![
+            test_timeline_item("transaction-local"),
+            test_timeline_item("$remote"),
+        ];
+
+        merge_cached_room_timeline_refresh(
+            ACCOUNT_KEY,
+            &store_dir,
+            ROOM_ID,
+            &items,
+            Some(&timeline_page_token(1)),
+            &[],
+        )
+        .unwrap();
+
+        let (items, _next_before) = cached_room_timeline(ACCOUNT_KEY, &store_dir, ROOM_ID)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            items
+                .iter()
+                .map(RoomTimelineItem::event_id)
+                .collect::<Vec<&str>>(),
+            vec!["$remote"]
+        );
 
         remove_test_dir(&store_root).unwrap();
     }
@@ -898,14 +1015,14 @@ mod tests {
     }
 
     fn test_timeline_item(event_id: &str) -> RoomTimelineItem {
-        RoomTimelineItem {
-            event_id: event_id.to_owned(),
-            sender_id: String::from("@alice:example.org"),
-            sender_display_name: None,
-            body: String::from("Body"),
-            timestamp_unix_ms: 1_000,
-            is_edited: Some(false),
-            is_own_message: false,
-        }
+        RoomTimelineItem::text_message(
+            event_id.to_owned(),
+            String::from("@alice:example.org"),
+            None,
+            String::from("Body"),
+            1_000,
+            false,
+            false,
+        )
     }
 }

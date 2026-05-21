@@ -16,7 +16,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-import { AppWindowFrame, ToastProvider } from "./components/ui";
+import {
+  AppErrorBoundary,
+  AppWindowFrame,
+  ToastProvider,
+} from "./components/ui";
 import { ThemeProvider } from "./context/ThemeContext";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
@@ -24,7 +28,9 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <ThemeProvider>
       <ToastProvider>
         <AppWindowFrame>
-          <App />
+          <AppErrorBoundary>
+            <App />
+          </AppErrorBoundary>
         </AppWindowFrame>
       </ToastProvider>
     </ThemeProvider>

@@ -277,15 +277,18 @@
   min-height: clamp(32rem, 70dvh, 48rem);
 }
 
-.app-shell-room,
-.app-shell-spaces-head {
-  gap: var(--spacing-gap-extra-large);
+.app-shell-room {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--spacing-gap-small);
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.app-shell-room {
-  flex: 1 1 auto;
-  min-height: clamp(32rem, 70dvh, 48rem);
-  overflow: hidden;
+.app-shell-spaces-head {
+  gap: var(--spacing-gap-extra-large);
 }
 
 .app-shell-room-head {
@@ -347,7 +350,42 @@
 }
 
 .app-shell-room-composer {
-  margin-top: auto;
+  min-height: 0;
+}
+
+.app-shell-typing-indicator {
+  min-height: 1.35rem;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-gap-small);
+  padding-inline: var(--spacing-control-padding-inline);
+}
+
+.app-shell-typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-gap-extra-small);
+}
+
+.app-shell-typing-dots span {
+  width: 0.25rem;
+  height: 0.25rem;
+  border-radius: var(--shape-radius-circle);
+  background: var(--on-surface-variant);
+}
+
+.app-shell-composer-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-gap-medium);
+  padding: var(--spacing-gap-small) var(--spacing-control-padding-inline);
+  border-radius: var(--shape-radius-small);
+  background: color-mix(
+    in srgb,
+    var(--surface-container-high) 84%,
+    transparent
+  );
 }
 
 .app-shell-composer-row {
@@ -1043,6 +1081,7 @@
   }
 
   .app-shell-room {
+    height: auto;
     min-height: calc(
       var(--app-shell-viewport-height) -
         var(--layout-mobile-bottom-bar-height) -
@@ -1058,7 +1097,7 @@
   .app-shell-room-composer {
     position: sticky;
     bottom: 0;
-    padding-top: var(--spacing-gap-medium);
+    padding-top: var(--spacing-gap-small);
     background: linear-gradient(
       to top,
       var(--surface) 72%,

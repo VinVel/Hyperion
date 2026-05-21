@@ -313,8 +313,7 @@
 @media (max-width: 640px) {
   .room-timeline-row {
     grid-template-columns: var(--sizing-room-list-avatar-size) minmax(0, 1fr);
-    padding-inline: 0
-      calc(var(--sizing-icon-button-size) + var(--spacing-gap-small));
+    padding-inline: 0 var(--spacing-gap-small);
   }
 
   .room-timeline-actions .ui-button.ui-button--icon-only {

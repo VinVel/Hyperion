@@ -62,6 +62,16 @@ pub struct GetRoomTimelineRequest {
     pub limit: Option<u16>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct PaginateRoomTimelineRequest {
+    pub room_id: String,
+    pub before: Option<String>,
+    pub limit: Option<u16>,
+    pub request_id: String,
+    #[serde(default)]
+    pub known_event_ids: Vec<String>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct GetRoomEventContextRequest {
     pub room_id: String,
@@ -449,6 +459,21 @@ pub struct RoomTimeline {
     pub next_before: Option<String>,
     pub focused_event_id: Option<String>,
     pub redacted_event_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RoomTimelinePaginationResponse {
+    pub room_id: String,
+    pub items: Vec<RoomTimelineItem>,
+    pub next_before: Option<String>,
+    pub request_id: String,
+    pub had_new_items: bool,
+    pub returned_item_count: usize,
+    pub new_item_count: usize,
+    pub duplicate_item_count: usize,
+    pub continuation_attempt_count: usize,
+    pub token_changed: bool,
+    pub reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

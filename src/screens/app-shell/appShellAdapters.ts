@@ -162,6 +162,20 @@ export type BackendRoomTimeline = {
   redacted_event_ids?: string[];
 };
 
+export type BackendRoomTimelinePaginationResponse = {
+  room_id: string;
+  items: BackendRoomTimelineItem[];
+  next_before?: string | null;
+  request_id: string;
+  had_new_items: boolean;
+  returned_item_count: number;
+  new_item_count: number;
+  duplicate_item_count: number;
+  continuation_attempt_count: number;
+  token_changed: boolean;
+  reason?: string | null;
+};
+
 export type RoomTimelineItem = {
   id: string;
   transactionId: string | null;
@@ -219,6 +233,20 @@ export type RoomTimeline = {
   redactedEventIds: string[];
 };
 
+export type RoomTimelinePaginationResponse = {
+  roomId: string;
+  items: RoomTimelineItem[];
+  nextBefore: string | null;
+  requestId: string;
+  hadNewItems: boolean;
+  returnedItemCount: number;
+  newItemCount: number;
+  duplicateCount: number;
+  continuationAttemptCount: number;
+  tokenChanged: boolean;
+  reason: string;
+};
+
 export type BackendSpaceSummary = {
   space_id: string;
   name: string;
@@ -262,6 +290,24 @@ export function mapRoomTimeline(
     nextBefore: backendTimeline.next_before ?? null,
     focusedEventId: backendTimeline.focused_event_id ?? null,
     redactedEventIds: backendTimeline.redacted_event_ids ?? [],
+  };
+}
+
+export function mapRoomTimelinePaginationResponse(
+  response: BackendRoomTimelinePaginationResponse,
+): RoomTimelinePaginationResponse {
+  return {
+    roomId: response.room_id,
+    items: (response.items ?? []).map(mapRoomTimelineItem),
+    nextBefore: response.next_before ?? null,
+    requestId: response.request_id,
+    hadNewItems: response.had_new_items,
+    returnedItemCount: response.returned_item_count,
+    newItemCount: response.new_item_count,
+    duplicateCount: response.duplicate_item_count,
+    continuationAttemptCount: response.continuation_attempt_count,
+    tokenChanged: response.token_changed,
+    reason: response.reason ?? "",
   };
 }
 

@@ -848,6 +848,46 @@ mod tests {
     }
 
     #[test]
+    fn cached_room_timeline_updates_cursor_for_duplicate_only_page() {
+        let store_root = unique_test_dir();
+        let store_dir = store_root.join("store");
+        fs::create_dir_all(&store_dir).unwrap();
+        let items = vec![test_timeline_item("$1"), test_timeline_item("$2")];
+
+        merge_cached_room_timeline_refresh(
+            ACCOUNT_KEY,
+            &store_dir,
+            ROOM_ID,
+            &items,
+            Some(&timeline_page_token(1)),
+            &[],
+        )
+        .unwrap();
+        prepend_cached_room_timeline_items(
+            ACCOUNT_KEY,
+            &store_dir,
+            ROOM_ID,
+            &[],
+            Some(&timeline_page_token(4)),
+        )
+        .unwrap();
+
+        let (items, next_before) = cached_room_timeline(ACCOUNT_KEY, &store_dir, ROOM_ID)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            items
+                .iter()
+                .map(RoomTimelineItem::event_id)
+                .collect::<Vec<&str>>(),
+            vec!["$1", "$2"]
+        );
+        assert_eq!(next_before, Some(timeline_page_token(4)));
+
+        remove_test_dir(&store_root).unwrap();
+    }
+
+    #[test]
     fn cached_room_timeline_item_reads_direct_event_identity() {
         let store_root = unique_test_dir();
         let store_dir = store_root.join("store");
@@ -926,6 +966,53 @@ mod tests {
             ]
         );
         assert_eq!(next_before, Some(timeline_page_token(4)));
+
+        remove_test_dir(&store_root).unwrap();
+    }
+
+    #[test]
+    fn refreshed_room_timeline_persists_expanded_live_window() {
+        let store_root = unique_test_dir();
+        let store_dir = store_root.join("store");
+        fs::create_dir_all(&store_dir).unwrap();
+        let cached_items = vec![test_timeline_item("$1"), test_timeline_item("$2")];
+        let expanded_live_items = vec![
+            test_timeline_item("$1"),
+            test_timeline_item("$2"),
+            test_timeline_item("$3"),
+            test_timeline_item("$4"),
+        ];
+
+        merge_cached_room_timeline_refresh(
+            ACCOUNT_KEY,
+            &store_dir,
+            ROOM_ID,
+            &cached_items,
+            Some(&timeline_page_token(5)),
+            &[],
+        )
+        .unwrap();
+        merge_cached_room_timeline_refresh(
+            ACCOUNT_KEY,
+            &store_dir,
+            ROOM_ID,
+            &expanded_live_items,
+            None,
+            &[],
+        )
+        .unwrap();
+
+        let (items, next_before) = cached_room_timeline(ACCOUNT_KEY, &store_dir, ROOM_ID)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            items
+                .iter()
+                .map(RoomTimelineItem::event_id)
+                .collect::<Vec<&str>>(),
+            vec!["$1", "$2", "$3", "$4"]
+        );
+        assert_eq!(next_before, Some(timeline_page_token(5)));
 
         remove_test_dir(&store_root).unwrap();
     }

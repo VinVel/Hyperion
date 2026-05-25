@@ -35,6 +35,8 @@ import {
   type RoomTimelineItem,
   type RoomTimelineReplyPreview,
 } from "../appShellAdapters";
+import { logPaginationDiagnostic } from "../paginationDiagnostics";
+import { timelineContextKey, type PaginationState } from "../paginationState";
 import TimelineMarkdown from "./TimelineMarkdown";
 import TimelineScroller, {
   type TimelineScrollerContext,
@@ -51,7 +53,9 @@ import {
 import "./RoomTimelineView.css";
 
 type RoomTimelineViewProps = {
+  accountKey: string;
   isLoadingOlderMessages: boolean;
+  paginationState: PaginationState;
   timeline: RoomTimeline | null;
   onBeginEditMessage: (eventId: string, body: string) => void;
   onBeginReplyToMessage: (eventId: string) => void;
@@ -98,7 +102,9 @@ const messageActionLongPressMilliseconds = 450;
 const messageActionLongPressMoveTolerancePixels = 8;
 
 export default function RoomTimelineView({
+  accountKey,
   isLoadingOlderMessages,
+  paginationState,
   timeline,
   onBeginEditMessage,
   onBeginReplyToMessage,
@@ -121,6 +127,9 @@ export default function RoomTimelineView({
   const resolvingReplyKeysRef = useRef<Set<string>>(new Set());
   const retryingReplyKeysRef = useRef<Set<string>>(new Set());
   const previousTimelineItemsRef = useRef<RoomTimelineItem[]>([]);
+  const pendingPaginationScrollSnapshotRef =
+    useRef<TimelineScrollSnapshot | null>(null);
+  const pendingPaginationRequestCountRef = useRef(0);
   const [resolvedReplyPreviews, setResolvedReplyPreviews] = useState<
     Record<string, RoomTimelineReplyPreview>
   >({});
@@ -132,7 +141,8 @@ export default function RoomTimelineView({
   const timelineItems = timeline?.items ?? [];
   const roomId = timeline?.roomId ?? null;
   const focusedEventId = timeline?.focusedEventId ?? null;
-  const hasOlderMessages = Boolean(timeline?.nextBefore);
+  const timelineContext = timelineContextKey(focusedEventId);
+  const [oldestBoundaryIsVisible, setOldestBoundaryIsVisible] = useState(false);
   const timelineDebugIsEnabled = timelineDebugEnabled();
   useTimelineDebugApi(
     timelineDebugIsEnabled,
@@ -178,6 +188,23 @@ export default function RoomTimelineView({
       return;
     }
 
+    if (pendingPaginationScrollSnapshotRef.current) {
+      restoreTimelineScroll(
+        timelineRootRef.current,
+        pendingPaginationScrollSnapshotRef.current,
+      );
+      logPaginationDiagnostic("pagination.ui.anchor.restore", {
+        accountKey,
+        roomId,
+        timelineContext,
+        success: Boolean(timelineScroller(timelineRootRef.current)),
+        requestCount: pendingPaginationRequestCountRef.current,
+      });
+      pendingPaginationScrollSnapshotRef.current = null;
+      previousTimelineItemsRef.current = timelineItems;
+      return;
+    }
+
     if (
       !focusedEventId &&
       (isAtBottomRef.current ||
@@ -191,7 +218,14 @@ export default function RoomTimelineView({
     }
 
     previousTimelineItemsRef.current = timelineItems;
-  }, [focusedEventId, timelineDebugIsEnabled, timelineItems]);
+  }, [
+    accountKey,
+    focusedEventId,
+    roomId,
+    timelineContext,
+    timelineDebugIsEnabled,
+    timelineItems,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -280,22 +314,38 @@ export default function RoomTimelineView({
     }),
     [],
   );
+  const handleLoadOlderMessages = useCallback(() => {
+    pendingPaginationScrollSnapshotRef.current = captureTimelineScroll(
+      timelineRootRef.current,
+    );
+    pendingPaginationRequestCountRef.current += 1;
+    onLoadOlderMessages();
+  }, [onLoadOlderMessages]);
+
   const virtuosoComponents = useMemo(
-    () =>
-      hasOlderMessages
-        ? {
-            Header: () => (
-              <TimelineHeader
-                isLoadingOlderMessages={isLoadingOlderMessages}
-                onLoadOlderMessages={onLoadOlderMessages}
-              />
-            ),
-            Scroller: TimelineScroller,
-          }
-        : {
-            Scroller: TimelineScroller,
-          },
-    [hasOlderMessages, isLoadingOlderMessages, onLoadOlderMessages],
+    () => ({
+      Header: () => (
+        <TimelineHeader
+          accountKey={accountKey}
+          boundaryVisible={oldestBoundaryIsVisible}
+          currentStatus={paginationState.status}
+          isLoadingOlderMessages={isLoadingOlderMessages}
+          roomId={roomId}
+          timelineContext={timelineContext}
+          onLoadOlderMessages={handleLoadOlderMessages}
+        />
+      ),
+      Scroller: TimelineScroller,
+    }),
+    [
+      accountKey,
+      isLoadingOlderMessages,
+      oldestBoundaryIsVisible,
+      handleLoadOlderMessages,
+      paginationState.status,
+      roomId,
+      timelineContext,
+    ],
   );
 
   function handleVirtuosoScrollingChange(isScrolling: boolean) {
@@ -547,6 +597,9 @@ export default function RoomTimelineView({
             );
           }
         }}
+        atTopStateChange={(isAtTop) => {
+          setOldestBoundaryIsVisible(isAtTop);
+        }}
         followOutput={followTimelineOutput}
         initialTopMostItemIndex={{
           index: timelineItems.length - 1,
@@ -578,20 +631,62 @@ export default function RoomTimelineView({
 }
 
 type TimelineHeaderProps = {
+  accountKey: string;
+  boundaryVisible: boolean;
+  currentStatus: PaginationState["status"];
   isLoadingOlderMessages: boolean;
+  roomId: string | null;
+  timelineContext: string;
   onLoadOlderMessages: () => void;
 };
 
 function TimelineHeader({
+  accountKey,
+  boundaryVisible,
+  currentStatus,
   isLoadingOlderMessages,
+  roomId,
+  timelineContext,
   onLoadOlderMessages,
 }: TimelineHeaderProps) {
+  useEffect(() => {
+    logPaginationDiagnostic("pagination.ui.button.render", {
+      accountKey,
+      roomId,
+      timelineContext,
+      currentStatus,
+      loading: isLoadingOlderMessages,
+      buttonVisible: boundaryVisible,
+      boundaryVisible,
+    });
+  }, [
+    accountKey,
+    boundaryVisible,
+    currentStatus,
+    isLoadingOlderMessages,
+    roomId,
+    timelineContext,
+  ]);
+
+  function handleClick() {
+    logPaginationDiagnostic("pagination.ui.raw_click", {
+      accountKey,
+      roomId,
+      timelineContext,
+      currentStatus,
+      loading: isLoadingOlderMessages,
+      buttonVisible: boundaryVisible,
+      boundaryVisible,
+    });
+    onLoadOlderMessages();
+  }
+
   return (
     <div className="room-timeline-controls">
       <Button
-        disabled={isLoadingOlderMessages}
+        aria-disabled={isLoadingOlderMessages}
         variant="secondary"
-        onClick={onLoadOlderMessages}
+        onClick={handleClick}
       >
         {isLoadingOlderMessages
           ? "Loading older messages..."
@@ -914,7 +1009,14 @@ function restoreTimelineScroll(
     }
 
     const maxScrollTop = timelineMaximumScrollTop(scroller);
-    scroller.scrollTop = Math.min(scrollSnapshot.scrollTop, maxScrollTop);
+    const prependedHeightDelta = Math.max(
+      0,
+      scroller.scrollHeight - scrollSnapshot.scrollHeight,
+    );
+    scroller.scrollTop = Math.min(
+      scrollSnapshot.scrollTop + prependedHeightDelta,
+      maxScrollTop,
+    );
   }
 
   requestAnimationFrame(() => {

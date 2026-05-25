@@ -193,12 +193,13 @@ impl ShellSyncCoordinator {
         &self,
         app: tauri::AppHandle,
         account_key: &str,
+        store_dir: &Path,
         room: &Room,
     ) -> Result<(), String> {
         emit_timeline_room_diagnostic("timeline.live.subscribe", account_key, room);
         self.timeline_service
             .registry()
-            .subscribe_live_timeline_updates(app, account_key, room)
+            .subscribe_live_timeline_updates(app, account_key, store_dir, room)
             .await
     }
     pub(in crate::shell::service) async fn live_redacted_event_ids(
@@ -210,6 +211,17 @@ impl ShellSyncCoordinator {
         self.timeline_service
             .registry()
             .live_redacted_event_ids(account_key, room)
+            .await
+    }
+    pub(in crate::shell::service) async fn live_timeline_item_count(
+        &self,
+        account_key: &str,
+        room: &Room,
+    ) -> Result<usize, String> {
+        emit_timeline_room_diagnostic("timeline.live.count", account_key, room);
+        self.timeline_service
+            .registry()
+            .live_timeline_item_count(account_key, room)
             .await
     }
     pub(in crate::shell::service) async fn focused_redacted_event_ids(

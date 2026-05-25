@@ -53,10 +53,11 @@ use shell::{
     types::{
         EditRoomMessageRequest, GetRoomEventContextRequest, GetRoomSummaryRequest,
         GetRoomTimelineRequest, GlobalSearchRequest, GlobalSearchResponse, ListRoomThreadsRequest,
-        ListSpacesRequest, RedactRoomMessageRequest, ReplyToRoomMessageRequest,
-        ResolveRoomReplyPreviewRequest, RoomSummary, RoomThreadSummary, RoomTimeline,
-        RoomTimelineReplyPreview, SendRoomMessageRequest, SendRoomMessageResponse,
-        SetRoomTypingRequest, SpaceSummary, ToggleRoomReactionRequest, ToggleRoomReactionResponse,
+        ListSpacesRequest, PaginateRoomTimelineRequest, RedactRoomMessageRequest,
+        ReplyToRoomMessageRequest, ResolveRoomReplyPreviewRequest, RoomSummary, RoomThreadSummary,
+        RoomTimeline, RoomTimelinePaginationResponse, RoomTimelineReplyPreview,
+        SendRoomMessageRequest, SendRoomMessageResponse, SetRoomTypingRequest, SpaceSummary,
+        ToggleRoomReactionRequest, ToggleRoomReactionResponse,
     },
 };
 
@@ -209,6 +210,18 @@ async fn get_room_event_context(
 ) -> Result<RoomTimeline, String> {
     shell_manager
         .get_room_event_context(&app, &account_manager, request)
+        .await
+}
+
+#[tauri::command]
+async fn paginate_room_timeline_backwards(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: PaginateRoomTimelineRequest,
+) -> Result<RoomTimelinePaginationResponse, String> {
+    shell_manager
+        .paginate_room_timeline_backwards(&app, &account_manager, request)
         .await
 }
 
@@ -459,6 +472,7 @@ pub fn run() {
             list_room_threads,
             get_room_summary,
             get_room_timeline,
+            paginate_room_timeline_backwards,
             get_room_event_context,
             resolve_room_reply_preview,
             send_room_message,

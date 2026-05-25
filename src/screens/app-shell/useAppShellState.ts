@@ -20,6 +20,7 @@ import {
   type AccountSummary,
   type AuthenticatedShellView,
   type BackendRoomTimelineItem,
+  type BackendRoomTimelinePaginationResponse,
   type BackendRoomSummary,
   type BackendRoomTimeline,
   type BackendSpaceSummary,
@@ -29,6 +30,7 @@ import {
   type SpaceSummary,
   mapRoomSummary,
   mapRoomTimeline,
+  mapRoomTimelinePaginationResponse,
   mapSpaceSummary,
 } from "./appShellAdapters";
 import {
@@ -47,9 +49,18 @@ import {
 import { outboundMessageContentFromMarkdown } from "./outboundMarkdown";
 import {
   canonicalizeTimelineItems,
-  mergeOlderTimelineItems,
+  mergeOlderTimelineItemsWithCounts,
   mergeTimelineRefresh,
 } from "./timelineMerge";
+import { logPaginationDiagnostic } from "./paginationDiagnostics";
+import {
+  idlePaginationState,
+  paginationIsLoading,
+  paginationStateKey,
+  timelineContextKey,
+  type PaginationContext,
+  type PaginationState,
+} from "./paginationState";
 
 const SHELL_SYNC_UPDATED_EVENT = "hyperion://shell-sync-updated";
 const SHELL_TIMELINE_UPDATED_EVENT = "hyperion://shell-timeline-updated";
@@ -65,6 +76,8 @@ const shellSyncTimelineRefreshDebounceMilliseconds = 30;
 const roomEventContextLimit = 8;
 // Timeline pages are intentionally small enough to keep refreshes responsive.
 const roomTimelinePageSize = 30;
+// Pagination click loading is guarded so a broken request cannot strand the UI.
+const paginationLoadingTimeoutMilliseconds = 3_000;
 // Global search waits briefly so every keystroke does not call the backend.
 const globalSearchDebounceMilliseconds = 150;
 // Each search group is capped to keep the overlay compact.
@@ -144,6 +157,7 @@ export type UseAppShellStateResult = {
   isGlobalSearchOpen: boolean;
   isDiscoveryOpen: boolean;
   isLoadingOlderMessages: boolean;
+  paginationState: PaginationState;
   isLoadingShell: boolean;
   isSendingMessage: boolean;
   isSortMenuOpen: boolean;
@@ -345,15 +359,30 @@ function readCachedRoomSnapshot(
     null,
   );
   if (!cachedSnapshot) {
+    logPaginationDiagnostic("pagination.restart_restore_check", {
+      accountKey,
+      roomId,
+      cachedCountOnRoomLoad: 0,
+      localStorageCountOnRoomLoad: 0,
+      backendReturnedCountOnRoomLoad: "pending",
+    });
     return null;
   }
 
-  return {
+  const normalizedSnapshot = {
     ...cachedSnapshot,
     timeline: durableRoomTimeline(
       normalizeRoomTimeline(cachedSnapshot.timeline),
     ),
   };
+  logPaginationDiagnostic("pagination.restart_restore_check", {
+    accountKey,
+    roomId,
+    cachedCountOnRoomLoad: "backend_pending",
+    localStorageCountOnRoomLoad: normalizedSnapshot.timeline.items.length,
+    backendReturnedCountOnRoomLoad: "pending",
+  });
+  return normalizedSnapshot;
 }
 
 function writeCachedRoomSnapshot(
@@ -395,6 +424,27 @@ function timelineAnchorForRoom(
   }
 
   return timelineJumpTarget.eventId;
+}
+
+function paginationContextForTimeline(
+  accountKey: string,
+  timeline: RoomTimeline | null,
+): PaginationContext | null {
+  if (!timeline) {
+    return null;
+  }
+
+  return {
+    accountKey,
+    roomId: timeline.roomId,
+    timelineContext: timelineContextKey(timeline.focusedEventId),
+  };
+}
+
+function createPaginationRequestId(): string {
+  const randomPart =
+    globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
+  return `pagination-${Date.now()}-${randomPart}`;
 }
 
 function shouldRefreshSelectedRoomFromSync(
@@ -482,7 +532,9 @@ export default function useAppShellState({
     Record<string, string[]>
   >({});
   const isSendingMessage = false;
-  const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
+  const [paginationStatesByKey, setPaginationStatesByKey] = useState<
+    Record<string, PaginationState>
+  >({});
   const [threadKindFilter, setThreadKindFilter] =
     useState<RoomThreadKindFilter>("direct");
   const [threadSort, setThreadSort] = useState<RoomThreadSort>("newest");
@@ -505,6 +557,7 @@ export default function useAppShellState({
   const [isLoadingShell, setIsLoadingShell] = useState(true);
   const activeAccountKeyRef = useRef(activeAccount.account_key);
   const sendMessageInFlightRef = useRef(false);
+  const paginationStatesByKeyRef = useRef<Record<string, PaginationState>>({});
   const composerDraftsByRoomIdRef = useRef<Record<string, RoomComposerDraft>>(
     {},
   );
@@ -518,6 +571,31 @@ export default function useAppShellState({
       const nextDrafts = updateDrafts(composerDraftsByRoomIdRef.current);
       composerDraftsByRoomIdRef.current = nextDrafts;
       setComposerDraftsByRoomId(nextDrafts);
+    },
+    [],
+  );
+
+  const updatePaginationState = useCallback(
+    (context: PaginationContext, nextState: PaginationState) => {
+      const stateKey = paginationStateKey(context);
+      const previousState =
+        paginationStatesByKeyRef.current[stateKey] ?? idlePaginationState;
+      const nextStates = {
+        ...paginationStatesByKeyRef.current,
+        [stateKey]: nextState,
+      };
+      paginationStatesByKeyRef.current = nextStates;
+      setPaginationStatesByKey(nextStates);
+      logPaginationDiagnostic("pagination.ui.state_update", {
+        accountKey: context.accountKey,
+        roomId: context.roomId,
+        timelineContext: context.timelineContext,
+        previousStatus: previousState.status,
+        nextStatus: nextState.status,
+        loading: paginationIsLoading(nextState),
+        requestId:
+          nextState.status === "loading" ? nextState.requestId : undefined,
+      });
     },
     [],
   );
@@ -619,13 +697,25 @@ export default function useAppShellState({
         }),
         timelineRequest,
       ]);
+      const mappedTimeline = normalizeRoomTimeline(
+        mapRoomTimeline(backendTimeline),
+      );
+      logPaginationDiagnostic("pagination.restart_restore_check", {
+        accountKey: activeAccount.account_key,
+        roomId,
+        cachedCountOnRoomLoad: "backend_reported_separately",
+        localStorageCountOnRoomLoad:
+          readCachedRoomSnapshot(activeAccount.account_key, roomId)?.timeline
+            .items.length ?? 0,
+        backendReturnedCountOnRoomLoad: mappedTimeline.items.length,
+      });
 
       return {
         summary: mapRoomSummary(backendSummary),
-        timeline: normalizeRoomTimeline(mapRoomTimeline(backendTimeline)),
+        timeline: mappedTimeline,
       };
     },
-    [],
+    [activeAccount.account_key],
   );
 
   useEffect(() => {
@@ -648,7 +738,8 @@ export default function useAppShellState({
     setComposerValue("");
     updateComposerDrafts(() => ({}));
     setTypingUsersByRoomId({});
-    setIsLoadingOlderMessages(false);
+    paginationStatesByKeyRef.current = {};
+    setPaginationStatesByKey({});
   }, [activeAccount.account_key, updateComposerDrafts]);
 
   useEffect(() => {
@@ -690,7 +781,6 @@ export default function useAppShellState({
       setSelectedTimeline(null);
       setTimelineJumpTarget(null);
       setComposerValue("");
-      setIsLoadingOlderMessages(false);
       return;
     }
 
@@ -1006,6 +1096,15 @@ export default function useAppShellState({
     selectedRoomSummary?.id === selectedThreadId ? selectedRoomSummary : null;
   const selectedTimelineForSelectedThread =
     selectedTimeline?.roomId === selectedThreadId ? selectedTimeline : null;
+  const selectedPaginationContext = paginationContextForTimeline(
+    activeAccount.account_key,
+    selectedTimelineForSelectedThread,
+  );
+  const selectedPaginationState = selectedPaginationContext
+    ? (paginationStatesByKey[paginationStateKey(selectedPaginationContext)] ??
+      idlePaginationState)
+    : idlePaginationState;
+  const isLoadingOlderMessages = paginationIsLoading(selectedPaginationState);
   const selectedTypingUsers = selectedThreadId
     ? (typingUsersByRoomId[selectedThreadId] ?? [])
     : [];
@@ -1359,37 +1458,175 @@ export default function useAppShellState({
   );
 
   const loadOlderMessages = useCallback(async () => {
-    if (
-      !selectedThreadId ||
-      !selectedTimeline?.nextBefore ||
-      isLoadingOlderMessages
-    ) {
+    const paginationContext = paginationContextForTimeline(
+      activeAccount.account_key,
+      selectedTimeline,
+    );
+    if (!selectedThreadId || !selectedTimeline || !paginationContext) {
+      logPaginationDiagnostic("pagination.ui.command.error", {
+        accountKey: activeAccount.account_key,
+        roomId: selectedThreadId,
+        timelineContext: "unknown",
+        reason: !selectedThreadId
+          ? "missing_selected_room"
+          : "missing_timeline",
+      });
       return;
     }
 
-    setIsLoadingOlderMessages(true);
+    const stateKey = paginationStateKey(paginationContext);
+    const currentPaginationState =
+      paginationStatesByKeyRef.current[stateKey] ?? idlePaginationState;
+    if (currentPaginationState.status === "loading") {
+      logPaginationDiagnostic("pagination.ui.click_ignored", {
+        accountKey: paginationContext.accountKey,
+        roomId: paginationContext.roomId,
+        timelineContext: paginationContext.timelineContext,
+        currentStatus: currentPaginationState.status,
+        loading: true,
+        requestId: currentPaginationState.requestId,
+        reason: "loading",
+      });
+      return;
+    }
+
+    const requestId = createPaginationRequestId();
+    updatePaginationState(paginationContext, {
+      status: "loading",
+      requestId,
+      startedAt: Date.now(),
+    });
+
+    let timeoutDidFire = false;
+    const timeoutId = window.setTimeout(() => {
+      timeoutDidFire = true;
+      logPaginationDiagnostic("pagination.ui.timeout_reset", {
+        accountKey: paginationContext.accountKey,
+        roomId: paginationContext.roomId,
+        timelineContext: paginationContext.timelineContext,
+        currentStatus: "loading",
+        nextStatus: "idle",
+        requestId,
+        loading: false,
+      });
+      updatePaginationState(paginationContext, idlePaginationState);
+    }, paginationLoadingTimeoutMilliseconds);
 
     try {
-      const backendTimeline = await invoke<BackendRoomTimeline>(
-        "get_room_timeline",
-        {
-          request: {
-            room_id: selectedThreadId,
-            before: selectedTimeline.nextBefore,
-            limit: roomTimelinePageSize,
+      logPaginationDiagnostic("pagination.ui.command.invoke", {
+        accountKey: paginationContext.accountKey,
+        roomId: paginationContext.roomId,
+        timelineContext: paginationContext.timelineContext,
+        currentStatus: "loading",
+        requestId,
+        loading: true,
+      });
+      const backendResponse =
+        await invoke<BackendRoomTimelinePaginationResponse>(
+          "paginate_room_timeline_backwards",
+          {
+            request: {
+              room_id: selectedThreadId,
+              before: selectedTimeline.nextBefore,
+              limit: roomTimelinePageSize,
+              request_id: requestId,
+              known_event_ids: selectedTimeline.items.map((item) => item.id),
+            },
           },
-        },
-      );
-      const olderTimeline = mapRoomTimeline(backendTimeline);
+        );
+      const paginationResponse =
+        mapRoomTimelinePaginationResponse(backendResponse);
+
+      window.clearTimeout(timeoutId);
+      logPaginationDiagnostic("pagination.ui.command.success", {
+        accountKey: paginationContext.accountKey,
+        roomId: paginationContext.roomId,
+        timelineContext: paginationContext.timelineContext,
+        requestId,
+        receivedItemCount: paginationResponse.items.length,
+        backendDuplicateCount: paginationResponse.duplicateCount,
+        backendNewItemCount: paginationResponse.newItemCount,
+        continuationAttemptCount: paginationResponse.continuationAttemptCount,
+        timeoutDidFire,
+      });
+
+      if (paginationResponse.items.length === 0) {
+        logPaginationDiagnostic("pagination.ui.empty_result", {
+          accountKey: paginationContext.accountKey,
+          roomId: paginationContext.roomId,
+          timelineContext: paginationContext.timelineContext,
+          requestId,
+          receivedItemCount: 0,
+          reason: paginationResponse.reason,
+        });
+        if (paginationResponse.nextBefore) {
+          setSelectedTimeline((currentTimeline) => {
+            if (
+              !currentTimeline ||
+              currentTimeline.roomId !== paginationResponse.roomId
+            ) {
+              return currentTimeline;
+            }
+
+            const cursorAdvancedTimeline = {
+              ...currentTimeline,
+              nextBefore: paginationResponse.nextBefore,
+            };
+            const roomSnapshot = {
+              summary: selectedRoomSummaryForSelectedThread ?? {
+                id: cursorAdvancedTimeline.roomId,
+                title: selectedThread?.title ?? "",
+                participantLabel: selectedThread?.participantLabel ?? "",
+                homeserverLabel: selectedThread?.homeserverLabel ?? "",
+                topic: "",
+                isDirect: selectedThread?.isDirect ?? false,
+                canSendMessages: true,
+              },
+              timeline: cursorAdvancedTimeline,
+            };
+            setRoomSnapshotsByRoomId((currentSnapshots) =>
+              rememberRoomSnapshot(currentSnapshots, roomSnapshot),
+            );
+            writeCachedRoomSnapshot(activeAccount.account_key, roomSnapshot);
+            logPaginationDiagnostic("pagination.ui.merge.done", {
+              accountKey: paginationContext.accountKey,
+              roomId: paginationContext.roomId,
+              timelineContext: paginationContext.timelineContext,
+              requestId,
+              receivedItemCount: 0,
+              mergedItemCount: 0,
+              duplicateCount: paginationResponse.duplicateCount,
+              nextBeforeAdvanced: true,
+            });
+            return cursorAdvancedTimeline;
+          });
+        }
+        updatePaginationState(paginationContext, idlePaginationState);
+        return;
+      }
 
       setSelectedTimeline((currentTimeline) => {
+        logPaginationDiagnostic("pagination.ui.merge.start", {
+          accountKey: paginationContext.accountKey,
+          roomId: paginationContext.roomId,
+          timelineContext: paginationContext.timelineContext,
+          requestId,
+          receivedItemCount: paginationResponse.items.length,
+        });
         if (
           !currentTimeline ||
-          currentTimeline.roomId !== olderTimeline.roomId
+          currentTimeline.roomId !== paginationResponse.roomId
         ) {
+          const replacementTimeline = {
+            roomId: paginationResponse.roomId,
+            items: paginationResponse.items,
+            nextBefore: paginationResponse.nextBefore,
+            focusedEventId: selectedTimeline.focusedEventId,
+            redactedEventIds: selectedTimeline.redactedEventIds,
+          };
           const roomSnapshot = {
             summary: selectedRoomSummaryForSelectedThread ?? {
-              id: olderTimeline.roomId,
+              id: replacementTimeline.roomId,
               title: selectedThread?.title ?? "",
               participantLabel: selectedThread?.participantLabel ?? "",
               homeserverLabel: selectedThread?.homeserverLabel ?? "",
@@ -1397,22 +1634,46 @@ export default function useAppShellState({
               isDirect: selectedThread?.isDirect ?? false,
               canSendMessages: true,
             },
-            timeline: olderTimeline,
+            timeline: replacementTimeline,
           };
           setRoomSnapshotsByRoomId((currentSnapshots) =>
             rememberRoomSnapshot(currentSnapshots, roomSnapshot),
           );
           writeCachedRoomSnapshot(activeAccount.account_key, roomSnapshot);
-          return olderTimeline;
+          logPaginationDiagnostic("pagination.ui.merge.done", {
+            accountKey: paginationContext.accountKey,
+            roomId: paginationContext.roomId,
+            timelineContext: paginationContext.timelineContext,
+            requestId,
+            mergedItemCount: replacementTimeline.items.length,
+            duplicateCount: 0,
+          });
+          return replacementTimeline;
         }
 
+        const mergeResult = mergeOlderTimelineItemsWithCounts(
+          currentTimeline.items,
+          paginationResponse.items,
+        );
+        if (mergeResult.insertedCount === 0) {
+          logPaginationDiagnostic("pagination.ui.duplicate_only", {
+            accountKey: paginationContext.accountKey,
+            roomId: paginationContext.roomId,
+            timelineContext: paginationContext.timelineContext,
+            requestId,
+            receivedItemCount: paginationResponse.items.length,
+            duplicateCount: mergeResult.duplicateCount,
+          });
+        }
+
+        const nextBefore =
+          mergeResult.insertedCount > 0 && paginationResponse.nextBefore
+            ? paginationResponse.nextBefore
+            : currentTimeline.nextBefore;
         const mergedTimeline = {
           ...currentTimeline,
-          items: mergeOlderTimelineItems(
-            currentTimeline.items,
-            olderTimeline.items,
-          ),
-          nextBefore: olderTimeline.nextBefore,
+          items: mergeResult.items,
+          nextBefore,
         };
         const roomSnapshot = {
           summary: selectedRoomSummaryForSelectedThread ?? {
@@ -1430,23 +1691,43 @@ export default function useAppShellState({
           rememberRoomSnapshot(currentSnapshots, roomSnapshot),
         );
         writeCachedRoomSnapshot(activeAccount.account_key, roomSnapshot);
+        logPaginationDiagnostic("pagination.ui.merge.done", {
+          accountKey: paginationContext.accountKey,
+          roomId: paginationContext.roomId,
+          timelineContext: paginationContext.timelineContext,
+          requestId,
+          receivedItemCount: paginationResponse.items.length,
+          mergedItemCount: mergeResult.insertedCount,
+          duplicateCount: mergeResult.duplicateCount,
+        });
         return mergedTimeline;
       });
-    } catch {
+      updatePaginationState(paginationContext, idlePaginationState);
+    } catch (error) {
+      window.clearTimeout(timeoutId);
+      const message = error instanceof Error ? error.message : String(error);
+      logPaginationDiagnostic("pagination.ui.command.error", {
+        accountKey: paginationContext.accountKey,
+        roomId: paginationContext.roomId,
+        timelineContext: paginationContext.timelineContext,
+        currentStatus: "loading",
+        nextStatus: "error",
+        requestId,
+        message,
+      });
+      updatePaginationState(paginationContext, { status: "error", message });
       setGenericErrorFeedback(
         setFeedbackMessage,
         "Could not load older messages.",
       );
-    } finally {
-      setIsLoadingOlderMessages(false);
     }
   }, [
-    isLoadingOlderMessages,
     activeAccount.account_key,
     selectedRoomSummaryForSelectedThread,
     selectedThread,
     selectedThreadId,
     selectedTimeline,
+    updatePaginationState,
   ]);
 
   const openMessagesView = useCallback(() => {
@@ -1546,6 +1827,7 @@ export default function useAppShellState({
     isDiscoveryOpen,
     isGlobalSearchOpen,
     isLoadingOlderMessages,
+    paginationState: selectedPaginationState,
     isLoadingShell,
     isSendingMessage,
     isSortMenuOpen,

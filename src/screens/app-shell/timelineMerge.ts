@@ -45,6 +45,17 @@ export function mergeOlderTimelineItems(
   currentItems: RoomTimelineItem[],
   olderItems: RoomTimelineItem[],
 ): RoomTimelineItem[] {
+  return mergeOlderTimelineItemsWithCounts(currentItems, olderItems).items;
+}
+
+export function mergeOlderTimelineItemsWithCounts(
+  currentItems: RoomTimelineItem[],
+  olderItems: RoomTimelineItem[],
+): {
+  duplicateCount: number;
+  insertedCount: number;
+  items: RoomTimelineItem[];
+} {
   const currentTimelineItems = currentItems ?? [];
   const olderTimelineItems = olderItems ?? [];
   const seenItemIds = new Set(currentTimelineItems.map((item) => item.id));
@@ -52,10 +63,16 @@ export function mergeOlderTimelineItems(
     (item) => !seenItemIds.has(item.id),
   );
 
-  return canonicalizeTimelineItems([
+  const items = canonicalizeTimelineItems([
     ...uniqueOlderItems,
     ...currentTimelineItems,
   ]);
+
+  return {
+    duplicateCount: olderTimelineItems.length - uniqueOlderItems.length,
+    insertedCount: uniqueOlderItems.length,
+    items,
+  };
 }
 
 export function mergeTimelineRefresh(

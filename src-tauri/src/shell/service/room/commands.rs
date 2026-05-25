@@ -219,7 +219,12 @@ impl ShellManager {
         let room = resolve_room(&account.client, &request.room_id)?;
         self.mark_room_focused(&account.account_key, room.room_id().as_str());
         self.sync_coordinator
-            .subscribe_live_timeline_updates(app.clone(), &account.account_key, &room)
+            .subscribe_live_timeline_updates(
+                app.clone(),
+                &account.account_key,
+                &account.store_dir,
+                &room,
+            )
             .await?;
 
         let event_id = self

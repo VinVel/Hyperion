@@ -285,7 +285,7 @@ impl ShellCacheState {
         }
     }
 
-    pub(in crate::shell::service) fn merge_refreshed_timeline(
+    pub(in crate::shell) fn merge_refreshed_timeline(
         account_key: &str,
         store_dir: &std::path::Path,
         room_id: &str,

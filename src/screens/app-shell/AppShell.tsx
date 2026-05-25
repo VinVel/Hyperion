@@ -126,7 +126,9 @@ export default function AppShell({
               <AppShellMessagesView
                 composerValue={shell.composerValue}
                 activeComposerMode={shell.activeComposerMode}
+                accountKey={activeAccount.account_key}
                 isLoadingOlderMessages={shell.isLoadingOlderMessages}
+                paginationState={shell.paginationState}
                 isSendingMessage={shell.isSendingMessage}
                 isSortMenuOpen={shell.isSortMenuOpen}
                 selectedRoomSummary={shell.selectedRoomSummary}

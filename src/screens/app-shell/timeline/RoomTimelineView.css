@@ -58,6 +58,15 @@
   padding: var(--spacing-gap-medium) 0 var(--spacing-gap-large);
 }
 
+.room-timeline-controls .ui-button[aria-disabled="true"] {
+  cursor: progress;
+  background: color-mix(
+    in srgb,
+    var(--surface-container-low) 82%,
+    var(--surface-container-highest)
+  );
+}
+
 .room-timeline-row {
   position: relative;
   display: grid;

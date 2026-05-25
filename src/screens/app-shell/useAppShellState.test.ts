@@ -15,7 +15,18 @@
 
 import { describe, expect, test } from "bun:test";
 import type { RoomTimeline, RoomTimelineItem } from "./appShellAdapters";
-import { mergeOlderTimelineItems, mergeTimelineRefresh } from "./timelineMerge";
+import {
+  mergeOlderTimelineItems,
+  mergeOlderTimelineItemsWithCounts,
+  mergeTimelineRefresh,
+} from "./timelineMerge";
+import {
+  idlePaginationState,
+  paginationIsLoading,
+  paginationStateKey,
+  timelineContextKey,
+  type PaginationState,
+} from "./paginationState";
 
 const roomId = "!room:example.org";
 
@@ -68,6 +79,65 @@ describe("timeline reconciliation helpers", () => {
     const mergedItems = mergeOlderTimelineItems(currentItems, olderItems);
 
     expect(eventIds(mergedItems)).toEqual(["$1", "$2", "$3", "$4"]);
+  });
+
+  test("older timeline merge reports duplicate-only retryable pages", () => {
+    const currentItems = [testTimelineItem("$1", 1), testTimelineItem("$2", 2)];
+    const olderItems = [testTimelineItem("$1", 1), testTimelineItem("$2", 2)];
+
+    const result = mergeOlderTimelineItemsWithCounts(currentItems, olderItems);
+
+    expect(result.insertedCount).toBe(0);
+    expect(result.duplicateCount).toBe(2);
+    expect(eventIds(result.items)).toEqual(["$1", "$2"]);
+  });
+
+  test("older timeline merge reports empty retryable pages", () => {
+    const currentItems = [testTimelineItem("$1", 1)];
+
+    const result = mergeOlderTimelineItemsWithCounts(currentItems, []);
+
+    expect(result.insertedCount).toBe(0);
+    expect(result.duplicateCount).toBe(0);
+    expect(eventIds(result.items)).toEqual(["$1"]);
+  });
+});
+
+describe("pagination state helpers", () => {
+  test("pagination state is keyed by account, room, and timeline context", () => {
+    const roomAKey = paginationStateKey({
+      accountKey: "account-a",
+      roomId: "!room-a:example.org",
+      timelineContext: "live",
+    });
+    const roomBKey = paginationStateKey({
+      accountKey: "account-a",
+      roomId: "!room-b:example.org",
+      timelineContext: "live",
+    });
+
+    expect(roomAKey).not.toBe(roomBKey);
+  });
+
+  test("loading state is explicit and retry states remain clickable", () => {
+    const loadingState: PaginationState = {
+      status: "loading",
+      requestId: "request-1",
+      startedAt: 1,
+    };
+    const errorState: PaginationState = {
+      status: "error",
+      message: "network",
+    };
+
+    expect(paginationIsLoading(loadingState)).toBe(true);
+    expect(paginationIsLoading(errorState)).toBe(false);
+    expect(paginationIsLoading(idlePaginationState)).toBe(false);
+  });
+
+  test("focused timelines use their own pagination context", () => {
+    expect(timelineContextKey(null)).toBe("live");
+    expect(timelineContextKey("$event")).toBe("focused:$event");
   });
 });
 

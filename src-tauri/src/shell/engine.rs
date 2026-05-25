@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
 
 use futures_util::StreamExt;
 use matrix_sdk::room::edit::EditedContent;
@@ -32,7 +32,7 @@ use tauri::async_runtime::Mutex as AsyncMutex;
 
 use super::{
     service::{
-        emit_shell_room_updated, emit_shell_timeline_updated,
+        ShellCacheState, emit_shell_room_updated, emit_shell_timeline_updated,
         timeline_reconciliation::reconcile_authoritative_timeline_items,
     },
     types::{
@@ -136,10 +136,21 @@ impl ShellTimelineRegistry {
         Ok(redacted_event_ids_from_timeline_items(items.iter()))
     }
 
+    pub async fn live_timeline_item_count(
+        &self,
+        account_key: &str,
+        room: &Room,
+    ) -> Result<usize, String> {
+        let timeline = self.live_timeline(account_key, room).await?;
+        let items = timeline.items().await;
+        Ok(timeline_items_to_shell_items(items.iter(), room.room_id().as_str()).len())
+    }
+
     pub async fn subscribe_live_timeline_updates(
         &self,
         app: tauri::AppHandle,
         account_key: &str,
+        store_dir: &Path,
         room: &Room,
     ) -> Result<(), String> {
         let cache_key = Self::cache_key(account_key, room.room_id().as_str());
@@ -154,6 +165,7 @@ impl ShellTimelineRegistry {
         let (timeline_initial_items, mut timeline_stream) = timeline.subscribe().await;
         drop(timeline_initial_items);
         let account_key = account_key.to_owned();
+        let store_dir = store_dir.to_path_buf();
         let room_id = room.room_id().to_string();
         let update_handles = self.live_timeline_update_handles.clone();
         let cache_key_for_task = cache_key.clone();
@@ -166,6 +178,14 @@ impl ShellTimelineRegistry {
                 let items = timeline.items().await;
                 let shell_items = timeline_items_to_shell_items(items.iter(), &room_id);
                 let redacted_event_ids = redacted_event_ids_from_timeline_items(items.iter());
+                ShellCacheState::merge_refreshed_timeline(
+                    &account_key,
+                    &store_dir,
+                    &room_id,
+                    &shell_items,
+                    None,
+                    &redacted_event_ids,
+                );
                 emit_shell_timeline_updated(
                     &app,
                     &account_key,

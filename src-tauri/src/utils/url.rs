@@ -17,7 +17,7 @@ use std::fmt::Write;
 
 // Homeserver directory entries can omit a scheme; default to HTTPS before
 // handing the URL to Matrix SDK builders or external browsers.
-pub(crate) fn ensure_https_url(value: &str) -> String {
+pub fn ensure_https_url(value: &str) -> String {
     if value.contains("://") {
         value.to_owned()
     } else {
@@ -27,7 +27,7 @@ pub(crate) fn ensure_https_url(value: &str) -> String {
 
 // Percent-encode a single URL path segment while preserving RFC 3986
 // unreserved bytes.
-pub(crate) fn encode_path_segment(value: &str) -> String {
+pub fn encode_path_segment(value: &str) -> String {
     let mut encoded = String::new();
 
     for byte in value.bytes() {

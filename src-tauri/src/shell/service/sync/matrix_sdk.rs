@@ -207,20 +207,19 @@ impl ShellSyncManager {
             Self::subscribe_to_focused_room(sync_service.clone(), &focused_room_id);
         }
 
-        let mut running_accounts = self
-            .running_accounts
+        self.running_accounts
             .write()
-            .expect("shell sync manager running-accounts lock poisoned");
-        running_accounts.insert(
-            account.account_key,
-            RunningAccountSync {
-                sync_service,
-                state_listener_handle,
-                room_update_listener_handle,
-                room_list_observer_handle,
-                session_change_listener_handle,
-            },
-        );
+            .expect("shell sync manager running-accounts lock poisoned")
+            .insert(
+                account.account_key,
+                RunningAccountSync {
+                    sync_service,
+                    state_listener_handle,
+                    room_update_listener_handle,
+                    room_list_observer_handle,
+                    session_change_listener_handle,
+                },
+            );
 
         Ok(())
     }
@@ -367,7 +366,7 @@ impl ShellSyncManager {
 
     fn subscribe_to_focused_room(sync_service: Arc<SyncService>, room_id: &str) {
         let owned_room_id = match RoomId::parse(room_id) {
-            Ok(room_id) => room_id.clone(),
+            Ok(room_id) => room_id,
             Err(error) => {
                 eprintln!("Failed to parse focused room id {room_id}: {error}");
                 return;

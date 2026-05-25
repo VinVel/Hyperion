@@ -35,7 +35,7 @@ use crate::shell::{
 };
 
 #[derive(Clone, Default)]
-pub(crate) struct ShellCacheState {
+pub struct ShellCacheState {
     room_thread_cache_served_accounts: Arc<RwLock<HashSet<String>>>,
     space_cache_served_accounts: Arc<RwLock<HashSet<String>>>,
     room_timeline_cache_served_keys: Arc<RwLock<HashSet<String>>>,

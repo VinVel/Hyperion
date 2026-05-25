@@ -12,7 +12,6 @@
  *
  * Project home: hyperion.velcore.net
  */
-#![warn(clippy::pedantic)]
 
 mod account;
 mod settings;
@@ -520,7 +519,7 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|_app_handle, event| {
-            if let RunEvent::Exit = event {
+            if matches!(event, RunEvent::Exit) {
                 account::secure_storage::unset_default_store();
             }
         });

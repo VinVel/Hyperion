@@ -232,9 +232,7 @@ pub async fn create_recovery_key(
 
     let recovery_key = enable_recovery_with_clean_backup(&account.client).await?;
 
-    Ok(GeneratedRecoveryKey {
-        recovery_key: recovery_key.clone(),
-    })
+    Ok(GeneratedRecoveryKey { recovery_key })
 }
 
 #[tauri::command]
@@ -253,9 +251,7 @@ pub async fn rotate_recovery_key(
         .await
         .map_err(|error| format!("Failed to rotate recovery key: {error}"))?;
 
-    Ok(GeneratedRecoveryKey {
-        recovery_key: recovery_key.clone(),
-    })
+    Ok(GeneratedRecoveryKey { recovery_key })
 }
 
 #[tauri::command]

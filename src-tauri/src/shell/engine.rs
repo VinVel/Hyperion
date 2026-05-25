@@ -200,8 +200,11 @@ impl ShellTimelineRegistry {
             handles.remove(&cache_key_for_task);
         });
 
-        let mut handles = self.live_timeline_update_handles.lock().await;
-        handles.entry(cache_key).or_insert(handle);
+        self.live_timeline_update_handles
+            .lock()
+            .await
+            .entry(cache_key)
+            .or_insert(handle);
         Ok(())
     }
 
@@ -560,15 +563,9 @@ impl ShellTimelineRegistry {
 
         let removed_handles = {
             let mut handles = self.live_timeline_update_handles.lock().await;
-            let removed_keys = handles
-                .keys()
-                .filter(|cache_key| cache_key.starts_with(&account_prefix))
-                .cloned()
-                .collect::<Vec<_>>();
-
-            removed_keys
-                .into_iter()
-                .filter_map(|cache_key| handles.remove(&cache_key))
+            handles
+                .extract_if(|cache_key, _handle| cache_key.starts_with(&account_prefix))
+                .map(|(_cache_key, handle)| handle)
                 .collect::<Vec<_>>()
         };
 
@@ -634,9 +631,8 @@ fn timeline_items_to_shell_items<'item>(
 
 fn timeline_item_id_from_string(value: &str) -> Result<TimelineEventItemId, String> {
     if value.starts_with('$') {
-        let event_id = EventId::parse(value)
-            .map_err(|error| format!("Invalid timeline event id: {error}"))?
-            .clone();
+        let event_id =
+            EventId::parse(value).map_err(|error| format!("Invalid timeline event id: {error}"))?;
         return Ok(TimelineEventItemId::EventId(event_id));
     }
 

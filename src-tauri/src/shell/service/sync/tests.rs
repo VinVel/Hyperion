@@ -458,6 +458,7 @@ fn record_test_typing_users(
         .entry(room_id.to_owned())
         .or_default();
     room_state.users = users.iter().map(|user| (*user).to_owned()).collect();
+    drop(store);
 }
 
 fn test_timeline_item(event_id: String) -> RoomTimelineItem {

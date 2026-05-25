@@ -159,10 +159,6 @@ impl AccountManager {
     pub async fn active_account(&self, app: &AppHandle) -> Result<Option<AccountSummary>, String> {
         self.ensure_loaded(app).await?;
 
-        let accounts = self
-            .accounts
-            .read()
-            .expect("account manager accounts lock poisoned");
         let active_account_key = self
             .active_account_key
             .read()
@@ -170,16 +166,24 @@ impl AccountManager {
         let Some(key) = active_account_key.clone() else {
             return Ok(None);
         };
+        drop(active_account_key);
+
+        let accounts = self
+            .accounts
+            .read()
+            .expect("account manager accounts lock poisoned");
         let Some(account) = accounts.get(&key) else {
             return Ok(None);
         };
-
-        Ok(Some(AccountSummary {
+        let summary = AccountSummary {
             account_key: key,
             user_id: account.user_id.clone(),
             homeserver_url: account.homeserver_url.clone(),
             is_active: true,
-        }))
+        };
+        drop(accounts);
+
+        Ok(Some(summary))
     }
 
     pub async fn sign_out_active_account(
@@ -275,24 +279,27 @@ impl AccountManager {
     }
 
     pub(crate) fn active_account_client_loaded(&self) -> Option<AccountClientSnapshot> {
-        let accounts = self
-            .accounts
-            .read()
-            .expect("account manager accounts lock poisoned");
         let active_account_key = self
             .active_account_key
             .read()
             .expect("account manager active account lock poisoned");
-
         let account_key = active_account_key.clone()?;
-        let account = accounts.get(&account_key)?;
+        drop(active_account_key);
 
-        Some(AccountClientSnapshot {
+        let accounts = self
+            .accounts
+            .read()
+            .expect("account manager accounts lock poisoned");
+        let account = accounts.get(&account_key)?;
+        let snapshot = AccountClientSnapshot {
             account_key,
             homeserver_url: account.homeserver_url.clone(),
             client: account.client.clone(),
             store_dir: account.store_dir.clone(),
-        })
+        };
+        drop(accounts);
+
+        Some(snapshot)
     }
 
     pub async fn rebuild_active_client(&self, app: &AppHandle) -> Result<bool, String> {
@@ -349,6 +356,7 @@ impl AccountManager {
                     )
                 })?;
             account.client = replacement_client.clone();
+            drop(accounts);
         }
 
         Ok(true)
@@ -428,18 +436,19 @@ impl AccountManager {
     }
 
     fn active_account_snapshot(&self) -> Option<(AccountSummary, Client, PathBuf)> {
-        let accounts = self
-            .accounts
-            .read()
-            .expect("account manager accounts lock poisoned");
         let active_account_key = self
             .active_account_key
             .read()
             .expect("account manager active account lock poisoned");
         let key = active_account_key.clone()?;
-        let account = accounts.get(&key)?;
+        drop(active_account_key);
 
-        Some((
+        let accounts = self
+            .accounts
+            .read()
+            .expect("account manager accounts lock poisoned");
+        let account = accounts.get(&key)?;
+        let snapshot = (
             AccountSummary {
                 account_key: key,
                 user_id: account.user_id.clone(),
@@ -448,7 +457,10 @@ impl AccountManager {
             },
             account.client.clone(),
             account.store_dir.clone(),
-        ))
+        );
+        drop(accounts);
+
+        Some(snapshot)
     }
 
     async fn build_and_login_client(
@@ -546,6 +558,7 @@ impl AccountManager {
                 store_dir,
             },
         );
+        drop(accounts);
 
         let mut active_account = self
             .active_account_key
@@ -555,6 +568,7 @@ impl AccountManager {
             *active_account = Some(account_key.clone());
         }
         let is_active = active_account.as_deref() == Some(account_key.as_str());
+        drop(active_account);
 
         AccountSummary {
             account_key,

@@ -9,6 +9,9 @@ build = "build.rs"
 exclude = ["/examples", "/dist-js", "/guest-js", "/node_modules"]
 links = "tauri-plugin-mobile-webview-overlay"
 
+[lints]
+workspace = true
+
 [dependencies]
 tauri = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

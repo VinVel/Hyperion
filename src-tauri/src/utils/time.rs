@@ -17,7 +17,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 // App-level timestamps only need a coarse "now" anchor for cache freshness,
 // relative labels, and update payloads.
-pub(crate) fn now_unix_ms() -> u64 {
+pub fn now_unix_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX))

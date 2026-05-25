@@ -95,14 +95,9 @@ impl SearchBackfillCoordinator {
         let account_prefix = format!("{account_key}::");
         let removed_handles = {
             let mut handles = self.handles.lock().await;
-            let keys = handles
-                .keys()
-                .filter(|key| key.starts_with(&account_prefix))
-                .cloned()
-                .collect::<Vec<_>>();
-
-            keys.into_iter()
-                .filter_map(|key| handles.remove(&key))
+            handles
+                .extract_if(|key, _handle| key.starts_with(&account_prefix))
+                .map(|(_key, handle)| handle)
                 .collect::<Vec<_>>()
         };
 

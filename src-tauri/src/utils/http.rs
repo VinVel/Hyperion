@@ -21,7 +21,7 @@ use reqwest::Client as HttpClient;
 use rustls::{ClientConfig, RootCertStore, client::WebPkiServerVerifier};
 
 #[cfg(target_os = "android")]
-pub(crate) fn external_http_client() -> Result<HttpClient, String> {
+pub fn external_http_client() -> Result<HttpClient, String> {
     let mut root_store = RootCertStore::empty();
     root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
 
@@ -44,7 +44,7 @@ pub(crate) fn external_http_client() -> Result<HttpClient, String> {
 }
 
 #[cfg(not(target_os = "android"))]
-pub(crate) fn external_http_client() -> Result<HttpClient, String> {
+pub fn external_http_client() -> Result<HttpClient, String> {
     HttpClient::builder()
         .build()
         .map_err(|error| format!("Failed to build HTTP client: {error}"))

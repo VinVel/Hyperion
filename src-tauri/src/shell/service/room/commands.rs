@@ -345,8 +345,7 @@ impl ShellManager {
 
         let room = resolve_room(&account.client, &request.room_id)?;
         let event_id = EventId::parse(&request.event_id)
-            .map_err(|error| format!("Invalid reply event id: {error}"))?
-            .clone();
+            .map_err(|error| format!("Invalid reply event id: {error}"))?;
         self.sync_coordinator
             .reply_to_live_message(
                 &account.account_key,

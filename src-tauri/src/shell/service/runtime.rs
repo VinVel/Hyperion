@@ -124,15 +124,9 @@ impl ShellTimelineService {
                 .recent_warm_handles
                 .write()
                 .expect("shell timeline service warm-handles lock poisoned");
-            let removed_keys = warm_handles
-                .keys()
-                .filter(|state_key| state_key.starts_with(&account_prefix))
-                .cloned()
-                .collect::<Vec<_>>();
-
-            removed_keys
-                .into_iter()
-                .filter_map(|state_key| warm_handles.remove(&state_key))
+            warm_handles
+                .extract_if(|state_key, _handle| state_key.starts_with(&account_prefix))
+                .map(|(_state_key, handle)| handle)
                 .collect::<Vec<_>>()
         };
 

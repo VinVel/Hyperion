@@ -68,12 +68,12 @@ impl ShellSyncCoordinator {
 
         let already_subscribed =
             room_state.subscription_reserved || room_state.subscription_handle.is_some();
-        if already_subscribed {
-            return true;
+        if !already_subscribed {
+            room_state.subscription_reserved = true;
         }
+        drop(store);
 
-        room_state.subscription_reserved = true;
-        false
+        already_subscribed
     }
     fn install_typing_subscription(
         &self,
@@ -81,21 +81,25 @@ impl ShellSyncCoordinator {
         room_id: &str,
         handle: JoinHandle<()>,
     ) {
-        let mut store = self
-            .typing_ephemeral_state
-            .write()
-            .expect("shell sync coordinator typing-state lock poisoned");
-        let Some(room_state) = store
-            .accounts
-            .get_mut(account_key)
-            .and_then(|account_state| account_state.rooms.get_mut(room_id))
-        else {
-            handle.abort();
-            return;
-        };
+        let mut pending_handle = Some(handle);
+        {
+            let mut store = self
+                .typing_ephemeral_state
+                .write()
+                .expect("shell sync coordinator typing-state lock poisoned");
+            if let Some(room_state) = store
+                .accounts
+                .get_mut(account_key)
+                .and_then(|account_state| account_state.rooms.get_mut(room_id))
+            {
+                room_state.subscription_handle = pending_handle.take();
+                room_state.subscription_reserved = false;
+            }
+        }
 
-        room_state.subscription_handle = Some(handle);
-        room_state.subscription_reserved = false;
+        if let Some(handle) = pending_handle {
+            handle.abort();
+        }
     }
     fn record_typing_notice(
         &self,
@@ -116,6 +120,7 @@ impl ShellSyncCoordinator {
             .or_default();
         let previous_notice = room_state.last_notice_is_typing.map(typing_bool_label);
         room_state.last_notice_is_typing = Some(is_typing);
+        drop(store);
         previous_notice
     }
     pub(super) fn release_ephemeral_typing_for_room(
@@ -337,6 +342,7 @@ fn update_typing_users(
             .or_default();
         room_state.app = Some(app.clone());
         room_state.users.clone_from(&users);
+        drop(store);
     }
 
     emit_sync_diagnostic(
@@ -368,6 +374,7 @@ fn clear_finished_typing_subscription(
 
     room_state.subscription_reserved = false;
     room_state.subscription_handle = None;
+    drop(store);
 }
 
 fn typing_bool_label(value: bool) -> &'static str {

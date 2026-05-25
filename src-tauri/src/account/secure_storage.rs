@@ -37,7 +37,7 @@ const ANDROID_STORE_NAME: &str = "hyperion-matrix-store";
 // native keyring needs the Activity context that Tauri exposes after startup.
 static DEFAULT_STORE_INITIALIZED: OnceLock<Mutex<bool>> = OnceLock::new();
 
-pub(crate) fn unset_default_store() {
+pub fn unset_default_store() {
     drop(keyring_core::unset_default_store());
     if let Some(initialized) = DEFAULT_STORE_INITIALIZED.get() {
         match initialized.lock() {
@@ -78,6 +78,7 @@ fn ensure_default_store<R: Runtime>(
     };
     keyring_core::set_default_store(store);
     *initialized = true;
+    drop(initialized);
     Ok(())
 }
 

@@ -185,21 +185,21 @@ impl ShellSyncCoordinator {
             .expect("shell sync coordinator room-interest lock poisoned");
         let account_state = store.accounts.entry(account_key.to_owned()).or_default();
         let previous_focus_room_id = account_state.focused_room_id.clone();
-        let mut previous_active_interest_was_released = false;
-
-        if matches!(focus_mode, RoomFocusMode::Focused)
+        let previous_active_interest_was_released = if matches!(focus_mode, RoomFocusMode::Focused)
             && previous_focus_room_id
                 .as_deref()
                 .is_some_and(|previous_room_id| previous_room_id != room_id)
             && let Some(previous_focus_room_id) = previous_focus_room_id.as_deref()
         {
-            previous_active_interest_was_released = Self::release_room_interest_locked(
+            Self::release_room_interest_locked(
                 account_state,
                 previous_focus_room_id,
                 RoomInterestKind::ActiveRoomOpen,
                 ACTIVE_ROOM_OWNER,
-            );
-        }
+            )
+        } else {
+            false
+        };
 
         let room_state = account_state
             .rooms
@@ -240,14 +240,17 @@ impl ShellSyncCoordinator {
             .get(room_id)
             .map_or_else(String::new, Self::interest_snapshot);
 
-        RoomObservationOutcome {
+        let outcome = RoomObservationOutcome {
             previous_focus_room_id,
             focused_room_id,
             should_clear_previous_focus,
             should_subscribe_focused_room,
             previous_active_interest_was_released,
             snapshot,
-        }
+        };
+        drop(store);
+
+        outcome
     }
     fn release_room_interest_locked(
         account_state: &mut AccountRoomInterestState,

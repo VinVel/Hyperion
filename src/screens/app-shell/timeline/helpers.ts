@@ -13,7 +13,12 @@
  * Project home: hyperion.velcore.net
  */
 
-import type { RoomTimeline, RoomTimelineItem } from "./appShellAdapters";
+import {
+  mapRoomTimeline,
+  type RoomTimeline,
+  type RoomTimelineItem,
+} from "../appShellAdapters";
+import { ShellTimelineUpdatedPayload, TimelineJumpTarget } from "../types";
 
 // Local echo timestamps and remote event timestamps can differ slightly, so
 // reconcile provisional own messages within this bounded send window.
@@ -213,4 +218,91 @@ function hasReconciledRemoteItem(
   return refreshedItems.some((refreshedItem) =>
     canReconcileLocalEcho(localEcho, refreshedItem),
   );
+}
+export function emptyRoomTimeline(roomId: string): RoomTimeline {
+  return {
+    roomId,
+    items: [],
+    nextBefore: null,
+    focusedEventId: null,
+    redactedEventIds: [],
+  };
+}
+export function normalizeRoomTimeline(timeline: RoomTimeline): RoomTimeline {
+  return {
+    ...timeline,
+    items: canonicalizeTimelineItems(
+      (timeline.items ?? []).map(normalizeRoomTimelineItem),
+    ),
+    nextBefore: timeline.nextBefore ?? null,
+    focusedEventId: timeline.focusedEventId ?? null,
+    redactedEventIds: timeline.redactedEventIds ?? [],
+  };
+}
+function isDurableTimelineItem(item: RoomTimelineItem): boolean {
+  return isRemoteEventId(item.id);
+}
+export function durableRoomTimeline(timeline: RoomTimeline): RoomTimeline {
+  return {
+    ...timeline,
+    items: timeline.items.filter(isDurableTimelineItem),
+  };
+}
+
+function normalizeRoomTimelineItem(item: RoomTimelineItem): RoomTimelineItem {
+  const senderId = item.senderId ?? "";
+  return {
+    ...item,
+    id: item.id ?? item.transactionId ?? "",
+    transactionId: item.transactionId ?? null,
+    senderId,
+    senderDisplayName: item.senderDisplayName ?? senderId,
+    senderAvatarUrl: item.senderAvatarUrl ?? "",
+    body: item.body ?? "",
+    formattedBody: item.formattedBody ?? "",
+    contentKind: item.contentKind ?? "text",
+    timestampUnixMs: item.timestampUnixMs ?? 0,
+    timeLabel: item.timeLabel ?? "",
+    isEdited: item.isEdited ?? false,
+    isRedacted: item.isRedacted ?? false,
+    isOwnMessage: item.isOwnMessage ?? false,
+    sendState: item.sendState ?? "sent",
+    decryptionState: item.decryptionState ?? "unencrypted",
+    groupPosition: item.groupPosition ?? "standalone",
+    permalink: item.permalink ?? "",
+    canEdit: item.canEdit ?? false,
+    canRedact: item.canRedact ?? false,
+    canReply: item.canReply ?? true,
+    canReact: item.canReact ?? true,
+    reactions: item.reactions ?? [],
+    receipts: item.receipts ?? [],
+    replyPreview: item.replyPreview ?? null,
+  };
+}
+export function roomTimelineFromUpdatePayload(
+  payload: ShellTimelineUpdatedPayload,
+): RoomTimeline {
+  return normalizeRoomTimeline(
+    mapRoomTimeline({
+      room_id: payload.room_id,
+      items: payload.items,
+      next_before: null,
+      focused_event_id: null,
+      redacted_event_ids: payload.redacted_event_ids,
+    }),
+  );
+}
+export function timelineAnchorForRoom(
+  roomId: string,
+  timelineJumpTarget: TimelineJumpTarget | null,
+): string | null {
+  if (timelineJumpTarget?.roomId !== roomId) {
+    return null;
+  }
+
+  if (timelineJumpTarget.eventId.trim().length === 0) {
+    return null;
+  }
+
+  return timelineJumpTarget.eventId;
 }

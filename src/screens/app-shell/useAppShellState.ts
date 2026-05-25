@@ -19,13 +19,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type AccountSummary,
   type AuthenticatedShellView,
-  type BackendRoomTimelineItem,
   type BackendRoomTimelinePaginationResponse,
   type BackendRoomSummary,
   type BackendRoomTimeline,
   type BackendSpaceSummary,
   type RoomTimeline,
-  type RoomTimelineItem,
   type RoomSummary,
   type SpaceSummary,
   mapRoomSummary,
@@ -48,19 +46,43 @@ import {
 } from "./search";
 import { outboundMessageContentFromMarkdown } from "./outboundMarkdown";
 import {
-  canonicalizeTimelineItems,
+  durableRoomTimeline,
+  emptyRoomTimeline,
   mergeOlderTimelineItemsWithCounts,
   mergeTimelineRefresh,
-} from "./timelineMerge";
+  normalizeRoomTimeline,
+  roomTimelineFromUpdatePayload,
+  timelineAnchorForRoom,
+} from "./timeline/helpers";
 import { logPaginationDiagnostic } from "./paginationDiagnostics";
 import {
+  createPaginationRequestId,
   idlePaginationState,
+  paginationContextForTimeline,
   paginationIsLoading,
   paginationStateKey,
-  timelineContextKey,
   type PaginationContext,
   type PaginationState,
-} from "./paginationState";
+} from "./pagination";
+import {
+  FeedbackMessage,
+  RoomThread,
+  ShellTimelineUpdatedPayload,
+  SelectedRoomSnapshot,
+  TimelineJumpTarget,
+  RoomComposerDraft,
+  UseAppShellStateOptions,
+  UseAppShellStateResult,
+  ShellSyncUpdatedPayload,
+  ShellTypingUpdatedPayload,
+} from "./types";
+import {
+  readCachedJson,
+  cachedRoomSnapshotKey,
+  writeCachedJson,
+  cachedRoomThreadsKey,
+  cachedSpacesKey,
+} from "./cache";
 
 const SHELL_SYNC_UPDATED_EVENT = "hyperion://shell-sync-updated";
 const SHELL_TIMELINE_UPDATED_EVENT = "hyperion://shell-timeline-updated";
@@ -85,9 +107,10 @@ const globalSearchLimitPerGroup = 4;
 // Keep recently opened room views in memory so switching rooms is an immediate
 // render operation while the backend refresh catches up.
 const maximumInMemoryRoomSnapshots = 24;
-const cachedRoomThreadsStoragePrefix = "hyperion.appShell.roomThreads";
-const cachedSpacesStoragePrefix = "hyperion.appShell.spaces";
-const cachedRoomSnapshotsStoragePrefix = "hyperion.appShell.roomSnapshots";
+export const cachedRoomThreadsStoragePrefix = "hyperion.appShell.roomThreads";
+export const cachedSpacesStoragePrefix = "hyperion.appShell.spaces";
+export const cachedRoomSnapshotsStoragePrefix =
+  "hyperion.appShell.roomSnapshots";
 // Startup retries cover the common mobile flow where the WebView returns before
 // the native Matrix client is ready.
 const shellStartupRetryDelayMilliseconds = [1_000, 3_000, 7_000, 15_000];
@@ -96,154 +119,11 @@ const shellStartupRetryDelayMilliseconds = [1_000, 3_000, 7_000, 15_000];
 const shellCollectionRecoveryRefreshIntervalMilliseconds = 15_000;
 // Stop our typing notice shortly after the composer becomes idle.
 const roomTypingIdleMilliseconds = 1_500;
-type ShellSyncUpdatedPayload = {
-  account_key: string;
-  changed_room_ids: string[];
-  room_list_may_have_changed: boolean;
-  updated_at_unix_ms: number;
-};
-
-type ShellTimelineUpdatedPayload = {
-  account_key: string;
-  room_id: string;
-  items: BackendRoomTimelineItem[];
-  redacted_event_ids: string[];
-  updated_at_unix_ms: number;
-};
-
-type ShellTypingUpdatedPayload = {
-  account_key: string;
-  room_id: string;
-  users: string[];
-  updated_at_unix_ms: number;
-};
-
-type TimelineJumpTarget = {
-  roomId: string;
-  eventId: string;
-};
-
-type FeedbackMessage = {
-  tone: "success" | "error" | "info" | "warning";
-  text: string;
-};
-
-type SelectedRoomSnapshot = {
-  summary: RoomSummary;
-  timeline: RoomTimeline;
-};
-
-type RoomComposerDraft = {
-  body: string;
-  editEventId: string | null;
-  replyEventId: string | null;
-};
-
-type RoomThread = ReturnType<typeof mapRoomThreadSummary>;
-
-type UseAppShellStateOptions = {
-  activeAccount: AccountSummary;
-  onActiveAccountChange: (nextAccount: AccountSummary) => void;
-};
-
-export type UseAppShellStateResult = {
-  activeView: AuthenticatedShellView;
-  composerValue: string;
-  feedbackMessage: FeedbackMessage | null;
-  globalSearchQuery: string;
-  globalSearchResults: SearchResultGroup[];
-  globalSearchStatusNotice: string | null;
-  isAccountCenterOpen: boolean;
-  isGlobalSearchOpen: boolean;
-  isDiscoveryOpen: boolean;
-  isLoadingOlderMessages: boolean;
-  paginationState: PaginationState;
-  isLoadingShell: boolean;
-  isSendingMessage: boolean;
-  isSortMenuOpen: boolean;
-  isThreadOpen: boolean;
-  activeComposerMode: "message" | "edit" | "reply";
-  selectedTypingUsers: string[];
-  selectedRoomSummary: RoomSummary | null;
-  selectedSpace: SpaceSummary | null;
-  selectedThread: ReturnType<typeof mapRoomThreadSummary> | null;
-  selectedTimeline: RoomTimeline | null;
-  switchableAccounts: AccountSummary[];
-  switchingAccountKey: string | null;
-  threadKindFilter: RoomThreadKindFilter;
-  threadSort: RoomThreadSort;
-  visibleSpaces: SpaceSummary[];
-  visibleThreads: ReturnType<typeof mapRoomThreadSummary>[];
-  closeThread: () => void;
-  closeGlobalSearch: () => void;
-  closeDiscovery: () => void;
-  openGlobalSearch: () => void;
-  openDiscovery: () => void;
-  openMessagesView: () => void;
-  openSettingsView: () => void;
-  openSpacesView: () => void;
-  selectSpace: (spaceId: string) => void;
-  selectSort: (sort: RoomThreadSort) => void;
-  selectThread: (roomId: string) => void;
-  sendMessage: () => Promise<void>;
-  beginEditMessage: (eventId: string, body: string) => void;
-  beginReplyToMessage: (eventId: string) => void;
-  cancelComposerMode: () => void;
-  redactMessage: (eventId: string) => Promise<void>;
-  toggleReaction: (eventId: string, reactionKey: string) => Promise<void>;
-  setComposerValue: (value: string) => void;
-  setRoomTyping: (isTyping: boolean) => Promise<void>;
-  setGlobalSearchQuery: (value: string) => void;
-  setThreadKindFilter: (value: RoomThreadKindFilter) => void;
-  switchAccount: (nextAccount: AccountSummary) => Promise<void>;
-  handleDiscoveryInviteSent: () => void;
-  handleDiscoveryError: (message: string) => void;
-  handleDiscoveryJoined: () => Promise<void>;
-  toggleAccountCenter: () => void;
-  toggleSortMenu: () => void;
-  handleGlobalSearchResult: (
-    threadId?: string,
-    targetView?: AuthenticatedShellView,
-    eventId?: string,
-  ) => void;
-  loadOlderMessages: () => Promise<void>;
-};
-
-function accountScopedStorageKey(prefix: string, accountKey: string): string {
+export function accountScopedStorageKey(
+  prefix: string,
+  accountKey: string,
+): string {
   return `${prefix}.${accountKey}`;
-}
-
-function readCachedJson<T>(storageKey: string, fallback: T): T {
-  try {
-    const rawValue = window.localStorage.getItem(storageKey);
-    if (!rawValue) {
-      return fallback;
-    }
-
-    return JSON.parse(rawValue) as T;
-  } catch {
-    window.localStorage.removeItem(storageKey);
-    return fallback;
-  }
-}
-
-function writeCachedJson<T>(storageKey: string, value: T) {
-  window.localStorage.setItem(storageKey, JSON.stringify(value));
-}
-
-function cachedRoomThreadsKey(accountKey: string): string {
-  return accountScopedStorageKey(cachedRoomThreadsStoragePrefix, accountKey);
-}
-
-function cachedSpacesKey(accountKey: string): string {
-  return accountScopedStorageKey(cachedSpacesStoragePrefix, accountKey);
-}
-
-function cachedRoomSnapshotKey(accountKey: string, roomId: string): string {
-  return accountScopedStorageKey(
-    cachedRoomSnapshotsStoragePrefix,
-    `${accountKey}.${roomId}`,
-  );
 }
 
 function setGenericErrorFeedback(
@@ -266,88 +146,6 @@ function fallbackRoomSummaryFromThread(thread: RoomThread): RoomSummary {
     isDirect: thread.isDirect,
     canSendMessages: false,
   };
-}
-
-function emptyRoomTimeline(roomId: string): RoomTimeline {
-  return {
-    roomId,
-    items: [],
-    nextBefore: null,
-    focusedEventId: null,
-    redactedEventIds: [],
-  };
-}
-
-function normalizeRoomTimeline(timeline: RoomTimeline): RoomTimeline {
-  return {
-    ...timeline,
-    items: canonicalizeTimelineItems(
-      (timeline.items ?? []).map(normalizeRoomTimelineItem),
-    ),
-    nextBefore: timeline.nextBefore ?? null,
-    focusedEventId: timeline.focusedEventId ?? null,
-    redactedEventIds: timeline.redactedEventIds ?? [],
-  };
-}
-
-function isDurableTimelineItem(item: RoomTimelineItem): boolean {
-  return isRemoteEventId(item.id);
-}
-
-function durableRoomTimeline(timeline: RoomTimeline): RoomTimeline {
-  return {
-    ...timeline,
-    items: timeline.items.filter(isDurableTimelineItem),
-  };
-}
-
-function isRemoteEventId(eventId: string | null | undefined): boolean {
-  return eventId?.startsWith("$") === true;
-}
-
-function normalizeRoomTimelineItem(item: RoomTimelineItem): RoomTimelineItem {
-  const senderId = item.senderId ?? "";
-  return {
-    ...item,
-    id: item.id ?? item.transactionId ?? "",
-    transactionId: item.transactionId ?? null,
-    senderId,
-    senderDisplayName: item.senderDisplayName ?? senderId,
-    senderAvatarUrl: item.senderAvatarUrl ?? "",
-    body: item.body ?? "",
-    formattedBody: item.formattedBody ?? "",
-    contentKind: item.contentKind ?? "text",
-    timestampUnixMs: item.timestampUnixMs ?? 0,
-    timeLabel: item.timeLabel ?? "",
-    isEdited: item.isEdited ?? false,
-    isRedacted: item.isRedacted ?? false,
-    isOwnMessage: item.isOwnMessage ?? false,
-    sendState: item.sendState ?? "sent",
-    decryptionState: item.decryptionState ?? "unencrypted",
-    groupPosition: item.groupPosition ?? "standalone",
-    permalink: item.permalink ?? "",
-    canEdit: item.canEdit ?? false,
-    canRedact: item.canRedact ?? false,
-    canReply: item.canReply ?? true,
-    canReact: item.canReact ?? true,
-    reactions: item.reactions ?? [],
-    receipts: item.receipts ?? [],
-    replyPreview: item.replyPreview ?? null,
-  };
-}
-
-function roomTimelineFromUpdatePayload(
-  payload: ShellTimelineUpdatedPayload,
-): RoomTimeline {
-  return normalizeRoomTimeline(
-    mapRoomTimeline({
-      room_id: payload.room_id,
-      items: payload.items,
-      next_before: null,
-      focused_event_id: null,
-      redacted_event_ids: payload.redacted_event_ids,
-    }),
-  );
 }
 
 function readCachedRoomSnapshot(
@@ -409,42 +207,6 @@ function retainCurrentSelection<T extends { id: string }>(
   }
 
   return null;
-}
-
-function timelineAnchorForRoom(
-  roomId: string,
-  timelineJumpTarget: TimelineJumpTarget | null,
-): string | null {
-  if (timelineJumpTarget?.roomId !== roomId) {
-    return null;
-  }
-
-  if (timelineJumpTarget.eventId.trim().length === 0) {
-    return null;
-  }
-
-  return timelineJumpTarget.eventId;
-}
-
-function paginationContextForTimeline(
-  accountKey: string,
-  timeline: RoomTimeline | null,
-): PaginationContext | null {
-  if (!timeline) {
-    return null;
-  }
-
-  return {
-    accountKey,
-    roomId: timeline.roomId,
-    timelineContext: timelineContextKey(timeline.focusedEventId),
-  };
-}
-
-function createPaginationRequestId(): string {
-  const randomPart =
-    globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
-  return `pagination-${Date.now()}-${randomPart}`;
 }
 
 function shouldRefreshSelectedRoomFromSync(

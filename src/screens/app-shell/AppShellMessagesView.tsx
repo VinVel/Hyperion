@@ -29,7 +29,7 @@ import {
   type RoomThreadSummary,
 } from "../conversations";
 import { type RoomSummary, type RoomTimeline } from "./appShellAdapters";
-import { type PaginationState } from "./paginationState";
+import { type PaginationState } from "./pagination";
 import { RoomTimelineView } from "./timeline";
 
 type AppShellMessagesViewProps = {

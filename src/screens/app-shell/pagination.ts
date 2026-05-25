@@ -13,6 +13,8 @@
  * Project home: hyperion.velcore.net
  */
 
+import type { RoomTimeline } from "./appShellAdapters";
+
 export type PaginationState =
   | { status: "idle" }
   | { status: "loading"; requestId: string; startedAt: number }
@@ -36,4 +38,23 @@ export function timelineContextKey(focusedEventId: string | null): string {
 
 export function paginationIsLoading(state: PaginationState): boolean {
   return state.status === "loading";
+}
+export function paginationContextForTimeline(
+  accountKey: string,
+  timeline: RoomTimeline | null,
+): PaginationContext | null {
+  if (!timeline) {
+    return null;
+  }
+
+  return {
+    accountKey,
+    roomId: timeline.roomId,
+    timelineContext: timelineContextKey(timeline.focusedEventId),
+  };
+}
+export function createPaginationRequestId(): string {
+  const randomPart =
+    globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
+  return `pagination-${Date.now()}-${randomPart}`;
 }

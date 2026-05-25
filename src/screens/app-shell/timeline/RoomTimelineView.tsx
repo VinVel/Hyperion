@@ -36,7 +36,7 @@ import {
   type RoomTimelineReplyPreview,
 } from "../appShellAdapters";
 import { logPaginationDiagnostic } from "../paginationDiagnostics";
-import { timelineContextKey, type PaginationState } from "../paginationState";
+import { timelineContextKey, type PaginationState } from "../pagination";
 import TimelineMarkdown from "./TimelineMarkdown";
 import TimelineScroller, {
   type TimelineScrollerContext,

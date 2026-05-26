@@ -24,7 +24,7 @@ use matrix_sdk::{
 };
 
 use crate::{
-    account::AccountManager,
+    account::{AccountManager, ActiveAccount},
     shell::{
         service::{
             RECENT_TIMELINE_WARM_ROOM_COUNT, ShellCacheState, ShellManager, ShellRoomListKind,
@@ -52,12 +52,10 @@ impl ShellManager {
         &self,
         app: &tauri::AppHandle,
         account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         request: ListRoomThreadsRequest,
     ) -> Result<Vec<RoomThreadSummary>, String> {
-        account_manager.ensure_loaded(app).await?;
-        let Some(account) = account_manager.active_account_client_loaded() else {
-            return Err(String::from("No active account is available"));
-        };
+        let account = active_account.snapshot();
 
         if !self
             .cache_state
@@ -157,12 +155,10 @@ impl ShellManager {
         &self,
         app: &tauri::AppHandle,
         account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         request: GetRoomSummaryRequest,
     ) -> Result<RoomSummary, String> {
-        account_manager.ensure_loaded(app).await?;
-        let Some(account) = account_manager.active_account_client_loaded() else {
-            return Err(String::from("No active account is available"));
-        };
+        let account = active_account.snapshot();
         if let Some(summary) = ShellCacheState::cached_room_summary(
             &account.account_key,
             &account.store_dir,
@@ -200,12 +196,10 @@ impl ShellManager {
         &self,
         app: &tauri::AppHandle,
         account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         request: SendRoomMessageRequest,
     ) -> Result<SendRoomMessageResponse, String> {
-        account_manager.ensure_loaded(app).await?;
-        let Some(account) = account_manager.active_account_client_loaded() else {
-            return Err(String::from("No active account is available"));
-        };
+        let account = active_account.snapshot();
 
         self.sync_coordinator
             .ensure_account_running(app, account_manager, account.clone())
@@ -280,14 +274,10 @@ impl ShellManager {
 
     pub async fn edit_room_message(
         &self,
-        app: &tauri::AppHandle,
-        account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         request: EditRoomMessageRequest,
     ) -> Result<(), String> {
-        account_manager.ensure_loaded(app).await?;
-        let Some(account) = account_manager.active_account_client_loaded() else {
-            return Err(String::from("No active account is available"));
-        };
+        let account = active_account.snapshot();
 
         let body = request.body.trim();
         if body.is_empty() {
@@ -307,14 +297,10 @@ impl ShellManager {
 
     pub async fn redact_room_message(
         &self,
-        app: &tauri::AppHandle,
-        account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         request: RedactRoomMessageRequest,
     ) -> Result<(), String> {
-        account_manager.ensure_loaded(app).await?;
-        let Some(account) = account_manager.active_account_client_loaded() else {
-            return Err(String::from("No active account is available"));
-        };
+        let account = active_account.snapshot();
 
         let room = resolve_room(&account.client, &request.room_id)?;
         self.sync_coordinator
@@ -329,14 +315,10 @@ impl ShellManager {
 
     pub async fn reply_to_room_message(
         &self,
-        app: &tauri::AppHandle,
-        account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         request: ReplyToRoomMessageRequest,
     ) -> Result<(), String> {
-        account_manager.ensure_loaded(app).await?;
-        let Some(account) = account_manager.active_account_client_loaded() else {
-            return Err(String::from("No active account is available"));
-        };
+        let account = active_account.snapshot();
 
         let body = request.body.trim();
         if body.is_empty() {
@@ -358,14 +340,10 @@ impl ShellManager {
 
     pub async fn toggle_room_reaction(
         &self,
-        app: &tauri::AppHandle,
-        account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         request: ToggleRoomReactionRequest,
     ) -> Result<ToggleRoomReactionResponse, String> {
-        account_manager.ensure_loaded(app).await?;
-        let Some(account) = account_manager.active_account_client_loaded() else {
-            return Err(String::from("No active account is available"));
-        };
+        let account = active_account.snapshot();
 
         if request.reaction_key.trim().is_empty() {
             return Err(String::from("Reaction key must not be empty"));
@@ -387,13 +365,10 @@ impl ShellManager {
     pub async fn set_room_typing(
         &self,
         app: &tauri::AppHandle,
-        account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         request: SetRoomTypingRequest,
     ) -> Result<(), String> {
-        account_manager.ensure_loaded(app).await?;
-        let Some(account) = account_manager.active_account_client_loaded() else {
-            return Err(String::from("No active account is available"));
-        };
+        let account = active_account.snapshot();
 
         let room = resolve_room(&account.client, &request.room_id)?;
         self.sync_coordinator
@@ -407,12 +382,10 @@ impl ShellManager {
         &self,
         app: &tauri::AppHandle,
         account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         request: ListSpacesRequest,
     ) -> Result<Vec<SpaceSummary>, String> {
-        account_manager.ensure_loaded(app).await?;
-        let Some(account) = account_manager.active_account_client_loaded() else {
-            return Err(String::from("No active account is available"));
-        };
+        let account = active_account.snapshot();
 
         if !self
             .cache_state

@@ -111,7 +111,7 @@ pub async fn get_session_overview(
     app: AppHandle,
     account_manager: tauri::State<'_, AccountManager>,
 ) -> Result<SessionOverview, String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
+    let Some(active_account) = account_manager.optional_active_account(&app).await? else {
         return Ok(SessionOverview {
             has_active_account: false,
             account_key: None,
@@ -122,6 +122,7 @@ pub async fn get_session_overview(
             last_refreshed_at_unix_ms: None,
         });
     };
+    let account = active_account.snapshot();
 
     let cached_overview = account_settings::read_session_overview(&account.store_dir)?;
     schedule_session_overview_refresh(app, account.clone());
@@ -131,7 +132,7 @@ pub async fn get_session_overview(
 
     Ok(SessionOverview {
         has_active_account: true,
-        account_key: Some(account.account_key),
+        account_key: Some(account.account_key.clone()),
         user_id: account.client.user_id().map(ToString::to_string),
         current_device_id: account.client.device_id().map(ToString::to_string),
         current_session_verified: false,
@@ -146,10 +147,9 @@ pub async fn start_session_verification(
     account_manager: tauri::State<'_, AccountManager>,
     request: StartSessionVerificationRequest,
 ) -> Result<VerificationStart, String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
-    let user_id = active_user_id(&account)?;
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
+    let user_id = active_user_id(account)?;
     let device_id = parse_device_id(&request.device_id)?;
     if Some(device_id.as_ref()) == account.client.device_id() {
         return Err(String::from(
@@ -193,10 +193,9 @@ pub async fn start_current_session_verification(
     app: AppHandle,
     account_manager: tauri::State<'_, AccountManager>,
 ) -> Result<VerificationStart, String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
-    let user_id = active_user_id(&account)?;
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
+    let user_id = active_user_id(account)?;
     let encryption = account.client.encryption();
     let has_devices_to_verify_against = encryption
         .has_devices_to_verify_against()
@@ -247,10 +246,9 @@ pub async fn accept_session_verification_request(
     account_manager: tauri::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<VerificationState, String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
-    let verification_request = active_verification_request(&account, &request.flow_id).await?;
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
+    let verification_request = active_verification_request(account, &request.flow_id).await?;
     accept_verification_request_if_pending(&verification_request).await;
 
     Ok(verification_request_state(
@@ -265,10 +263,9 @@ pub async fn deny_session_verification_request(
     account_manager: tauri::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<(), String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
-    let verification_request = active_verification_request(&account, &request.flow_id).await?;
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
+    let verification_request = active_verification_request(account, &request.flow_id).await?;
     verification_request
         .cancel()
         .await
@@ -281,10 +278,9 @@ pub async fn start_sas_verification(
     account_manager: tauri::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<SasVerificationView, String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
-    let verification_request = active_verification_request(&account, &request.flow_id).await?;
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
+    let verification_request = active_verification_request(account, &request.flow_id).await?;
     advance_sas_verification(&verification_request).await
 }
 
@@ -294,10 +290,9 @@ pub async fn accept_sas_verification(
     account_manager: tauri::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<SasVerificationView, String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
-    let sas = get_sas_for_flow_raw(&account, &request.flow_id).await?;
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
+    let sas = get_sas_for_flow_raw(account, &request.flow_id).await?;
     sas.accept()
         .await
         .map_err(|error| format!("Failed to accept emoji verification: {error}"))?;
@@ -311,10 +306,9 @@ pub async fn get_sas_verification(
     account_manager: tauri::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<SasVerificationView, String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
-    let verification_request = active_verification_request(&account, &request.flow_id).await?;
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
+    let verification_request = active_verification_request(account, &request.flow_id).await?;
     advance_sas_verification(&verification_request).await
 }
 
@@ -324,10 +318,9 @@ pub async fn confirm_sas_verification(
     account_manager: tauri::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<SasVerificationView, String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
-    let sas = get_sas_for_flow_raw(&account, &request.flow_id).await?;
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
+    let sas = get_sas_for_flow_raw(account, &request.flow_id).await?;
     sas.confirm()
         .await
         .map_err(|error| format!("Failed to confirm emoji verification: {error}"))?;
@@ -341,10 +334,9 @@ pub async fn cancel_sas_verification(
     account_manager: tauri::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<SasVerificationView, String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
-    let sas = get_sas_for_flow_raw(&account, &request.flow_id).await?;
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
+    let sas = get_sas_for_flow_raw(account, &request.flow_id).await?;
     sas.mismatch()
         .await
         .map_err(|error| format!("Failed to cancel emoji verification: {error}"))?;
@@ -358,14 +350,13 @@ pub async fn deauthorize_sessions(
     account_manager: tauri::State<'_, AccountManager>,
     request: DeauthorizeSessionsRequest,
 ) -> Result<DeauthorizeSessionsOutcome, String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
     let current_device_id = account.client.device_id().map(ToOwned::to_owned);
     let device_ids =
         parse_deauthorization_device_ids(&request.device_ids, current_device_id.as_ref())?;
     let auth_data = password_auth_data(
-        &account,
+        account,
         request.auth_session.as_ref(),
         request.password.as_deref(),
     )?;
@@ -385,7 +376,7 @@ pub async fn deauthorize_sessions(
 
             if is_unrecognized_endpoint_error(&error.to_string()) {
                 if let Some(account_management_url) =
-                    account_management_url_for_first_device(&account, &device_ids).await
+                    account_management_url_for_first_device(account, &device_ids).await
                 {
                     return Ok(DeauthorizeSessionsOutcome::AccountManagementRequired {
                         account_management_url,
@@ -393,7 +384,7 @@ pub async fn deauthorize_sessions(
                 }
 
                 return deauthorize_sessions_individually(
-                    &account,
+                    account,
                     &device_ids,
                     request.password.as_deref(),
                 )

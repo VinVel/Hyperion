@@ -32,7 +32,7 @@ use matrix_sdk::{
 use reqwest::Client as HttpClient;
 
 use crate::{
-    account::AccountManager,
+    account::{AccountManager, ActiveAccount},
     shell::{
         service::{
             ShellCacheState, ShellManager, ShellRoomListKind,
@@ -64,12 +64,11 @@ const DISCOVERY_JOIN_TIMEOUT_MS: u64 = 45_000;
 impl ShellManager {
     pub async fn search_discovery_entities(
         &self,
-        app: &tauri::AppHandle,
-        account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         request: SearchDiscoveryEntitiesRequest,
     ) -> Result<Vec<DiscoveryEntity>, String> {
         self.discovery_service
-            .search_discovery_entities(app, account_manager, &self.sync_coordinator, request)
+            .search_discovery_entities(active_account, &self.sync_coordinator, request)
             .await
     }
 
@@ -77,48 +76,46 @@ impl ShellManager {
         &self,
         app: &tauri::AppHandle,
         account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         request: JoinDiscoveryRoomRequest,
     ) -> Result<JoinDiscoveryRoomResponse, String> {
         self.discovery_service
-            .join_discovery_room(app, account_manager, &self.sync_coordinator, request)
+            .join_discovery_room(
+                app,
+                account_manager,
+                active_account,
+                &self.sync_coordinator,
+                request,
+            )
             .await
     }
 
     pub async fn invite_user_to_room(
         &self,
-        app: &tauri::AppHandle,
-        account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         request: InviteUserToRoomRequest,
     ) -> Result<(), String> {
         self.discovery_service
-            .invite_user_to_room(app, account_manager, request)
+            .invite_user_to_room(active_account, request)
             .await
     }
 
-    pub async fn list_invite_targets(
-        &self,
-        app: &tauri::AppHandle,
-        account_manager: &AccountManager,
-        request: ListInviteTargetsRequest,
+    pub fn list_invite_targets(
+        active_account: &ActiveAccount,
+        request: &ListInviteTargetsRequest,
     ) -> Result<Vec<InviteTarget>, String> {
-        self.discovery_service
-            .list_invite_targets(app, account_manager, request)
-            .await
+        invite_targets_for_account(active_account, request)
     }
 }
 
 impl ShellDiscoveryService {
     pub(super) async fn search_discovery_entities(
         &self,
-        app: &tauri::AppHandle,
-        account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         sync_coordinator: &ShellSyncCoordinator,
         request: SearchDiscoveryEntitiesRequest,
     ) -> Result<Vec<DiscoveryEntity>, String> {
-        account_manager.ensure_loaded(app).await?;
-        let Some(account) = account_manager.active_account_client_loaded() else {
-            return Err(String::from("No active account is available"));
-        };
+        let account = active_account.snapshot();
 
         let limit = bounded_discovery_limit(request.limit);
         let source = request.source.unwrap_or(DiscoverySource::All);
@@ -173,13 +170,11 @@ impl ShellDiscoveryService {
         &self,
         app: &tauri::AppHandle,
         account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         sync_coordinator: &ShellSyncCoordinator,
         request: JoinDiscoveryRoomRequest,
     ) -> Result<JoinDiscoveryRoomResponse, String> {
-        account_manager.ensure_loaded(app).await?;
-        let Some(account) = account_manager.active_account_client_loaded() else {
-            return Err(String::from("No active account is available"));
-        };
+        let account = active_account.snapshot();
 
         let room_or_alias = RoomOrAliasId::parse(&request.room_id_or_alias)
             .map_err(|error| format!("Invalid room id or alias: {error}"))?;
@@ -196,14 +191,10 @@ impl ShellDiscoveryService {
 
     pub(super) async fn invite_user_to_room(
         &self,
-        app: &tauri::AppHandle,
-        account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         request: InviteUserToRoomRequest,
     ) -> Result<(), String> {
-        account_manager.ensure_loaded(app).await?;
-        let Some(account) = account_manager.active_account_client_loaded() else {
-            return Err(String::from("No active account is available"));
-        };
+        let account = active_account.snapshot();
         let room_id =
             RoomId::parse(&request.room_id).map_err(|error| format!("Invalid room id: {error}"))?;
         let user_id =
@@ -216,37 +207,32 @@ impl ShellDiscoveryService {
             .await
             .map_err(|error| format!("Failed to invite user: {error}"))
     }
+}
 
-    pub(super) async fn list_invite_targets(
-        &self,
-        app: &tauri::AppHandle,
-        account_manager: &AccountManager,
-        request: ListInviteTargetsRequest,
-    ) -> Result<Vec<InviteTarget>, String> {
-        account_manager.ensure_loaded(app).await?;
-        let Some(account) = account_manager.active_account_client_loaded() else {
-            return Err(String::from("No active account is available"));
-        };
-        UserId::parse(&request.user_id).map_err(|error| format!("Invalid user id: {error}"))?;
+fn invite_targets_for_account(
+    active_account: &ActiveAccount,
+    request: &ListInviteTargetsRequest,
+) -> Result<Vec<InviteTarget>, String> {
+    let account = active_account.snapshot();
+    UserId::parse(&request.user_id).map_err(|error| format!("Invalid user id: {error}"))?;
 
-        let conversations = ShellCacheState::cached_room_threads(
-            &account.account_key,
-            &account.store_dir,
-            &crate::shell::types::ListRoomThreadsRequest { search_query: None },
-        )
-        .unwrap_or_default();
-        let spaces = ShellCacheState::cached_spaces(
-            &account.store_dir,
-            &crate::shell::types::ListSpacesRequest { search_query: None },
-        )
-        .unwrap_or_default();
+    let conversations = ShellCacheState::cached_room_threads(
+        &account.account_key,
+        &account.store_dir,
+        &crate::shell::types::ListRoomThreadsRequest { search_query: None },
+    )
+    .unwrap_or_default();
+    let spaces = ShellCacheState::cached_spaces(
+        &account.store_dir,
+        &crate::shell::types::ListSpacesRequest { search_query: None },
+    )
+    .unwrap_or_default();
 
-        Ok(invite_targets_from_summaries(
-            &account.client,
-            conversations,
-            spaces,
-        ))
-    }
+    Ok(invite_targets_from_summaries(
+        &account.client,
+        conversations,
+        spaces,
+    ))
 }
 
 async fn joined_conversation_ids(
@@ -299,11 +285,11 @@ async fn ensure_active_account_sync(
     account_manager: &AccountManager,
     sync_coordinator: &ShellSyncCoordinator,
 ) -> Result<(), String> {
-    account_manager.ensure_loaded(app).await?;
-    let Some(account) = account_manager.active_account_client_loaded() else {
+    let Some(active_account) = account_manager.optional_active_account(app).await? else {
         sync_coordinator.stop_all_accounts().await;
         return Ok(());
     };
+    let account = active_account.into_snapshot();
 
     sync_coordinator
         .ensure_account_running(app, account_manager, account)

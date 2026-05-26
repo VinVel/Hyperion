@@ -55,7 +55,7 @@ pub async fn get_encryption_overview(
     app: AppHandle,
     account_manager: tauri::State<'_, AccountManager>,
 ) -> Result<EncryptionOverview, String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
+    let Some(active_account) = account_manager.optional_active_account(&app).await? else {
         return Ok(EncryptionOverview {
             has_active_account: false,
             account_key: None,
@@ -71,6 +71,7 @@ pub async fn get_encryption_overview(
             last_refreshed_at_unix_ms: None,
         });
     };
+    let account = active_account.snapshot();
 
     let cached_overview = account_settings::read_encryption_overview(&account.store_dir)?;
     schedule_encryption_overview_refresh(app, account.clone());
@@ -84,7 +85,7 @@ pub async fn get_encryption_overview(
 
     Ok(EncryptionOverview {
         has_active_account: true,
-        account_key: Some(account.account_key),
+        account_key: Some(account.account_key.clone()),
         user_id: account.client.user_id().map(ToString::to_string),
         device_id: account.client.device_id().map(ToString::to_string),
         ed25519_key: None,
@@ -182,9 +183,8 @@ pub async fn enable_server_key_storage(
     app: AppHandle,
     account_manager: tauri::State<'_, AccountManager>,
 ) -> Result<(), String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
 
     let mut preferences =
         AccountManager::load_encryption_preferences_for_store(&account.client, &account.store_dir)
@@ -204,9 +204,8 @@ pub async fn disable_server_key_storage(
     app: AppHandle,
     account_manager: tauri::State<'_, AccountManager>,
 ) -> Result<(), String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
 
     let mut preferences =
         AccountManager::load_encryption_preferences_for_store(&account.client, &account.store_dir)
@@ -226,9 +225,8 @@ pub async fn create_recovery_key(
     app: AppHandle,
     account_manager: tauri::State<'_, AccountManager>,
 ) -> Result<GeneratedRecoveryKey, String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
 
     let recovery_key = enable_recovery_with_clean_backup(&account.client).await?;
 
@@ -240,9 +238,8 @@ pub async fn rotate_recovery_key(
     app: AppHandle,
     account_manager: tauri::State<'_, AccountManager>,
 ) -> Result<GeneratedRecoveryKey, String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
 
     let encryption = account.client.encryption();
     let recovery = encryption.recovery();
@@ -259,9 +256,8 @@ pub async fn delete_recovery(
     app: AppHandle,
     account_manager: tauri::State<'_, AccountManager>,
 ) -> Result<(), String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
 
     let encryption = account.client.encryption();
     let recovery = encryption.recovery();
@@ -288,9 +284,8 @@ pub async fn recover_with_recovery_key(
     account_manager: tauri::State<'_, AccountManager>,
     request: RecoveryKeyRequest,
 ) -> Result<(), String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
     let recovery_key = request.recovery_key.trim();
     if recovery_key.is_empty() {
         return Err(String::from("Recovery key must not be empty"));
@@ -320,9 +315,8 @@ pub async fn export_room_keys(
     account_manager: tauri::State<'_, AccountManager>,
     request: RoomKeyFileRequest,
 ) -> Result<Option<String>, String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
     let passphrase = normalized_passphrase(&request.passphrase)?;
     let Some(destination) = room_key_export_destination(&app)? else {
         return Ok(None);
@@ -348,9 +342,8 @@ pub async fn import_room_keys(
     account_manager: tauri::State<'_, AccountManager>,
     request: RoomKeyFileRequest,
 ) -> Result<Option<RoomKeyImportSummary>, String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
     let passphrase = normalized_passphrase(&request.passphrase)?;
     let Some(source) = room_key_import_source(&app)? else {
         return Ok(None);
@@ -377,9 +370,8 @@ pub async fn reset_crypto_identity(
     app: AppHandle,
     account_manager: tauri::State<'_, AccountManager>,
 ) -> Result<CryptoIdentityResetOutcome, String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
 
     let encryption = account.client.encryption();
     let recovery = encryption.recovery();
@@ -408,9 +400,8 @@ pub async fn set_verified_devices_only(
     shell_manager: tauri::State<'_, ShellManager>,
     enabled: bool,
 ) -> Result<(), String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
     let mut preferences =
         AccountManager::load_encryption_preferences_for_store(&account.client, &account.store_dir)
             .await?;
@@ -434,9 +425,8 @@ pub async fn set_share_encrypted_history_on_invite(
     shell_manager: tauri::State<'_, ShellManager>,
     enabled: bool,
 ) -> Result<(), String> {
-    let Some(account) = account_manager.active_account_client(&app).await? else {
-        return Err(String::from("No active account is available"));
-    };
+    let active_account = account_manager.require_active_account(&app).await?;
+    let account = active_account.snapshot();
     let mut preferences =
         AccountManager::load_encryption_preferences_for_store(&account.client, &account.store_dir)
             .await?;

@@ -53,6 +53,25 @@ pub struct AccountClientSnapshot {
     pub store_dir: PathBuf,
 }
 
+#[derive(Clone)]
+pub struct ActiveAccount {
+    snapshot: AccountClientSnapshot,
+}
+
+impl ActiveAccount {
+    pub(super) fn new(snapshot: AccountClientSnapshot) -> Self {
+        Self { snapshot }
+    }
+
+    pub fn snapshot(&self) -> &AccountClientSnapshot {
+        &self.snapshot
+    }
+
+    pub fn into_snapshot(self) -> AccountClientSnapshot {
+        self.snapshot
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(super) struct StoredAccountMetadata {
     pub user_id: String,

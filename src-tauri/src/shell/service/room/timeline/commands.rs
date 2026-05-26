@@ -22,7 +22,7 @@ use std::{
 use matrix_sdk::{Room, ruma::EventId};
 
 use crate::{
-    account::{AccountClientSnapshot, AccountManager},
+    account::{AccountClientSnapshot, AccountManager, ActiveAccount},
     shell::{
         service::emit_shell_room_updated,
         service::{
@@ -73,15 +73,13 @@ impl ShellManager {
         &self,
         app: &tauri::AppHandle,
         account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         request: GetRoomTimelineRequest,
     ) -> Result<RoomTimeline, String> {
-        account_manager.ensure_loaded(app).await?;
-        let Some(account) = account_manager.active_account_client_loaded() else {
-            return Err(String::from("No active account is available"));
-        };
+        let account = active_account.snapshot();
 
         if let Some(cached_timeline) =
-            self.cached_timeline_response(app, account_manager, &account, &request)
+            self.cached_timeline_response(app, account_manager, account, &request)
         {
             return Ok(cached_timeline);
         }
@@ -91,16 +89,16 @@ impl ShellManager {
             .await?;
 
         let room = resolve_room(&account.client, &request.room_id)?;
-        self.prepare_room_timeline_load(&account, &room);
+        self.prepare_room_timeline_load(account, &room);
         let (mut items, next_before) = self
-            .load_room_timeline_items(app, &account, &room, &request)
+            .load_room_timeline_items(app, account, &room, &request)
             .await?;
         apply_timeline_presentation(&mut items, room.room_id().as_str());
         let redacted_event_ids = self
             .live_redacted_event_ids(&account.account_key, &room)
             .await;
         self.after_room_timeline_load(
-            &account,
+            account,
             &room,
             &request,
             &items,
@@ -122,6 +120,7 @@ impl ShellManager {
         &self,
         app: &tauri::AppHandle,
         account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         request: PaginateRoomTimelineRequest,
     ) -> Result<RoomTimelinePaginationResponse, String> {
         emit_pagination_diagnostic(
@@ -139,25 +138,14 @@ impl ShellManager {
                 ),
             ],
         );
-        account_manager.ensure_loaded(app).await?;
-        let Some(account) = account_manager.active_account_client_loaded() else {
-            emit_pagination_diagnostic(
-                "pagination.error",
-                &[
-                    ("room_id", request.room_id.as_str()),
-                    ("request_id", request.request_id.as_str()),
-                    ("reason", "missing_active_account"),
-                ],
-            );
-            return Err(String::from("No active account is available"));
-        };
+        let account = active_account.snapshot();
 
         self.sync_coordinator
             .ensure_account_running(app, account_manager, account.clone())
             .await?;
 
         let room = resolve_room(&account.client, &request.room_id)?;
-        self.prepare_room_timeline_load(&account, &room);
+        self.prepare_room_timeline_load(account, &room);
         let cached_items_before_pagination = ShellCacheState::cached_room_timeline(
             &account.account_key,
             &account.store_dir,
@@ -182,11 +170,11 @@ impl ShellManager {
             &cached_items_before_pagination,
         );
         if let Some(cached_page_result) = reveal_cached_older_pagination_page(
-            &account,
+            account,
             &request,
             request.limit.unwrap_or(DEFAULT_TIMELINE_LIMIT),
         ) {
-            self.commit_explicit_pagination_page(&account, &room, &request, &cached_page_result)
+            self.commit_explicit_pagination_page(account, &room, &request, &cached_page_result)
                 .await?;
             let response =
                 pagination_response(room.room_id().as_str(), request, cached_page_result);
@@ -195,9 +183,9 @@ impl ShellManager {
         }
 
         let page_result = self
-            .load_explicit_pagination_pages(app, &account, &room, &request)
+            .load_explicit_pagination_pages(app, account, &room, &request)
             .await?;
-        self.commit_explicit_pagination_page(&account, &room, &request, &page_result)
+        self.commit_explicit_pagination_page(account, &room, &request, &page_result)
             .await?;
 
         let response = pagination_response(room.room_id().as_str(), request, page_result);
@@ -423,12 +411,10 @@ impl ShellManager {
         &self,
         app: &tauri::AppHandle,
         account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         request: GetRoomEventContextRequest,
     ) -> Result<RoomTimeline, String> {
-        account_manager.ensure_loaded(app).await?;
-        let Some(account) = account_manager.active_account_client_loaded() else {
-            return Err(String::from("No active account is available"));
-        };
+        let account = active_account.snapshot();
 
         self.sync_coordinator
             .ensure_account_running(app, account_manager, account.clone())
@@ -479,12 +465,10 @@ impl ShellManager {
         &self,
         app: &tauri::AppHandle,
         account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         request: ResolveRoomReplyPreviewRequest,
     ) -> Result<RoomTimelineReplyPreview, String> {
-        account_manager.ensure_loaded(app).await?;
-        let Some(account) = account_manager.active_account_client_loaded() else {
-            return Err(String::from("No active account is available"));
-        };
+        let account = active_account.snapshot();
 
         let event_id = match EventId::parse(&request.event_id) {
             Ok(event_id) => event_id.clone(),
@@ -629,26 +613,26 @@ impl ShellManager {
         account_manager: &AccountManager,
         request: GetRoomTimelineRequest,
     ) -> Result<(), String> {
-        account_manager.ensure_loaded(app).await?;
-        let Some(account) = account_manager.active_account_client_loaded() else {
+        let Some(active_account) = account_manager.optional_active_account(app).await? else {
             return Ok(());
         };
+        let account = active_account.snapshot();
 
         self.sync_coordinator
             .ensure_account_running(app, account_manager, account.clone())
             .await?;
 
         let room = resolve_room(&account.client, &request.room_id)?;
-        self.prepare_room_timeline_load(&account, &room);
+        self.prepare_room_timeline_load(account, &room);
         let (mut items, next_before) = self
-            .load_room_timeline_items(app, &account, &room, &request)
+            .load_room_timeline_items(app, account, &room, &request)
             .await?;
         apply_timeline_presentation(&mut items, room.room_id().as_str());
         let redacted_event_ids = self
             .live_redacted_event_ids(&account.account_key, &room)
             .await;
         self.after_room_timeline_load(
-            &account,
+            account,
             &room,
             &request,
             &items,

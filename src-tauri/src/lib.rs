@@ -51,12 +51,12 @@ use shell::{
     },
     types::{
         EditRoomMessageRequest, GetRoomEventContextRequest, GetRoomSummaryRequest,
-        GetRoomTimelineRequest, GlobalSearchRequest, GlobalSearchResponse, ListRoomThreadsRequest,
-        ListSpacesRequest, PaginateRoomTimelineRequest, RedactRoomMessageRequest,
-        ReplyToRoomMessageRequest, ResolveRoomReplyPreviewRequest, RoomSummary, RoomThreadSummary,
-        RoomTimeline, RoomTimelinePaginationResponse, RoomTimelineReplyPreview,
-        SendRoomMessageRequest, SendRoomMessageResponse, SetRoomTypingRequest, SpaceSummary,
-        ToggleRoomReactionRequest, ToggleRoomReactionResponse,
+        GetRoomTimelineRequest, GlobalSearchIndexStatus, GlobalSearchRequest, GlobalSearchResponse,
+        ListRoomThreadsRequest, ListSpacesRequest, PaginateRoomTimelineRequest,
+        RedactRoomMessageRequest, ReplyToRoomMessageRequest, ResolveRoomReplyPreviewRequest,
+        RoomSummary, RoomThreadSummary, RoomTimeline, RoomTimelinePaginationResponse,
+        RoomTimelineReplyPreview, SendRoomMessageRequest, SendRoomMessageResponse,
+        SetRoomTypingRequest, SpaceSummary, ToggleRoomReactionRequest, ToggleRoomReactionResponse,
     },
 };
 
@@ -167,10 +167,12 @@ async fn list_room_threads(
     shell_manager: State<'_, ShellManager>,
     request: Option<ListRoomThreadsRequest>,
 ) -> Result<Vec<RoomThreadSummary>, String> {
+    let active_account = account_manager.require_active_account(&app).await?;
     shell_manager
         .list_room_threads(
             &app,
             &account_manager,
+            &active_account,
             request.unwrap_or(ListRoomThreadsRequest { search_query: None }),
         )
         .await
@@ -183,8 +185,9 @@ async fn get_room_summary(
     shell_manager: State<'_, ShellManager>,
     request: GetRoomSummaryRequest,
 ) -> Result<RoomSummary, String> {
+    let active_account = account_manager.require_active_account(&app).await?;
     shell_manager
-        .get_room_summary(&app, &account_manager, request)
+        .get_room_summary(&app, &account_manager, &active_account, request)
         .await
 }
 
@@ -195,8 +198,9 @@ async fn get_room_timeline(
     shell_manager: State<'_, ShellManager>,
     request: GetRoomTimelineRequest,
 ) -> Result<RoomTimeline, String> {
+    let active_account = account_manager.require_active_account(&app).await?;
     shell_manager
-        .get_room_timeline(&app, &account_manager, request)
+        .get_room_timeline(&app, &account_manager, &active_account, request)
         .await
 }
 
@@ -207,8 +211,9 @@ async fn get_room_event_context(
     shell_manager: State<'_, ShellManager>,
     request: GetRoomEventContextRequest,
 ) -> Result<RoomTimeline, String> {
+    let active_account = account_manager.require_active_account(&app).await?;
     shell_manager
-        .get_room_event_context(&app, &account_manager, request)
+        .get_room_event_context(&app, &account_manager, &active_account, request)
         .await
 }
 
@@ -219,8 +224,9 @@ async fn paginate_room_timeline_backwards(
     shell_manager: State<'_, ShellManager>,
     request: PaginateRoomTimelineRequest,
 ) -> Result<RoomTimelinePaginationResponse, String> {
+    let active_account = account_manager.require_active_account(&app).await?;
     shell_manager
-        .paginate_room_timeline_backwards(&app, &account_manager, request)
+        .paginate_room_timeline_backwards(&app, &account_manager, &active_account, request)
         .await
 }
 
@@ -231,8 +237,9 @@ async fn resolve_room_reply_preview(
     shell_manager: State<'_, ShellManager>,
     request: ResolveRoomReplyPreviewRequest,
 ) -> Result<RoomTimelineReplyPreview, String> {
+    let active_account = account_manager.require_active_account(&app).await?;
     shell_manager
-        .resolve_room_reply_preview(&app, &account_manager, request)
+        .resolve_room_reply_preview(&app, &account_manager, &active_account, request)
         .await
 }
 
@@ -243,8 +250,9 @@ async fn send_room_message(
     shell_manager: State<'_, ShellManager>,
     request: SendRoomMessageRequest,
 ) -> Result<SendRoomMessageResponse, String> {
+    let active_account = account_manager.require_active_account(&app).await?;
     shell_manager
-        .send_room_message(&app, &account_manager, request)
+        .send_room_message(&app, &account_manager, &active_account, request)
         .await
 }
 
@@ -255,8 +263,9 @@ async fn edit_room_message(
     shell_manager: State<'_, ShellManager>,
     request: EditRoomMessageRequest,
 ) -> Result<(), String> {
+    let active_account = account_manager.require_active_account(&app).await?;
     shell_manager
-        .edit_room_message(&app, &account_manager, request)
+        .edit_room_message(&active_account, request)
         .await
 }
 
@@ -267,8 +276,9 @@ async fn redact_room_message(
     shell_manager: State<'_, ShellManager>,
     request: RedactRoomMessageRequest,
 ) -> Result<(), String> {
+    let active_account = account_manager.require_active_account(&app).await?;
     shell_manager
-        .redact_room_message(&app, &account_manager, request)
+        .redact_room_message(&active_account, request)
         .await
 }
 
@@ -279,8 +289,9 @@ async fn reply_to_room_message(
     shell_manager: State<'_, ShellManager>,
     request: ReplyToRoomMessageRequest,
 ) -> Result<(), String> {
+    let active_account = account_manager.require_active_account(&app).await?;
     shell_manager
-        .reply_to_room_message(&app, &account_manager, request)
+        .reply_to_room_message(&active_account, request)
         .await
 }
 
@@ -291,8 +302,9 @@ async fn toggle_room_reaction(
     shell_manager: State<'_, ShellManager>,
     request: ToggleRoomReactionRequest,
 ) -> Result<ToggleRoomReactionResponse, String> {
+    let active_account = account_manager.require_active_account(&app).await?;
     shell_manager
-        .toggle_room_reaction(&app, &account_manager, request)
+        .toggle_room_reaction(&active_account, request)
         .await
 }
 
@@ -303,8 +315,9 @@ async fn set_room_typing(
     shell_manager: State<'_, ShellManager>,
     request: SetRoomTypingRequest,
 ) -> Result<(), String> {
+    let active_account = account_manager.require_active_account(&app).await?;
     shell_manager
-        .set_room_typing(&app, &account_manager, request)
+        .set_room_typing(&app, &active_account, request)
         .await
 }
 
@@ -315,10 +328,12 @@ async fn list_spaces(
     shell_manager: State<'_, ShellManager>,
     request: Option<ListSpacesRequest>,
 ) -> Result<Vec<SpaceSummary>, String> {
+    let active_account = account_manager.require_active_account(&app).await?;
     shell_manager
         .list_spaces(
             &app,
             &account_manager,
+            &active_account,
             request.unwrap_or(ListSpacesRequest { search_query: None }),
         )
         .await
@@ -331,8 +346,16 @@ async fn global_search(
     shell_manager: State<'_, ShellManager>,
     request: GlobalSearchRequest,
 ) -> Result<GlobalSearchResponse, String> {
+    let Some(active_account) = account_manager.optional_active_account(&app).await? else {
+        return Ok(GlobalSearchResponse {
+            rooms: Vec::new(),
+            spaces: Vec::new(),
+            messages: Vec::new(),
+            status: GlobalSearchIndexStatus::default(),
+        });
+    };
     shell_manager
-        .global_search(&app, &account_manager, request)
+        .global_search(&app, &account_manager, &active_account, request)
         .await
 }
 
@@ -343,8 +366,9 @@ async fn search_discovery_entities(
     shell_manager: State<'_, ShellManager>,
     request: SearchDiscoveryEntitiesRequest,
 ) -> Result<Vec<DiscoveryEntity>, String> {
+    let active_account = account_manager.require_active_account(&app).await?;
     shell_manager
-        .search_discovery_entities(&app, &account_manager, request)
+        .search_discovery_entities(&active_account, request)
         .await
 }
 
@@ -355,8 +379,9 @@ async fn join_discovery_room(
     shell_manager: State<'_, ShellManager>,
     request: JoinDiscoveryRoomRequest,
 ) -> Result<JoinDiscoveryRoomResponse, String> {
+    let active_account = account_manager.require_active_account(&app).await?;
     shell_manager
-        .join_discovery_room(&app, &account_manager, request)
+        .join_discovery_room(&app, &account_manager, &active_account, request)
         .await
 }
 
@@ -367,8 +392,9 @@ async fn invite_user_to_room(
     shell_manager: State<'_, ShellManager>,
     request: InviteUserToRoomRequest,
 ) -> Result<(), String> {
+    let active_account = account_manager.require_active_account(&app).await?;
     shell_manager
-        .invite_user_to_room(&app, &account_manager, request)
+        .invite_user_to_room(&active_account, request)
         .await
 }
 
@@ -376,12 +402,10 @@ async fn invite_user_to_room(
 async fn list_invite_targets(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
-    shell_manager: State<'_, ShellManager>,
     request: ListInviteTargetsRequest,
 ) -> Result<Vec<InviteTarget>, String> {
-    shell_manager
-        .list_invite_targets(&app, &account_manager, request)
-        .await
+    let active_account = account_manager.require_active_account(&app).await?;
+    ShellManager::list_invite_targets(&active_account, &request)
 }
 
 #[tauri::command]

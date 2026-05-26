@@ -25,7 +25,9 @@ use tauri::AppHandle;
 use tauri::async_runtime::Mutex as AsyncMutex;
 
 use super::secure_storage;
-use super::types::{AccountClientSnapshot, AccountSummary, EncryptionPreferences, LoginRequest};
+use super::types::{
+    AccountClientSnapshot, AccountSummary, ActiveAccount, EncryptionPreferences, LoginRequest,
+};
 
 mod registration;
 mod storage;
@@ -270,12 +272,18 @@ impl AccountManager {
         }
     }
 
-    pub async fn active_account_client(
+    pub async fn optional_active_account(
         &self,
         app: &AppHandle,
-    ) -> Result<Option<AccountClientSnapshot>, String> {
+    ) -> Result<Option<ActiveAccount>, String> {
         self.ensure_loaded(app).await?;
-        Ok(self.active_account_client_loaded())
+        Ok(self.active_account_client_loaded().map(ActiveAccount::new))
+    }
+
+    pub async fn require_active_account(&self, app: &AppHandle) -> Result<ActiveAccount, String> {
+        self.optional_active_account(app)
+            .await?
+            .ok_or_else(|| String::from("No active account is available"))
     }
 
     pub(crate) fn active_account_client_loaded(&self) -> Option<AccountClientSnapshot> {

@@ -19,6 +19,6 @@ pub mod types;
 
 pub use manager::AccountManager;
 pub use types::{
-    AccountClientSnapshot, AccountSummary, HomeserverDirectory, LoginRequest,
+    AccountClientSnapshot, AccountSummary, ActiveAccount, HomeserverDirectory, LoginRequest,
     RegisterAccountRequest, RegistrationOutcome,
 };

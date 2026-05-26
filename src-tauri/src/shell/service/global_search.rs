@@ -10,7 +10,7 @@
  * Project home: hyperion.velcore.net
  */
 
-use crate::{account::AccountManager, shell::types::GlobalSearchIndexStatus};
+use crate::account::{AccountManager, ActiveAccount};
 
 use super::{
     ShellManager, runtime::ShellSearchService, search::commands,
@@ -23,10 +23,17 @@ impl ShellManager {
         &self,
         app: &tauri::AppHandle,
         account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         request: GlobalSearchRequest,
     ) -> Result<GlobalSearchResponse, String> {
         self.search_service
-            .global_search(app, account_manager, &self.sync_coordinator, request)
+            .global_search(
+                app,
+                account_manager,
+                active_account,
+                &self.sync_coordinator,
+                request,
+            )
             .await
     }
 }
@@ -36,18 +43,11 @@ impl ShellSearchService {
         &self,
         app: &tauri::AppHandle,
         account_manager: &AccountManager,
+        active_account: &ActiveAccount,
         sync_coordinator: &ShellSyncCoordinator,
         request: GlobalSearchRequest,
     ) -> Result<GlobalSearchResponse, String> {
-        account_manager.ensure_loaded(app).await?;
-        let Some(account) = account_manager.active_account_client_loaded() else {
-            return Ok(GlobalSearchResponse {
-                rooms: Vec::new(),
-                spaces: Vec::new(),
-                messages: Vec::new(),
-                status: GlobalSearchIndexStatus::default(),
-            });
-        };
+        let account = active_account.snapshot();
 
         sync_coordinator
             .ensure_account_running(app, account_manager, account.clone())

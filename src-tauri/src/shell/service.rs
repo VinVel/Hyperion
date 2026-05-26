@@ -87,11 +87,11 @@ impl ShellManager {
         app: &tauri::AppHandle,
         account_manager: &AccountManager,
     ) -> Result<(), String> {
-        account_manager.ensure_loaded(app).await?;
-        let Some(account) = account_manager.active_account_client_loaded() else {
+        let Some(active_account) = account_manager.optional_active_account(app).await? else {
             self.sync_coordinator.stop_all_accounts().await;
             return Ok(());
         };
+        let account = active_account.into_snapshot();
 
         self.sync_coordinator
             .ensure_account_running(app, account_manager, account)

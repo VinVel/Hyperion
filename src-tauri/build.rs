@@ -14,6 +14,10 @@
  */
 
 fn main() {
+    #[allow(
+        unused_mut,
+        reason = "On Windows this must me mutable. For consistency it now is everywhere."
+    )]
     let mut attributes = tauri_build::Attributes::new();
     #[cfg(all(target_os = "windows", target_env = "msvc"))]
     {

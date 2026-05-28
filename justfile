@@ -30,21 +30,21 @@ fmt-rust:
 
 # TypeScript
 test-typescript:
-    bun test
+    pnpm test
 
 check-typescript:
-    bun check
-    bun lint
+    pnpm check
+    pnpm lint
 
 fmt-typescript:
-    bun format
+    pnpm format
 
 # Build Commands
 build-desktop-debug:
-    bun tauri build --verbose --no-bundle --debug -- --verbose
+    pnpm tauri build --verbose --no-bundle --debug -- --verbose
 
 build-android-debug:
-    bun tauri android build --verbose --debug --apk --split-per-abi --target aarch64 -- --verbose
+    pnpm tauri android build --verbose --debug --apk --split-per-abi --target aarch64 -- --verbose
 
 # Composite Tasks
 test: test-rust test-typescript

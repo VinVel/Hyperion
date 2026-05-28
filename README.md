@@ -26,17 +26,17 @@
 
 For a reproducible local setup set the environment variable `ANDROID_HOME` and it should just work when executing the following command:
 ```bash
-bun tauri android build
+pnpm tauri android build
 ```
 or
 ```bash
-bun tauri android dev
+pnpm tauri android dev
 ```
 
 ### Linux desktop setup
 
 For Tauri desktop builds on Debian-based Linux systems, install the native
-libraries required by GTK, GLib, and WebKit before running `bun tauri dev` or `bun tauri build`:
+libraries required by GTK, GLib, and WebKit before running `pnpm tauri dev` or `pnpm tauri build`:
 
 ```bash
 sudo apt update

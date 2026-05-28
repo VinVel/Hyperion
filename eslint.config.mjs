@@ -18,12 +18,6 @@ export default defineConfig([
       react: {
         version: "detect",
       },
-      "import/resolver": {
-        "typescript-bun": {
-          project: true,
-          alwaysTryTypes: true,
-        },
-      },
     },
   },
 

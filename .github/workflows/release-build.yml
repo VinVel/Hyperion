@@ -164,16 +164,20 @@ jobs:
           toolchain: ${{ steps.rust-toolchain.outputs.toolchain }}
           targets: ${{ matrix.target }}
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
         with:
-          bun-version: latest
+          node-version: "24"
+          cache: pnpm
 
       - name: Install JavaScript dependencies
-        run: bun install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build Tauri bundles
-        run: bun run tauri build --target ${{ matrix.target }}
+        run: pnpm tauri build --target ${{ matrix.target }}
 
       - name: Upload desktop bundles
         uses: actions/upload-artifact@v6
@@ -265,16 +269,20 @@ jobs:
           password=$ANDROID_KEY_PASSWORD
           EOF
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
         with:
-          bun-version: latest
+          node-version: "24"
+          cache: pnpm
 
       - name: Install JavaScript dependencies
-        run: bun install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build ABI-specific Android APK
-        run: bun run tauri android build --ci --apk --split-per-abi --target ${{ matrix.tauri_target }}
+        run: pnpm tauri android build --ci --apk --split-per-abi --target ${{ matrix.tauri_target }}
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v6
@@ -350,16 +358,20 @@ jobs:
           password=$ANDROID_KEY_PASSWORD
           EOF
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
         with:
-          bun-version: latest
+          node-version: "24"
+          cache: pnpm
 
       - name: Install JavaScript dependencies
-        run: bun install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build universal Android APK
-        run: bun run tauri android build --ci --apk
+        run: pnpm tauri android build --ci --apk
 
       - name: Upload universal Android APK
         uses: actions/upload-artifact@v6
@@ -401,13 +413,17 @@ jobs:
           toolchain: ${{ steps.rust-toolchain.outputs.toolchain }}
           targets: aarch64-apple-ios
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
         with:
-          bun-version: latest
+          node-version: "24"
+          cache: pnpm
 
       - name: Install JavaScript dependencies
-        run: bun install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Provide cargo-tauri wrapper for Xcode
         shell: bash
@@ -418,7 +434,7 @@ jobs:
           if [[ "${1:-}" == "tauri" ]]; then
             shift
           fi
-          exec bun run tauri "$@"
+          exec pnpm tauri "$@"
           EOF
           chmod +x "$HOME/.cargo/bin/cargo-tauri"
 
@@ -430,7 +446,7 @@ jobs:
           test -n "$IOS_MOBILE_PROVISION" || { echo "Missing IOS_MOBILE_PROVISION secret" >&2; exit 1; }
 
       - name: Build signed iOS IPA
-        run: bun run tauri ios build --ci --target aarch64 --export-method debugging
+        run: pnpm tauri ios build --ci --target aarch64 --export-method debugging
 
       - name: Upload signed iOS IPA
         uses: actions/upload-artifact@v6

@@ -184,13 +184,17 @@ jobs:
           toolchain: stable
           targets: ${{ matrix.rust_targets }}
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
         with:
-          bun-version: latest
+          node-version: "24"
+          cache: pnpm
 
       - name: Install JavaScript dependencies
-        run: bun install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Set up Java
         if: ${{ matrix.install_android }}
@@ -226,7 +230,7 @@ jobs:
           if [[ "${1:-}" == "tauri" ]]; then
             shift
           fi
-          exec bun tauri "$@"
+          exec pnpm tauri "$@"
           EOF
           chmod +x "$HOME/.cargo/bin/cargo-tauri"
 
@@ -234,7 +238,7 @@ jobs:
         if: ${{ matrix.build == 'tauri-desktop' }}
         shell: bash
         run: |
-          bun tauri build \
+          pnpm tauri build \
             --debug \
             --target "${{ matrix.target }}" \
             --no-bundle \
@@ -244,7 +248,7 @@ jobs:
         if: ${{ matrix.build == 'android-split' }}
         shell: bash
         run: |
-          bun tauri android build \
+          pnpm tauri android build \
             --ci \
             --debug \
             --apk \
@@ -256,7 +260,7 @@ jobs:
         if: ${{ matrix.build == 'android-universal' }}
         shell: bash
         run: |
-          bun tauri android build \
+          pnpm tauri android build \
             --ci \
             --debug \
             --apk \
@@ -266,7 +270,7 @@ jobs:
         if: ${{ matrix.build == 'ios-simulator' }}
         shell: bash
         run: |
-          bun tauri ios build \
+          pnpm tauri ios build \
             --ci \
             --debug \
             --target "${{ matrix.target }}" \

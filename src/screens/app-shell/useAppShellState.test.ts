@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import type { RoomTimeline, RoomTimelineItem } from "./appShellAdapters";
 import {
   mergeOlderTimelineItems,

@@ -19,8 +19,7 @@ fn main() {
         reason = "On Windows this must me mutable. For consistency it now is everywhere."
     )]
     let mut attributes = tauri_build::Attributes::new();
-    #[cfg(all(target_os = "windows", target_env = "msvc"))]
-    {
+    if target_is_windows_msvc() {
         attributes = attributes
             .windows_attributes(tauri_build::WindowsAttributes::new_without_app_manifest());
         add_manifest();
@@ -28,8 +27,14 @@ fn main() {
     tauri_build::try_build(attributes).unwrap();
 }
 
+fn target_is_windows_msvc() -> bool {
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    let target_env = std::env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
+
+    target_os == "windows" && target_env == "msvc"
+}
+
 // Embed the manifest for Windows MSVC targets to fix 0xc0000139 in tests
-#[cfg(all(target_os = "windows", target_env = "msvc"))]
 fn add_manifest() {
     static WINDOWS_MANIFEST_FILE: &str = "windows-app-manifest.xml";
 

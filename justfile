@@ -41,10 +41,10 @@ fmt-typescript:
 
 # Build Commands
 build-desktop-debug:
-    pnpm tauri build --verbose --no-bundle --debug -- --verbose
+    pnpm tauri build --verbose --no-bundle --debug
 
 build-android-debug:
-    pnpm tauri android build --verbose --debug --apk --split-per-abi --target aarch64 -- --verbose
+    pnpm tauri android build --verbose --debug --apk --split-per-abi --target aarch64
 
 # Composite Tasks
 test: test-rust test-typescript

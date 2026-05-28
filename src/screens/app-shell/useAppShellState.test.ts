@@ -19,14 +19,14 @@ import {
   mergeOlderTimelineItems,
   mergeOlderTimelineItemsWithCounts,
   mergeTimelineRefresh,
-} from "./timelineMerge";
+} from "./timeline/helpers";
 import {
   idlePaginationState,
   paginationIsLoading,
   paginationStateKey,
   timelineContextKey,
   type PaginationState,
-} from "./paginationState";
+} from "./pagination";
 
 const roomId = "!room:example.org";
 

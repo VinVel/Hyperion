@@ -464,7 +464,8 @@ pub(super) fn merge_cached_room_timeline_refresh(
         );
     };
 
-    let refresh_has_safe_overlap = timeline_windows_overlap(&cached_items, refreshed_items);
+    let refresh_has_safe_overlap =
+        refreshed_items.is_empty() || timeline_windows_overlap(&cached_items, refreshed_items);
     let merged_items = merge_cached_timeline_with_authoritative_refresh(
         &cached_items,
         refreshed_items,
@@ -1100,6 +1101,40 @@ mod tests {
             vec!["$live-a", "$live-b"]
         );
         assert_eq!(next_before, Some(timeline_page_token(1)));
+
+        remove_test_dir(&store_root).unwrap();
+    }
+
+    #[test]
+    fn empty_refreshed_room_timeline_keeps_cached_items_and_cursor() {
+        let store_root = unique_test_dir();
+        let store_dir = store_root.join("store");
+        fs::create_dir_all(&store_dir).unwrap();
+        let cached_items = vec![test_timeline_item("$1"), test_timeline_item("$2")];
+
+        merge_cached_room_timeline_refresh(
+            ACCOUNT_KEY,
+            &store_dir,
+            ROOM_ID,
+            &cached_items,
+            Some(&timeline_page_token(9)),
+            &[],
+        )
+        .unwrap();
+        merge_cached_room_timeline_refresh(ACCOUNT_KEY, &store_dir, ROOM_ID, &[], None, &[])
+            .unwrap();
+
+        let (items, next_before) = cached_room_timeline(ACCOUNT_KEY, &store_dir, ROOM_ID)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            items
+                .iter()
+                .map(RoomTimelineItem::event_id)
+                .collect::<Vec<&str>>(),
+            vec!["$1", "$2"]
+        );
+        assert_eq!(next_before, Some(timeline_page_token(9)));
 
         remove_test_dir(&store_root).unwrap();
     }

@@ -82,6 +82,19 @@ pub(in crate::shell) fn merge_cached_timeline_with_authoritative_refresh(
         return refreshed_items;
     }
 
+    if refreshed_items.is_empty() {
+        let redacted_event_id_set = redacted_event_ids
+            .iter()
+            .map(String::as_str)
+            .collect::<HashSet<&str>>();
+        let retained_cached_items = cached_items
+            .iter()
+            .filter(|item| !redacted_event_id_set.contains(item.event_id()))
+            .cloned()
+            .collect::<Vec<RoomTimelineItem>>();
+        return reconcile_authoritative_timeline_items(retained_cached_items, room_id, &[]);
+    }
+
     let refreshed_event_ids = refreshed_items
         .iter()
         .map(RoomTimelineItem::event_id)
@@ -328,6 +341,19 @@ mod tests {
         );
 
         assert_eq!(event_ids(&items), vec!["$live-a", "$live-b"]);
+    }
+
+    #[test]
+    fn empty_authoritative_refresh_preserves_cached_window() {
+        let cached_items = vec![
+            test_timeline_item("$cached-a", 1),
+            test_timeline_item("$cached-b", 2),
+        ];
+
+        let items =
+            merge_cached_timeline_with_authoritative_refresh(&cached_items, &[], ROOM_ID, &[]);
+
+        assert_eq!(event_ids(&items), vec!["$cached-a", "$cached-b"]);
     }
 
     #[test]

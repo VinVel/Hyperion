@@ -97,6 +97,14 @@ export function mergeTimelineRefresh(
     refreshedTimeline.items ?? [],
   );
   const redactedItemIds = new Set(refreshedTimeline.redactedEventIds ?? []);
+  if (!refreshedItems.length && currentItems.length) {
+    return {
+      ...refreshedTimeline,
+      items: currentItems.filter((item) => !redactedItemIds.has(item.id)),
+      nextBefore: currentTimeline.nextBefore ?? refreshedTimeline.nextBefore,
+    };
+  }
+
   const refreshedItemIds = new Set(refreshedItems.map((item) => item.id));
   const firstOverlapIndex = currentItems.findIndex((item) =>
     refreshedItemIds.has(item.id),

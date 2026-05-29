@@ -72,6 +72,21 @@ describe("timeline reconciliation helpers", () => {
     ]);
   });
 
+  test("transient empty live refresh preserves current timeline", () => {
+    const currentTimeline = testTimeline([
+      testTimelineItem("$older", 0),
+      testTimelineItem("$current", 1),
+    ]);
+    const refreshedTimeline = testTimeline([]);
+
+    const mergedTimeline = mergeTimelineRefresh(
+      currentTimeline,
+      refreshedTimeline,
+    );
+
+    expect(eventIds(mergedTimeline.items)).toEqual(["$older", "$current"]);
+  });
+
   test("older timeline pages prepend before visible window", () => {
     const currentItems = [testTimelineItem("$3", 3), testTimelineItem("$4", 4)];
     const olderItems = [testTimelineItem("$1", 1), testTimelineItem("$2", 2)];

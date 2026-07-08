@@ -20,7 +20,7 @@
 ```
 ## Feature List: For a full list of Features check out the [Features](./FEATURES.md) list.
 
-## Building & Developement
+## Building & Development
 
 ### Android setup
 
@@ -35,15 +35,15 @@ pnpm tauri android dev
 
 ### Linux desktop setup
 
-For Tauri desktop builds on Debian-based Linux systems, install the native
-libraries required by GTK, GLib, and WebKit before running `pnpm tauri dev` or `pnpm tauri build`:
+For Tauri desktop builds on Linux, install the native libraries required by the
+current CEF-backed GTK runtime before running `pnpm tauri dev` or
+`pnpm tauri build`.
+
+On Debian or Ubuntu:
 
 ```bash
 sudo apt update
-sudo apt install \
-  libglib2.0-dev \
-  libgtk-3-dev \
-  libwebkit2gtk-4.1-dev \
+sudo apt install libwebkit2gtk-4.1-dev \
   build-essential \
   curl \
   wget \
@@ -52,4 +52,19 @@ sudo apt install \
   libssl-dev \
   libayatana-appindicator3-dev \
   librsvg2-dev
+```
+
+On Fedora:
+
+```bash
+sudo dnf check-update
+sudo dnf install webkit2gtk4.1-devel \
+  openssl-devel \
+  curl \
+  wget \
+  file \
+  libappindicator-gtk3-devel \
+  librsvg2-devel \
+  libxdo-devel
+sudo dnf group install "c-development"
 ```

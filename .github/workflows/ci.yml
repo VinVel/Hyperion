@@ -3,12 +3,6 @@ name: CI
 on:
   pull_request:
   push:
-  workflow_call:
-    inputs:
-      upload_build_artifacts:
-        required: false
-        type: boolean
-        default: false
   workflow_dispatch:
 
 permissions:
@@ -33,127 +27,79 @@ jobs:
         include:
           - name: Windows x64
             runner: windows-latest
-            kind: desktop
             target: x86_64-pc-windows-msvc
-            artifact: ci-build-windows-x64
-            rust_targets: x86_64-pc-windows-msvc
-            install_linux_deps: false
-            install_android: false
-            build: tauri-desktop
+            mobile: ""
+            args: --target x86_64-pc-windows-msvc --debug --verbose --no-bundle --no-sign -- --verbose
 
           - name: Windows arm64
             runner: windows-11-arm
-            kind: desktop
             target: aarch64-pc-windows-msvc
-            artifact: ci-build-windows-arm64
-            rust_targets: aarch64-pc-windows-msvc
-            install_linux_deps: false
-            install_android: false
-            build: tauri-desktop
+            mobile: ""
+            args: --target aarch64-pc-windows-msvc --debug --verbose --no-bundle --no-sign -- --verbose
 
           - name: macOS Intel
             runner: macos-26-intel
-            kind: desktop
             target: x86_64-apple-darwin
-            artifact: ci-build-macos-intel
-            rust_targets: x86_64-apple-darwin
-            install_linux_deps: false
-            install_android: false
-            build: tauri-desktop
+            mobile: ""
+            args: --target x86_64-apple-darwin --debug --verbose --no-bundle --no-sign -- --verbose
 
           - name: macOS arm64
             runner: macos-26
-            kind: desktop
             target: aarch64-apple-darwin
-            artifact: ci-build-macos-arm64
-            rust_targets: aarch64-apple-darwin
-            install_linux_deps: false
-            install_android: false
-            build: tauri-desktop
+            mobile: ""
+            args: --target aarch64-apple-darwin --debug --verbose --no-bundle --no-sign -- --verbose
 
           - name: Linux x64 GNU
             runner: ubuntu-24.04
-            kind: linux
             target: x86_64-unknown-linux-gnu
-            artifact: ci-build-linux-x64-gnu
-            rust_targets: x86_64-unknown-linux-gnu
-            install_linux_deps: true
-            install_android: false
-            build: tauri-desktop
+            mobile: ""
+            args: --target x86_64-unknown-linux-gnu --debug --verbose --no-bundle --no-sign -- --verbose
 
           - name: Linux arm64 GNU
             runner: ubuntu-24.04-arm
-            kind: linux
             target: aarch64-unknown-linux-gnu
-            artifact: ci-build-linux-arm64-gnu
-            rust_targets: aarch64-unknown-linux-gnu
-            install_linux_deps: true
-            install_android: false
-            build: tauri-desktop
+            mobile: ""
+            args: --target aarch64-unknown-linux-gnu --debug --verbose --no-bundle --no-sign -- --verbose
 
           - name: Android arm64-v8a
-            runner: ubuntu-latest
-            kind: android
-            target: aarch64
-            artifact: ci-build-android-arm64-v8a
-            rust_targets: aarch64-linux-android
-            install_linux_deps: false
-            install_android: true
-            build: android-split
+            runner: ubuntu-24.04
+            target: aarch64-linux-android
+            mobile: android
+            args: --ci --debug --apk --split-per-abi --target aarch64 --verbose
 
           - name: Android armeabi-v7a
-            runner: ubuntu-latest
-            kind: android
-            target: armv7
-            artifact: ci-build-android-armeabi-v7a
-            rust_targets: armv7-linux-androideabi
-            install_linux_deps: false
-            install_android: true
-            build: android-split
+            runner: ubuntu-24.04
+            target: armv7-linux-androideabi
+            mobile: android
+            args: --ci --debug --apk --split-per-abi --target armv7 --verbose
 
           - name: Android x86
-            runner: ubuntu-latest
-            kind: android
-            target: i686
-            artifact: ci-build-android-x86
-            rust_targets: i686-linux-android
-            install_linux_deps: false
-            install_android: true
-            build: android-split
+            runner: ubuntu-24.04
+            target: i686-linux-android
+            mobile: android
+            args: --ci --debug --apk --split-per-abi --target i686 --verbose
 
           - name: Android x86_64
-            runner: ubuntu-latest
-            kind: android
-            target: x86_64
-            artifact: ci-build-android-x86_64
-            rust_targets: x86_64-linux-android
-            install_linux_deps: false
-            install_android: true
-            build: android-split
+            runner: ubuntu-24.04
+            target: x86_64-linux-android
+            mobile: android
+            args: --ci --debug --apk --split-per-abi --target x86_64 --verbose
 
           - name: Android universal
-            runner: ubuntu-latest
-            kind: android
-            target: ""
-            artifact: ci-build-android-universal
-            rust_targets: |
+            runner: ubuntu-24.04
+            target: |
               aarch64-linux-android
               armv7-linux-androideabi
               i686-linux-android
               x86_64-linux-android
-            install_linux_deps: false
-            install_android: true
-            build: android-universal
+            mobile: android
+            args: --ci --debug --apk --verbose
 
           - name: iOS simulator
             runner: macos-15
-            kind: ios
-            target: aarch64-sim
-            artifact: ci-build-ios-simulator
-            rust_targets: aarch64-apple-ios-sim
-            install_linux_deps: false
-            install_android: false
-            build: ios-simulator
+            target: aarch64-apple-ios-sim
+            mobile: ios
+            args: --ci --debug --target aarch64-sim --verbose
 
     steps:
       - name: Check out repository
@@ -162,66 +108,63 @@ jobs:
           submodules: recursive
 
       - name: Install Linux native system dependencies
-        if: ${{ matrix.install_linux_deps }}
+        if: ${{ startsWith(matrix.runner, 'ubuntu') && matrix.mobile == '' }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt update
+          sudo apt install libwebkit2gtk-4.1-dev \
             build-essential \
             curl \
-            file \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libssl-dev \
-            libwebkit2gtk-4.1-dev \
-            libxdo-dev \
-            pkg-config \
             wget \
-            xdg-utils
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
 
       - name: Install Rust toolchain and targets
-        uses: dtolnay/rust-toolchain@master
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: stable
-          targets: ${{ matrix.rust_targets }}
+          target: ${{ matrix.target }}
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24"
+          node-version: "lts/*"
+          check-latest: true
           cache: pnpm
 
       - name: Install JavaScript dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Set up Java
-        if: ${{ matrix.install_android }}
+        if: ${{ matrix.mobile == 'android' }}
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Android SDK
-        if: ${{ matrix.install_android }}
+        if: ${{ matrix.mobile == 'android' }}
         uses: android-actions/setup-android@v4
 
       - name: Install Android SDK packages
-        if: ${{ matrix.install_android }}
+        if: ${{ matrix.mobile == 'android' }}
         shell: bash
         run: |
           yes | sdkmanager --licenses > /dev/null || true
           sdkmanager \
             "platform-tools" \
             "platforms;android-36" \
-            "build-tools;36.0.0" \
-            "ndk;27.1.12297006"
-          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.1.12297006" >> "$GITHUB_ENV"
-          echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.1.12297006" >> "$GITHUB_ENV"
+            "build-tools;37.0.0" \
+            "ndk;30.0.14904198"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/30.0.14904198" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/30.0.14904198" >> "$GITHUB_ENV"
 
       - name: Provide cargo-tauri wrapper for Xcode
-        if: ${{ matrix.build == 'ios-simulator' }}
+        if: ${{ matrix.mobile == 'ios' }}
         shell: bash
         run: |
           mkdir -p "$HOME/.cargo/bin"
@@ -234,101 +177,13 @@ jobs:
           EOF
           chmod +x "$HOME/.cargo/bin/cargo-tauri"
 
-      - name: Build Tauri desktop target
-        if: ${{ matrix.build == 'tauri-desktop' }}
-        shell: bash
-        run: |
-          pnpm tauri build \
-            --debug \
-            --target "${{ matrix.target }}" \
-            --no-bundle \
-            --verbose
-
-      - name: Build ABI-specific Android APK
-        if: ${{ matrix.build == 'android-split' }}
-        shell: bash
-        run: |
-          pnpm tauri android build \
-            --ci \
-            --debug \
-            --apk \
-            --split-per-abi \
-            --target "${{ matrix.target }}" \
-            --verbose
-
-      - name: Build universal Android APK
-        if: ${{ matrix.build == 'android-universal' }}
-        shell: bash
-        run: |
-          pnpm tauri android build \
-            --ci \
-            --debug \
-            --apk \
-            --verbose
-
-      - name: Build iOS simulator app
-        if: ${{ matrix.build == 'ios-simulator' }}
-        shell: bash
-        run: |
-          pnpm tauri ios build \
-            --ci \
-            --debug \
-            --target "${{ matrix.target }}" \
-            --verbose
-
-      - name: Package desktop raw build directory
-        if: ${{ inputs.upload_build_artifacts && (matrix.kind == 'desktop' || matrix.kind == 'linux') }}
-        shell: bash
-        run: |
-          mkdir -p ci-artifacts
-          tar \
-            -C "target/${{ matrix.target }}/debug" \
-            -cf "ci-artifacts/${{ matrix.artifact }}.tar" \
-            .
-
-      - name: Upload desktop raw build archive
-        if: ${{ inputs.upload_build_artifacts && (matrix.kind == 'desktop' || matrix.kind == 'linux') }}
-        uses: actions/upload-artifact@v6
+      - name: Build Tauri target
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          name: ${{ matrix.artifact }}
-          if-no-files-found: error
-          retention-days: 1
-          path: ci-artifacts/${{ matrix.artifact }}.tar
-
-      - name: Package Android build artifacts
-        if: ${{ inputs.upload_build_artifacts && matrix.kind == 'android' }}
-        shell: bash
-        run: |
-          mkdir -p ci-artifacts
-          tar \
-            -C "src-tauri/gen/android/app/build/outputs" \
-            -cf "ci-artifacts/${{ matrix.artifact }}.tar" \
-            .
-
-      - name: Upload Android build artifact archive
-        if: ${{ inputs.upload_build_artifacts && matrix.kind == 'android' }}
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ matrix.artifact }}
-          if-no-files-found: error
-          retention-days: 1
-          path: ci-artifacts/${{ matrix.artifact }}.tar
-
-      - name: Package iOS simulator build artifacts
-        if: ${{ inputs.upload_build_artifacts && matrix.kind == 'ios' }}
-        shell: bash
-        run: |
-          mkdir -p ci-artifacts
-          tar \
-            -C "src-tauri/gen/apple/build" \
-            -cf "ci-artifacts/${{ matrix.artifact }}.tar" \
-            .
-
-      - name: Upload iOS simulator build artifact archive
-        if: ${{ inputs.upload_build_artifacts && matrix.kind == 'ios' }}
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ matrix.artifact }}
-          if-no-files-found: error
-          retention-days: 1
-          path: ci-artifacts/${{ matrix.artifact }}.tar
+          tauriScript: pnpm tauri
+          mobile: ${{ matrix.mobile }}
+          args: ${{ matrix.args }}
+          uploadWorkflowArtifacts: false
+          uploadPlainBinary: false

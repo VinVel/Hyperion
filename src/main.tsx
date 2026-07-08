@@ -21,13 +21,16 @@ import {
   AppWindowFrame,
   ToastProvider,
 } from "./components/ui";
-import { ThemeProvider } from "./context/ThemeContext";
+import { ThemeProvider } from "./components/context";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <ThemeProvider>
       <ToastProvider>
-        <AppWindowFrame>
+        <AppWindowFrame
+          iconSrc="/Hyperion-icon.svg"
+          titlebarLabel="Hyperion window controls"
+        >
           <AppErrorBoundary>
             <App />
           </AppErrorBoundary>

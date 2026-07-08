@@ -21,13 +21,13 @@ import {
   Typography,
   useFeedbackToast,
 } from "../../components/ui";
-import { useTheme } from "../../context/ThemeContext";
+import { useTheme } from "../../components/context";
 import {
   themePresetDetails,
   themePalettes,
   type ThemeMode,
   type ThemePresetName,
-} from "../../themes/colorpalette";
+} from "../../components/themes/colorpalette";
 
 const themePresetNames = Object.keys(themePresetDetails) as ThemePresetName[];
 const themeModes: ThemeMode[] = ["system", "light", "dark"];

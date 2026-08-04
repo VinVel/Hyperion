@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "packageManager": "pnpm@10.33.4",
+  "packageManager": "pnpm@11.20.0",
   "scripts": {
     "dev": "vite",
     "check": "tsc --noEmit",
@@ -18,8 +18,8 @@
     "@razein97/tauri-plugin-i18n": "catalog:",
     "@tauri-apps/api": "catalog:",
     "@tauri-apps/plugin-fs": "catalog:",
-    "@tauri-apps/plugin-os": "catalog:",
     "@tauri-apps/plugin-opener": "catalog:",
+    "@tauri-apps/plugin-os": "catalog:",
     "lucide-react": "catalog:",
     "markdown-it": "catalog:",
     "overlayscrollbars": "catalog:",

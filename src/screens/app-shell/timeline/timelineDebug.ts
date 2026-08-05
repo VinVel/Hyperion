@@ -79,13 +79,16 @@ export function useTimelineDebugApi(
   }, [bottomAnchorTolerancePixels, enabled, items, rootRef]);
 }
 
-export function useTimelineRowDebug(item: RoomTimelineItem): void {
+export function useTimelineRowDebug(
+  enabled: boolean,
+  item: RoomTimelineItem,
+): void {
   const renderCountRef = useRef(0);
   renderCountRef.current += 1;
   const measurementKey = timelineItemMeasurementKey(item);
 
   useEffect(() => {
-    if (!timelineDebugEnabled()) {
+    if (!enabled) {
       return;
     }
 
@@ -104,9 +107,9 @@ export function useTimelineRowDebug(item: RoomTimelineItem): void {
         renderCount: renderCountRef.current,
       });
     };
-  }, [item.groupPosition, item.id, measurementKey]);
+  }, [enabled, item.groupPosition, item.id, measurementKey]);
 
-  if (timelineDebugEnabled() && renderCountRef.current > 1) {
+  if (enabled && renderCountRef.current > 1) {
     logTimelineDebug("row-rendered-again", {
       eventId: item.id,
       groupPosition: item.groupPosition,

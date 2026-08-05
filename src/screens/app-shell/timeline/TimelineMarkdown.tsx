@@ -14,7 +14,7 @@
  */
 
 import MarkdownIt from "markdown-it";
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 
 const markdownRenderer = new MarkdownIt({
   breaks: false,
@@ -28,10 +28,7 @@ type TimelineMarkdownProps = {
   markdown: string;
 };
 
-export default function TimelineMarkdown({
-  className,
-  markdown,
-}: TimelineMarkdownProps) {
+function TimelineMarkdown({ className, markdown }: TimelineMarkdownProps) {
   const renderedMarkdown = useMemo(
     () => markdownRenderer.render(markdown),
     [markdown],
@@ -44,3 +41,5 @@ export default function TimelineMarkdown({
     />
   );
 }
+
+export default memo(TimelineMarkdown);

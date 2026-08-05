@@ -143,15 +143,13 @@ export default function AppShell({
                 onBeginReplyToMessage={shell.beginReplyToMessage}
                 onCancelComposerMode={shell.cancelComposerMode}
                 onComposerChange={shell.setComposerValue}
-                onLoadOlderMessages={() => void shell.loadOlderMessages()}
+                onLoadOlderMessages={shell.loadOlderMessages}
                 onOpenThread={shell.selectThread}
-                onRedactMessage={(eventId) => void shell.redactMessage(eventId)}
+                onRedactMessage={shell.redactMessage}
                 onSelectSort={shell.selectSort}
-                onSendMessage={() => void shell.sendMessage()}
+                onSendMessage={shell.sendMessage}
                 onThreadKindFilterChange={shell.setThreadKindFilter}
-                onToggleReaction={(eventId, reactionKey) =>
-                  void shell.toggleReaction(eventId, reactionKey)
-                }
+                onToggleReaction={shell.toggleReaction}
                 onToggleSortMenu={shell.toggleSortMenu}
               />
             ) : null}

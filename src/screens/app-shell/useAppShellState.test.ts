@@ -87,6 +87,41 @@ describe("timeline reconciliation helpers", () => {
     expect(eventIds(mergedTimeline.items)).toEqual(["$older", "$current"]);
   });
 
+  test("unchanged live refresh preserves timeline and item identities", () => {
+    const currentItem = testTimelineItem("$current", 1);
+    const currentTimeline = testTimeline([currentItem]);
+    const refreshedTimeline = testTimeline([
+      { ...currentItem, reactions: [], receipts: [] },
+    ]);
+
+    const mergedTimeline = mergeTimelineRefresh(
+      currentTimeline,
+      refreshedTimeline,
+    );
+
+    expect(mergedTimeline).toBe(currentTimeline);
+    expect(mergedTimeline.items[0]).toBe(currentItem);
+  });
+
+  test("changed live refresh only replaces the changed item", () => {
+    const unchangedItem = testTimelineItem("$unchanged", 1);
+    const changedItem = testTimelineItem("$changed", 2);
+    const currentTimeline = testTimeline([unchangedItem, changedItem]);
+    const refreshedTimeline = testTimeline([
+      testTimelineItem("$unchanged", 1),
+      { ...testTimelineItem("$changed", 2), body: "updated body" },
+    ]);
+
+    const mergedTimeline = mergeTimelineRefresh(
+      currentTimeline,
+      refreshedTimeline,
+    );
+
+    expect(mergedTimeline.items[0]).toBe(unchangedItem);
+    expect(mergedTimeline.items[1]).not.toBe(changedItem);
+    expect(mergedTimeline.items[1]?.body).toBe("updated body");
+  });
+
   test("older timeline pages prepend before visible window", () => {
     const currentItems = [testTimelineItem("$3", 3), testTimelineItem("$4", 4)];
     const olderItems = [testTimelineItem("$1", 1), testTimelineItem("$2", 2)];

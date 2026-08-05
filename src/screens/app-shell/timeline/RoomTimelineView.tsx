@@ -14,6 +14,7 @@
  */
 
 import {
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -101,7 +102,14 @@ const messageActionLongPressMilliseconds = 450;
 // Small movement during long press is tolerated; real scrolling cancels it.
 const messageActionLongPressMoveTolerancePixels = 8;
 
-export default function RoomTimelineView({
+// Render range updates happen in chunks so slow WebKitGTK frames have rows ready
+// before they enter the viewport without retaining the full timeline DOM.
+const timelineRenderOverscan = {
+  main: 320,
+  reverse: 320,
+} as const;
+
+function RoomTimelineView({
   accountKey,
   isLoadingOlderMessages,
   paginationState,
@@ -606,10 +614,12 @@ export default function RoomTimelineView({
           align: "end",
         }}
         isScrolling={handleVirtuosoScrollingChange}
+        overscan={timelineRenderOverscan}
         itemContent={(_index, item) => (
           <TimelineMessageRow
             item={item}
             actionsAreOpen={activeActionEventId === item.id}
+            debugEnabled={timelineDebugIsEnabled}
             isFocused={
               focusedEventId === item.id ||
               navigationHighlightedEventId === item.id
@@ -698,6 +708,7 @@ function TimelineHeader({
 
 type TimelineMessageRowProps = {
   actionsAreOpen: boolean;
+  debugEnabled: boolean;
   isFocused: boolean;
   item: RoomTimelineItem;
   onBeginEditMessage: (eventId: string, body: string) => void;
@@ -711,8 +722,9 @@ type TimelineMessageRowProps = {
   replyPreview: RoomTimelineReplyPreview | null;
 };
 
-function TimelineMessageRow({
+const TimelineMessageRow = memo(function TimelineMessageRow({
   actionsAreOpen,
+  debugEnabled,
   isFocused,
   item,
   onBeginEditMessage,
@@ -725,7 +737,7 @@ function TimelineMessageRow({
   onToggleReaction,
   replyPreview,
 }: TimelineMessageRowProps) {
-  useTimelineRowDebug(item);
+  useTimelineRowDebug(debugEnabled, item);
   const longPressTimeoutRef = useRef<number | null>(null);
   const longPressStartRef = useRef<{
     pointerId: number;
@@ -967,7 +979,7 @@ function TimelineMessageRow({
       </div>
     </article>
   );
-}
+});
 
 function captureTimelineScroll(
   root: HTMLDivElement | null,
@@ -1186,3 +1198,5 @@ function timelineAvatarLabel(item: RoomTimelineItem): string {
   const displayName = item.senderDisplayName?.trim() || item.senderId || "";
   return displayName.slice(0, 2).toUpperCase();
 }
+
+export default memo(RoomTimelineView);

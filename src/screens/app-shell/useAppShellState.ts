@@ -287,6 +287,8 @@ export default function useAppShellState({
   const [timelineJumpTarget, setTimelineJumpTarget] =
     useState<TimelineJumpTarget | null>(null);
   const [composerValue, setComposerValue] = useState("");
+  const composerValueRef = useRef(composerValue);
+  composerValueRef.current = composerValue;
   const [composerDraftsByRoomId, setComposerDraftsByRoomId] = useState<
     Record<string, RoomComposerDraft>
   >({});
@@ -1139,13 +1141,14 @@ export default function useAppShellState({
       updateComposerDrafts((currentDrafts) => ({
         ...currentDrafts,
         [selectedThreadId]: {
-          body: currentDrafts[selectedThreadId]?.body ?? composerValue,
+          body:
+            currentDrafts[selectedThreadId]?.body ?? composerValueRef.current,
           editEventId: null,
           replyEventId: eventId,
         },
       }));
     },
-    [composerValue, selectedThreadId, updateComposerDrafts],
+    [selectedThreadId, updateComposerDrafts],
   );
 
   const cancelComposerMode = useCallback(() => {

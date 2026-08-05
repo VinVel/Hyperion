@@ -93,16 +93,18 @@ export function mergeTimelineRefresh(
   }
 
   const currentItems = canonicalizeTimelineItems(currentTimeline.items ?? []);
-  const refreshedItems = canonicalizeTimelineItems(
-    refreshedTimeline.items ?? [],
+  const refreshedItems = reuseUnchangedTimelineItems(
+    currentItems,
+    canonicalizeTimelineItems(refreshedTimeline.items ?? []),
   );
   const redactedItemIds = new Set(refreshedTimeline.redactedEventIds ?? []);
   if (!refreshedItems.length && currentItems.length) {
-    return {
+    const preservedTimeline = {
       ...refreshedTimeline,
       items: currentItems.filter((item) => !redactedItemIds.has(item.id)),
       nextBefore: currentTimeline.nextBefore ?? refreshedTimeline.nextBefore,
     };
+    return reuseUnchangedTimeline(currentTimeline, preservedTimeline);
   }
 
   const refreshedItemIds = new Set(refreshedItems.map((item) => item.id));
@@ -126,15 +128,158 @@ export function mergeTimelineRefresh(
         !hasReconciledRemoteItem(item, refreshedItems),
     );
 
-  const mergedTimeline = {
+  const mergedTimeline: RoomTimeline = {
     ...refreshedTimeline,
     items: [...olderPrefixItems, ...refreshedItems],
     nextBefore: currentTimeline.nextBefore ?? refreshedTimeline.nextBefore,
   };
-  return {
+  const canonicalTimeline = {
     ...mergedTimeline,
     items: canonicalizeTimelineItems(mergedTimeline.items),
   };
+  return reuseUnchangedTimeline(currentTimeline, canonicalTimeline);
+}
+
+function reuseUnchangedTimelineItems(
+  currentItems: RoomTimelineItem[],
+  refreshedItems: RoomTimelineItem[],
+): RoomTimelineItem[] {
+  const currentItemsById = new Map(
+    currentItems.map((item) => [item.id, item] as const),
+  );
+
+  return refreshedItems.map((refreshedItem) => {
+    const currentItem = currentItemsById.get(refreshedItem.id);
+    if (currentItem && timelineItemsAreEqual(currentItem, refreshedItem)) {
+      return currentItem;
+    }
+
+    return refreshedItem;
+  });
+}
+
+function reuseUnchangedTimeline(
+  currentTimeline: RoomTimeline,
+  refreshedTimeline: RoomTimeline,
+): RoomTimeline {
+  const itemsAreUnchanged =
+    currentTimeline.items.length === refreshedTimeline.items.length &&
+    currentTimeline.items.every(
+      (item, index) => item === refreshedTimeline.items[index],
+    );
+  const redactedEventIdsAreUnchanged = stringArraysAreEqual(
+    currentTimeline.redactedEventIds,
+    refreshedTimeline.redactedEventIds,
+  );
+  if (
+    itemsAreUnchanged &&
+    redactedEventIdsAreUnchanged &&
+    currentTimeline.roomId === refreshedTimeline.roomId &&
+    currentTimeline.nextBefore === refreshedTimeline.nextBefore &&
+    currentTimeline.focusedEventId === refreshedTimeline.focusedEventId
+  ) {
+    return currentTimeline;
+  }
+
+  return refreshedTimeline;
+}
+
+function timelineItemsAreEqual(
+  currentItem: RoomTimelineItem,
+  refreshedItem: RoomTimelineItem,
+): boolean {
+  return (
+    currentItem.id === refreshedItem.id &&
+    currentItem.transactionId === refreshedItem.transactionId &&
+    currentItem.senderId === refreshedItem.senderId &&
+    currentItem.senderDisplayName === refreshedItem.senderDisplayName &&
+    currentItem.senderAvatarUrl === refreshedItem.senderAvatarUrl &&
+    currentItem.body === refreshedItem.body &&
+    currentItem.formattedBody === refreshedItem.formattedBody &&
+    currentItem.contentKind === refreshedItem.contentKind &&
+    currentItem.timestampUnixMs === refreshedItem.timestampUnixMs &&
+    currentItem.timeLabel === refreshedItem.timeLabel &&
+    currentItem.isEdited === refreshedItem.isEdited &&
+    currentItem.isRedacted === refreshedItem.isRedacted &&
+    currentItem.isOwnMessage === refreshedItem.isOwnMessage &&
+    currentItem.sendState === refreshedItem.sendState &&
+    currentItem.decryptionState === refreshedItem.decryptionState &&
+    currentItem.groupPosition === refreshedItem.groupPosition &&
+    currentItem.permalink === refreshedItem.permalink &&
+    currentItem.canEdit === refreshedItem.canEdit &&
+    currentItem.canRedact === refreshedItem.canRedact &&
+    currentItem.canReply === refreshedItem.canReply &&
+    currentItem.canReact === refreshedItem.canReact &&
+    reactionsAreEqual(currentItem.reactions, refreshedItem.reactions) &&
+    receiptsAreEqual(currentItem.receipts, refreshedItem.receipts) &&
+    replyPreviewsAreEqual(currentItem.replyPreview, refreshedItem.replyPreview)
+  );
+}
+
+function reactionsAreEqual(
+  currentReactions: RoomTimelineItem["reactions"],
+  refreshedReactions: RoomTimelineItem["reactions"],
+): boolean {
+  return (
+    currentReactions.length === refreshedReactions.length &&
+    currentReactions.every((reaction, index) => {
+      const refreshedReaction = refreshedReactions[index];
+      return (
+        refreshedReaction !== undefined &&
+        reaction.key === refreshedReaction.key &&
+        reaction.count === refreshedReaction.count &&
+        reaction.reactedByMe === refreshedReaction.reactedByMe
+      );
+    })
+  );
+}
+
+function receiptsAreEqual(
+  currentReceipts: RoomTimelineItem["receipts"],
+  refreshedReceipts: RoomTimelineItem["receipts"],
+): boolean {
+  return (
+    currentReceipts.length === refreshedReceipts.length &&
+    currentReceipts.every((receipt, index) => {
+      const refreshedReceipt = refreshedReceipts[index];
+      return (
+        refreshedReceipt !== undefined &&
+        receipt.userId === refreshedReceipt.userId &&
+        receipt.displayName === refreshedReceipt.displayName &&
+        receipt.avatarUrl === refreshedReceipt.avatarUrl &&
+        receipt.timestampUnixMs === refreshedReceipt.timestampUnixMs
+      );
+    })
+  );
+}
+
+function replyPreviewsAreEqual(
+  currentReplyPreview: RoomTimelineItem["replyPreview"],
+  refreshedReplyPreview: RoomTimelineItem["replyPreview"],
+): boolean {
+  if (!currentReplyPreview || !refreshedReplyPreview) {
+    return currentReplyPreview === refreshedReplyPreview;
+  }
+
+  return (
+    currentReplyPreview.eventId === refreshedReplyPreview.eventId &&
+    currentReplyPreview.state === refreshedReplyPreview.state &&
+    currentReplyPreview.senderId === refreshedReplyPreview.senderId &&
+    currentReplyPreview.senderDisplayName ===
+      refreshedReplyPreview.senderDisplayName &&
+    currentReplyPreview.body === refreshedReplyPreview.body &&
+    currentReplyPreview.isRedacted === refreshedReplyPreview.isRedacted
+  );
+}
+
+function stringArraysAreEqual(
+  currentValues: string[],
+  refreshedValues: string[],
+): boolean {
+  return (
+    currentValues.length === refreshedValues.length &&
+    currentValues.every((value, index) => value === refreshedValues[index])
+  );
 }
 
 function isRemoteEventId(eventId: string | null | undefined): boolean {

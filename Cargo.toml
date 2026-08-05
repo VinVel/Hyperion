@@ -18,6 +18,7 @@ equatable_if_let = "warn"
 [workspace.dependencies]
 tauri-plugin-mobile-webview-overlay = { path = "plugins/tauri-plugin-mobile-webview-overlay" }
 tauri-plugin-app-events = { path = "plugins/tauri-plugin-app-events" }
+tauri-plugin-tracing = { path = "plugins/tauri-plugin-tracing" }
 tauri = { version = "2.11.2", default-features = false }
 tauri-build = "2.6.2"
 tauri-plugin = "2.6.2"
@@ -48,6 +49,28 @@ apple-native-keyring-store = "1.0.0"
 windows-native-keyring-store = "1.1.0"
 linux-keyutils-keyring-store = "1.0.0"
 thiserror = "2"
+colored = "3.1.1"
+criterion = "0.5"
+inferno = { version = "0.12", default-features = false }
+memchr = "2.8.0"
+rolling-file = "0.2.0"
+serde_repr = "0.1.20"
+specta = { version = "=2.0.0-rc.25", features = ["derive"] }
+tauri-plugin-profiling = "0.1"
+time = { version = "0.3.47", default-features = false, features = [
+    "formatting",
+    "local-offset",
+] }
+tokio = { version = "1.52.2", features = ["full"] }
+tracing = "0.1.44"
+tracing-appender = "0.2.5"
+tracing-core = "0.1.36"
+tracing-flame = "0.2"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "time"] }
+tracing-etw = "0.2.3"
+tracing-journald = "0.3.2"
+tracing-logcat = "0.1.0"
+tracing-oslog = "0.3.0"
 
 [profile.dev]
 debug = true

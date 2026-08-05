@@ -4,3 +4,6 @@
 [submodule "src/components"]
 	path = src/components
 	url = https://github.com/VinVel/Common-UI.git
+[submodule "plugins/tauri-plugin-tracing"]
+	path = plugins/tauri-plugin-tracing
+	url = https://github.com/VinVel/tauri-plugin-tracing.git

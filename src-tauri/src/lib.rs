@@ -77,11 +77,14 @@ async fn login_account(
     shell_manager: State<'_, ShellManager>,
     request: LoginRequest,
 ) -> Result<AccountSummary, String> {
-    let account = manager.login(&app, request).await?;
-    shell_manager
-        .ensure_active_account_sync(&app, &manager)
-        .await?;
-    Ok(account)
+    utils::tracing::report_command_future("login_account", "account", async {
+        let account = manager.login(&app, request).await?;
+        shell_manager
+            .ensure_active_account_sync(&app, &manager)
+            .await?;
+        Ok(account)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -89,7 +92,8 @@ async fn list_accounts(
     app: AppHandle,
     manager: State<'_, AccountManager>,
 ) -> Result<Vec<AccountSummary>, String> {
-    manager.list_accounts(&app).await
+    utils::tracing::report_command_future("list_accounts", "account", manager.list_accounts(&app))
+        .await
 }
 
 #[tauri::command]
@@ -99,10 +103,13 @@ async fn switch_active_account(
     shell_manager: State<'_, ShellManager>,
     account_key: String,
 ) -> Result<(), String> {
-    manager.switch_active_account(&app, &account_key).await?;
-    shell_manager
-        .ensure_active_account_sync(&app, &manager)
-        .await
+    utils::tracing::report_command_future("switch_active_account", "account", async {
+        manager.switch_active_account(&app, &account_key).await?;
+        shell_manager
+            .ensure_active_account_sync(&app, &manager)
+            .await
+    })
+    .await
 }
 
 #[tauri::command]
@@ -110,7 +117,8 @@ async fn active_account(
     app: AppHandle,
     manager: State<'_, AccountManager>,
 ) -> Result<Option<AccountSummary>, String> {
-    manager.active_account(&app).await
+    utils::tracing::report_command_future("active_account", "account", manager.active_account(&app))
+        .await
 }
 
 #[tauri::command]
@@ -119,21 +127,24 @@ async fn sign_out_active_account(
     manager: State<'_, AccountManager>,
     shell_manager: State<'_, ShellManager>,
 ) -> Result<Option<AccountSummary>, String> {
-    let active_account = manager.active_account(&app).await?;
-    if let Some(account) = active_account {
-        shell_manager.stop_account(&account.account_key).await;
-    }
+    utils::tracing::report_command_future("sign_out_active_account", "account", async {
+        let active_account = manager.active_account(&app).await?;
+        if let Some(account) = active_account {
+            shell_manager.stop_account(&account.account_key).await;
+        }
 
-    let next_account = manager.sign_out_active_account(&app).await?;
-    if next_account.is_some() {
-        shell_manager
-            .ensure_active_account_sync(&app, &manager)
-            .await?;
-    } else {
-        shell_manager.stop_all_accounts().await;
-    }
+        let next_account = manager.sign_out_active_account(&app).await?;
+        if next_account.is_some() {
+            shell_manager
+                .ensure_active_account_sync(&app, &manager)
+                .await?;
+        } else {
+            shell_manager.stop_all_accounts().await;
+        }
 
-    Ok(next_account)
+        Ok(next_account)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -141,14 +152,24 @@ async fn validate_active_account(
     app: AppHandle,
     manager: State<'_, AccountManager>,
 ) -> Result<Option<AccountSummary>, String> {
-    manager.validate_active_account(&app).await
+    utils::tracing::report_command_future(
+        "validate_active_account",
+        "account",
+        manager.validate_active_account(&app),
+    )
+    .await
 }
 
 #[tauri::command]
 async fn list_registration_homeservers(
     manager: State<'_, AccountManager>,
 ) -> Result<HomeserverDirectory, String> {
-    manager.list_registration_homeservers().await
+    utils::tracing::report_command_future(
+        "list_registration_homeservers",
+        "account",
+        manager.list_registration_homeservers(),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -157,7 +178,12 @@ async fn register_account(
     manager: State<'_, AccountManager>,
     request: RegisterAccountRequest,
 ) -> Result<RegistrationOutcome, String> {
-    manager.register_account(&app, request).await
+    utils::tracing::report_command_future(
+        "register_account",
+        "account",
+        Box::pin(manager.register_account(&app, request)),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -167,15 +193,18 @@ async fn list_room_threads(
     shell_manager: State<'_, ShellManager>,
     request: Option<ListRoomThreadsRequest>,
 ) -> Result<Vec<RoomThreadSummary>, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    shell_manager
-        .list_room_threads(
-            &app,
-            &account_manager,
-            &active_account,
-            request.unwrap_or(ListRoomThreadsRequest { search_query: None }),
-        )
-        .await
+    utils::tracing::report_command_future("list_room_threads", "shell.room", async {
+        let active_account = account_manager.require_active_account(&app).await?;
+        shell_manager
+            .list_room_threads(
+                &app,
+                &account_manager,
+                &active_account,
+                request.unwrap_or(ListRoomThreadsRequest { search_query: None }),
+            )
+            .await
+    })
+    .await
 }
 
 #[tauri::command]
@@ -185,10 +214,13 @@ async fn get_room_summary(
     shell_manager: State<'_, ShellManager>,
     request: GetRoomSummaryRequest,
 ) -> Result<RoomSummary, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    shell_manager
-        .get_room_summary(&app, &account_manager, &active_account, request)
-        .await
+    utils::tracing::report_command_future("get_room_summary", "shell.room", async {
+        let active_account = account_manager.require_active_account(&app).await?;
+        shell_manager
+            .get_room_summary(&app, &account_manager, &active_account, request)
+            .await
+    })
+    .await
 }
 
 #[tauri::command]
@@ -198,10 +230,17 @@ async fn get_room_timeline(
     shell_manager: State<'_, ShellManager>,
     request: GetRoomTimelineRequest,
 ) -> Result<RoomTimeline, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    shell_manager
-        .get_room_timeline(&app, &account_manager, &active_account, request)
-        .await
+    utils::tracing::report_command_future(
+        "get_room_timeline",
+        "shell.timeline",
+        Box::pin(async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            shell_manager
+                .get_room_timeline(&app, &account_manager, &active_account, request)
+                .await
+        }),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -211,10 +250,17 @@ async fn get_room_event_context(
     shell_manager: State<'_, ShellManager>,
     request: GetRoomEventContextRequest,
 ) -> Result<RoomTimeline, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    shell_manager
-        .get_room_event_context(&app, &account_manager, &active_account, request)
-        .await
+    utils::tracing::report_command_future(
+        "get_room_event_context",
+        "shell.timeline",
+        Box::pin(async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            shell_manager
+                .get_room_event_context(&app, &account_manager, &active_account, request)
+                .await
+        }),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -224,10 +270,17 @@ async fn paginate_room_timeline_backwards(
     shell_manager: State<'_, ShellManager>,
     request: PaginateRoomTimelineRequest,
 ) -> Result<RoomTimelinePaginationResponse, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    shell_manager
-        .paginate_room_timeline_backwards(&app, &account_manager, &active_account, request)
-        .await
+    utils::tracing::report_command_future(
+        "paginate_room_timeline_backwards",
+        "shell.timeline",
+        Box::pin(async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            shell_manager
+                .paginate_room_timeline_backwards(&app, &account_manager, &active_account, request)
+                .await
+        }),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -237,10 +290,17 @@ async fn resolve_room_reply_preview(
     shell_manager: State<'_, ShellManager>,
     request: ResolveRoomReplyPreviewRequest,
 ) -> Result<RoomTimelineReplyPreview, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    shell_manager
-        .resolve_room_reply_preview(&app, &account_manager, &active_account, request)
-        .await
+    utils::tracing::report_command_future(
+        "resolve_room_reply_preview",
+        "shell.timeline",
+        Box::pin(async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            shell_manager
+                .resolve_room_reply_preview(&app, &account_manager, &active_account, request)
+                .await
+        }),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -250,10 +310,17 @@ async fn send_room_message(
     shell_manager: State<'_, ShellManager>,
     request: SendRoomMessageRequest,
 ) -> Result<SendRoomMessageResponse, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    shell_manager
-        .send_room_message(&app, &account_manager, &active_account, request)
-        .await
+    utils::tracing::report_command_future(
+        "send_room_message",
+        "shell.room",
+        Box::pin(async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            shell_manager
+                .send_room_message(&app, &account_manager, &active_account, request)
+                .await
+        }),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -263,10 +330,17 @@ async fn edit_room_message(
     shell_manager: State<'_, ShellManager>,
     request: EditRoomMessageRequest,
 ) -> Result<(), String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    shell_manager
-        .edit_room_message(&active_account, request)
-        .await
+    utils::tracing::report_command_future(
+        "edit_room_message",
+        "shell.room",
+        Box::pin(async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            shell_manager
+                .edit_room_message(&active_account, request)
+                .await
+        }),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -276,10 +350,17 @@ async fn redact_room_message(
     shell_manager: State<'_, ShellManager>,
     request: RedactRoomMessageRequest,
 ) -> Result<(), String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    shell_manager
-        .redact_room_message(&active_account, request)
-        .await
+    utils::tracing::report_command_future(
+        "redact_room_message",
+        "shell.room",
+        Box::pin(async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            shell_manager
+                .redact_room_message(&active_account, request)
+                .await
+        }),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -289,10 +370,17 @@ async fn reply_to_room_message(
     shell_manager: State<'_, ShellManager>,
     request: ReplyToRoomMessageRequest,
 ) -> Result<(), String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    shell_manager
-        .reply_to_room_message(&active_account, request)
-        .await
+    utils::tracing::report_command_future(
+        "reply_to_room_message",
+        "shell.room",
+        Box::pin(async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            shell_manager
+                .reply_to_room_message(&active_account, request)
+                .await
+        }),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -302,10 +390,17 @@ async fn toggle_room_reaction(
     shell_manager: State<'_, ShellManager>,
     request: ToggleRoomReactionRequest,
 ) -> Result<ToggleRoomReactionResponse, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    shell_manager
-        .toggle_room_reaction(&active_account, request)
-        .await
+    utils::tracing::report_command_future(
+        "toggle_room_reaction",
+        "shell.room",
+        Box::pin(async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            shell_manager
+                .toggle_room_reaction(&active_account, request)
+                .await
+        }),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -315,10 +410,13 @@ async fn set_room_typing(
     shell_manager: State<'_, ShellManager>,
     request: SetRoomTypingRequest,
 ) -> Result<(), String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    shell_manager
-        .set_room_typing(&app, &active_account, request)
-        .await
+    utils::tracing::report_command_future("set_room_typing", "shell.room", async {
+        let active_account = account_manager.require_active_account(&app).await?;
+        shell_manager
+            .set_room_typing(&app, &active_account, request)
+            .await
+    })
+    .await
 }
 
 #[tauri::command]
@@ -328,15 +426,18 @@ async fn list_spaces(
     shell_manager: State<'_, ShellManager>,
     request: Option<ListSpacesRequest>,
 ) -> Result<Vec<SpaceSummary>, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    shell_manager
-        .list_spaces(
-            &app,
-            &account_manager,
-            &active_account,
-            request.unwrap_or(ListSpacesRequest { search_query: None }),
-        )
-        .await
+    utils::tracing::report_command_future("list_spaces", "shell.room", async {
+        let active_account = account_manager.require_active_account(&app).await?;
+        shell_manager
+            .list_spaces(
+                &app,
+                &account_manager,
+                &active_account,
+                request.unwrap_or(ListSpacesRequest { search_query: None }),
+            )
+            .await
+    })
+    .await
 }
 
 #[tauri::command]
@@ -346,17 +447,20 @@ async fn global_search(
     shell_manager: State<'_, ShellManager>,
     request: GlobalSearchRequest,
 ) -> Result<GlobalSearchResponse, String> {
-    let Some(active_account) = account_manager.optional_active_account(&app).await? else {
-        return Ok(GlobalSearchResponse {
-            rooms: Vec::new(),
-            spaces: Vec::new(),
-            messages: Vec::new(),
-            status: GlobalSearchIndexStatus::default(),
-        });
-    };
-    shell_manager
-        .global_search(&app, &account_manager, &active_account, request)
-        .await
+    utils::tracing::report_command_future("global_search", "shell.search", async {
+        let Some(active_account) = account_manager.optional_active_account(&app).await? else {
+            return Ok(GlobalSearchResponse {
+                rooms: Vec::new(),
+                spaces: Vec::new(),
+                messages: Vec::new(),
+                status: GlobalSearchIndexStatus::default(),
+            });
+        };
+        shell_manager
+            .global_search(&app, &account_manager, &active_account, request)
+            .await
+    })
+    .await
 }
 
 #[tauri::command]
@@ -366,10 +470,13 @@ async fn search_discovery_entities(
     shell_manager: State<'_, ShellManager>,
     request: SearchDiscoveryEntitiesRequest,
 ) -> Result<Vec<DiscoveryEntity>, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    shell_manager
-        .search_discovery_entities(&active_account, request)
-        .await
+    utils::tracing::report_command_future("search_discovery_entities", "shell.discovery", async {
+        let active_account = account_manager.require_active_account(&app).await?;
+        shell_manager
+            .search_discovery_entities(&active_account, request)
+            .await
+    })
+    .await
 }
 
 #[tauri::command]
@@ -379,10 +486,13 @@ async fn join_discovery_room(
     shell_manager: State<'_, ShellManager>,
     request: JoinDiscoveryRoomRequest,
 ) -> Result<JoinDiscoveryRoomResponse, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    shell_manager
-        .join_discovery_room(&app, &account_manager, &active_account, request)
-        .await
+    utils::tracing::report_command_future("join_discovery_room", "shell.discovery", async {
+        let active_account = account_manager.require_active_account(&app).await?;
+        shell_manager
+            .join_discovery_room(&app, &account_manager, &active_account, request)
+            .await
+    })
+    .await
 }
 
 #[tauri::command]
@@ -392,10 +502,13 @@ async fn invite_user_to_room(
     shell_manager: State<'_, ShellManager>,
     request: InviteUserToRoomRequest,
 ) -> Result<(), String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    shell_manager
-        .invite_user_to_room(&active_account, request)
-        .await
+    utils::tracing::report_command_future("invite_user_to_room", "shell.discovery", async {
+        let active_account = account_manager.require_active_account(&app).await?;
+        shell_manager
+            .invite_user_to_room(&active_account, request)
+            .await
+    })
+    .await
 }
 
 #[tauri::command]
@@ -404,8 +517,11 @@ async fn list_invite_targets(
     account_manager: State<'_, AccountManager>,
     request: ListInviteTargetsRequest,
 ) -> Result<Vec<InviteTarget>, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    ShellManager::list_invite_targets(&active_account, &request)
+    utils::tracing::report_command_future("list_invite_targets", "shell.discovery", async {
+        let active_account = account_manager.require_active_account(&app).await?;
+        ShellManager::list_invite_targets(&active_account, &request)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -421,8 +537,12 @@ async fn open_mobile_overlay_webview(
         .filter(|value| !value.is_empty())
         .unwrap_or(mobile_overlay_webview::default_desktop_user_agent());
 
-    mobile_overlay_webview::open_url(&app, &url, title.as_deref(), Some(resolved_user_agent))
-        .map_err(|error| error.to_string())
+    utils::tracing::report_command_result(
+        "open_mobile_overlay_webview",
+        "mobile.webview",
+        mobile_overlay_webview::open_url(&app, &url, title.as_deref(), Some(resolved_user_agent))
+            .map_err(|error| error.to_string()),
+    )
 }
 
 #[tauri::command]
@@ -432,7 +552,11 @@ fn get_theme_preset(
     supported_presets: Vec<String>,
     default_preset: String,
 ) -> Result<String, String> {
-    load_theme_preset(&app, &supported_presets, &default_preset)
+    utils::tracing::report_command_result(
+        "get_theme_preset",
+        "settings.theme",
+        load_theme_preset(&app, &supported_presets, &default_preset),
+    )
 }
 
 #[tauri::command]
@@ -443,19 +567,27 @@ fn set_theme_preset(
     supported_presets: Vec<String>,
     default_preset: String,
 ) -> Result<String, String> {
-    save_theme_preset(&app, &preset, &supported_presets, &default_preset)
+    utils::tracing::report_command_result(
+        "set_theme_preset",
+        "settings.theme",
+        save_theme_preset(&app, &preset, &supported_presets, &default_preset),
+    )
 }
 
 #[tauri::command]
 #[allow(clippy::needless_pass_by_value)]
 fn get_theme_mode(app: AppHandle) -> Result<String, String> {
-    load_theme_mode(&app)
+    utils::tracing::report_command_result("get_theme_mode", "settings.theme", load_theme_mode(&app))
 }
 
 #[tauri::command]
 #[allow(clippy::needless_pass_by_value)]
 fn set_theme_mode(app: AppHandle, mode: String) -> Result<String, String> {
-    save_theme_mode(&app, &mode)
+    utils::tracing::report_command_result(
+        "set_theme_mode",
+        "settings.theme",
+        save_theme_mode(&app, &mode),
+    )
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -466,6 +598,8 @@ fn set_theme_mode(app: AppHandle, mode: String) -> Result<String, String> {
 /// Panics if Tauri fails to initialize or the application runtime exits with an
 /// unrecoverable error.
 pub fn run() {
+    let _tracing_guard = utils::tracing::initialize();
+
     tauri::Builder::default()
         .manage(AccountManager::new())
         .manage(ShellManager::new())
@@ -473,6 +607,7 @@ pub fn run() {
         .plugin(fs::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_tracing::Builder::new().build())
         .setup(|app| {
             #[cfg(mobile)]
             {

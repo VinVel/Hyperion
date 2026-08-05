@@ -55,48 +55,57 @@ pub async fn get_encryption_overview(
     app: AppHandle,
     account_manager: tauri::State<'_, AccountManager>,
 ) -> Result<EncryptionOverview, String> {
-    let Some(active_account) = account_manager.optional_active_account(&app).await? else {
-        return Ok(EncryptionOverview {
-            has_active_account: false,
-            account_key: None,
-            user_id: None,
-            device_id: None,
-            ed25519_key: None,
-            curve25519_key: None,
-            recovery_state: None,
-            backup_state: None,
-            server_key_storage_opted_out: false,
-            verified_devices_only: false,
-            share_encrypted_history_on_invite: false,
-            last_refreshed_at_unix_ms: None,
-        });
-    };
-    let account = active_account.snapshot();
+    crate::utils::tracing::report_command_future(
+        "get_encryption_overview",
+        "settings.encryption",
+        async {
+            let Some(active_account) = account_manager.optional_active_account(&app).await? else {
+                return Ok(EncryptionOverview {
+                    has_active_account: false,
+                    account_key: None,
+                    user_id: None,
+                    device_id: None,
+                    ed25519_key: None,
+                    curve25519_key: None,
+                    recovery_state: None,
+                    backup_state: None,
+                    server_key_storage_opted_out: false,
+                    verified_devices_only: false,
+                    share_encrypted_history_on_invite: false,
+                    last_refreshed_at_unix_ms: None,
+                });
+            };
+            let account = active_account.snapshot();
 
-    let cached_overview = account_settings::read_encryption_overview(&account.store_dir)?;
-    schedule_encryption_overview_refresh(app, account.clone());
-    if let Some(overview) = cached_overview {
-        return Ok(overview);
-    }
+            let cached_overview = account_settings::read_encryption_overview(&account.store_dir)?;
+            schedule_encryption_overview_refresh(app, account.clone());
+            if let Some(overview) = cached_overview {
+                return Ok(overview);
+            }
 
-    let preferences =
-        AccountManager::load_encryption_preferences_for_store(&account.client, &account.store_dir)
+            let preferences = AccountManager::load_encryption_preferences_for_store(
+                &account.client,
+                &account.store_dir,
+            )
             .await?;
 
-    Ok(EncryptionOverview {
-        has_active_account: true,
-        account_key: Some(account.account_key.clone()),
-        user_id: account.client.user_id().map(ToString::to_string),
-        device_id: account.client.device_id().map(ToString::to_string),
-        ed25519_key: None,
-        curve25519_key: None,
-        recovery_state: None,
-        backup_state: None,
-        server_key_storage_opted_out: preferences.server_key_storage_opted_out,
-        verified_devices_only: preferences.verified_devices_only,
-        share_encrypted_history_on_invite: preferences.share_encrypted_history_on_invite,
-        last_refreshed_at_unix_ms: None,
-    })
+            Ok(EncryptionOverview {
+                has_active_account: true,
+                account_key: Some(account.account_key.clone()),
+                user_id: account.client.user_id().map(ToString::to_string),
+                device_id: account.client.device_id().map(ToString::to_string),
+                ed25519_key: None,
+                curve25519_key: None,
+                recovery_state: None,
+                backup_state: None,
+                server_key_storage_opted_out: preferences.server_key_storage_opted_out,
+                verified_devices_only: preferences.verified_devices_only,
+                share_encrypted_history_on_invite: preferences.share_encrypted_history_on_invite,
+                last_refreshed_at_unix_ms: None,
+            })
+        },
+    )
+    .await
 }
 
 async fn refreshed_encryption_overview(
@@ -161,7 +170,13 @@ fn schedule_encryption_overview_refresh(app: AppHandle, account: AccountClientSn
         let overview = match refreshed_encryption_overview(&account).await {
             Ok(overview) => overview,
             Err(error) => {
-                eprintln!("Failed to refresh encryption overview in background: {error}");
+                crate::utils::tracing::report_background_error(
+                    "settings.encryption",
+                    "refresh_overview",
+                    "settings.encryption_refresh_failed",
+                    "settings",
+                    &error,
+                );
                 return;
             }
         };
@@ -169,11 +184,23 @@ fn schedule_encryption_overview_refresh(app: AppHandle, account: AccountClientSn
         if let Err(error) =
             account_settings::write_encryption_overview(&account.store_dir, &overview)
         {
-            eprintln!("Failed to persist refreshed encryption overview: {error}");
+            crate::utils::tracing::report_recoverable_error(
+                "settings.encryption",
+                "persist_overview",
+                "settings.encryption_cache_write_failed",
+                "settings",
+                &error,
+            );
         }
 
         if let Err(error) = app.emit(ENCRYPTION_OVERVIEW_UPDATED_EVENT, overview) {
-            eprintln!("Failed to emit encryption overview update: {error}");
+            crate::utils::tracing::report_recoverable_error(
+                "settings.encryption",
+                "emit_overview",
+                "settings.encryption_event_emit_failed",
+                "settings",
+                &error,
+            );
         }
     });
 }
@@ -183,20 +210,32 @@ pub async fn enable_server_key_storage(
     app: AppHandle,
     account_manager: tauri::State<'_, AccountManager>,
 ) -> Result<(), String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    let account = active_account.snapshot();
+    crate::utils::tracing::report_command_future(
+        "enable_server_key_storage",
+        "settings.encryption",
+        async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            let account = active_account.snapshot();
 
-    let mut preferences =
-        AccountManager::load_encryption_preferences_for_store(&account.client, &account.store_dir)
+            let mut preferences = AccountManager::load_encryption_preferences_for_store(
+                &account.client,
+                &account.store_dir,
+            )
             .await?;
-    let encryption = account.client.encryption();
-    let backups = encryption.backups();
-    backups
-        .create()
-        .await
-        .map_err(|error| format!("Failed to enable server-side key backup: {error}"))?;
-    preferences.server_key_storage_opted_out = false;
-    AccountManager::persist_encryption_preferences_for_store(&account.store_dir, &preferences)
+            let encryption = account.client.encryption();
+            let backups = encryption.backups();
+            backups
+                .create()
+                .await
+                .map_err(|error| format!("Failed to enable server-side key backup: {error}"))?;
+            preferences.server_key_storage_opted_out = false;
+            AccountManager::persist_encryption_preferences_for_store(
+                &account.store_dir,
+                &preferences,
+            )
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -204,20 +243,32 @@ pub async fn disable_server_key_storage(
     app: AppHandle,
     account_manager: tauri::State<'_, AccountManager>,
 ) -> Result<(), String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    let account = active_account.snapshot();
+    crate::utils::tracing::report_command_future(
+        "disable_server_key_storage",
+        "settings.encryption",
+        async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            let account = active_account.snapshot();
 
-    let mut preferences =
-        AccountManager::load_encryption_preferences_for_store(&account.client, &account.store_dir)
+            let mut preferences = AccountManager::load_encryption_preferences_for_store(
+                &account.client,
+                &account.store_dir,
+            )
             .await?;
-    let encryption = account.client.encryption();
-    let backups = encryption.backups();
-    backups
-        .disable_and_delete()
-        .await
-        .map_err(|error| format!("Failed to disable server-side key backup: {error}"))?;
-    preferences.server_key_storage_opted_out = true;
-    AccountManager::persist_encryption_preferences_for_store(&account.store_dir, &preferences)
+            let encryption = account.client.encryption();
+            let backups = encryption.backups();
+            backups
+                .disable_and_delete()
+                .await
+                .map_err(|error| format!("Failed to disable server-side key backup: {error}"))?;
+            preferences.server_key_storage_opted_out = true;
+            AccountManager::persist_encryption_preferences_for_store(
+                &account.store_dir,
+                &preferences,
+            )
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -225,12 +276,19 @@ pub async fn create_recovery_key(
     app: AppHandle,
     account_manager: tauri::State<'_, AccountManager>,
 ) -> Result<GeneratedRecoveryKey, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    let account = active_account.snapshot();
+    crate::utils::tracing::report_command_future(
+        "create_recovery_key",
+        "settings.encryption",
+        async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            let account = active_account.snapshot();
 
-    let recovery_key = enable_recovery_with_clean_backup(&account.client).await?;
+            let recovery_key = enable_recovery_with_clean_backup(&account.client).await?;
 
-    Ok(GeneratedRecoveryKey { recovery_key })
+            Ok(GeneratedRecoveryKey { recovery_key })
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -238,17 +296,24 @@ pub async fn rotate_recovery_key(
     app: AppHandle,
     account_manager: tauri::State<'_, AccountManager>,
 ) -> Result<GeneratedRecoveryKey, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    let account = active_account.snapshot();
+    crate::utils::tracing::report_command_future(
+        "rotate_recovery_key",
+        "settings.encryption",
+        async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            let account = active_account.snapshot();
 
-    let encryption = account.client.encryption();
-    let recovery = encryption.recovery();
-    let recovery_key = recovery
-        .reset_key()
-        .await
-        .map_err(|error| format!("Failed to rotate recovery key: {error}"))?;
+            let encryption = account.client.encryption();
+            let recovery = encryption.recovery();
+            let recovery_key = recovery
+                .reset_key()
+                .await
+                .map_err(|error| format!("Failed to rotate recovery key: {error}"))?;
 
-    Ok(GeneratedRecoveryKey { recovery_key })
+            Ok(GeneratedRecoveryKey { recovery_key })
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -256,26 +321,29 @@ pub async fn delete_recovery(
     app: AppHandle,
     account_manager: tauri::State<'_, AccountManager>,
 ) -> Result<(), String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    let account = active_account.snapshot();
+    crate::utils::tracing::report_command_future("delete_recovery", "settings.encryption", async {
+        let active_account = account_manager.require_active_account(&app).await?;
+        let account = active_account.snapshot();
 
-    let encryption = account.client.encryption();
-    let recovery = encryption.recovery();
-    let recovery_result = recovery.disable().await;
-    let backups = encryption.backups();
-    backups
-        .disable_and_delete()
-        .await
-        .map_err(|error| format!("Failed to delete the server key backup: {error}"))?;
+        let encryption = account.client.encryption();
+        let recovery = encryption.recovery();
+        let recovery_result = recovery.disable().await;
+        let backups = encryption.backups();
+        backups
+            .disable_and_delete()
+            .await
+            .map_err(|error| format!("Failed to delete the server key backup: {error}"))?;
 
-    if let Err(error) = recovery_result {
-        mark_recovery_account_data_disabled(&account.client).await?;
-        if !is_backup_not_enabled_error(&error.to_string()) {
-            return Err(format!("Failed to delete recovery: {error}"));
+        if let Err(error) = recovery_result {
+            mark_recovery_account_data_disabled(&account.client).await?;
+            if !is_backup_not_enabled_error(&error.to_string()) {
+                return Err(format!("Failed to delete recovery: {error}"));
+            }
         }
-    }
 
-    Ok(())
+        Ok(())
+    })
+    .await
 }
 
 #[tauri::command]
@@ -284,29 +352,36 @@ pub async fn recover_with_recovery_key(
     account_manager: tauri::State<'_, AccountManager>,
     request: RecoveryKeyRequest,
 ) -> Result<(), String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    let account = active_account.snapshot();
-    let recovery_key = request.recovery_key.trim();
-    if recovery_key.is_empty() {
-        return Err(String::from("Recovery key must not be empty"));
-    }
-    let encryption = account.client.encryption();
-    let secret_storage = encryption.secret_storage();
-    let recovery_is_configured = secret_storage
-        .is_enabled()
-        .await
-        .map_err(|error| format!("Failed to read recovery state: {error}"))?;
-    if !recovery_is_configured {
-        return Err(String::from(
-            "Recovery is disabled for this account. Create a new recovery key before recovering secrets.",
-        ));
-    }
+    crate::utils::tracing::report_command_future(
+        "recover_with_recovery_key",
+        "settings.encryption",
+        async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            let account = active_account.snapshot();
+            let recovery_key = request.recovery_key.trim();
+            if recovery_key.is_empty() {
+                return Err(String::from("Recovery key must not be empty"));
+            }
+            let encryption = account.client.encryption();
+            let secret_storage = encryption.secret_storage();
+            let recovery_is_configured = secret_storage
+                .is_enabled()
+                .await
+                .map_err(|error| format!("Failed to read recovery state: {error}"))?;
+            if !recovery_is_configured {
+                return Err(String::from(
+                    "Recovery is disabled for this account. Create a new recovery key before recovering secrets.",
+                ));
+            }
 
-    let recovery = encryption.recovery();
-    recovery
-        .recover(recovery_key)
-        .await
-        .map_err(recover_error_message)
+            let recovery = encryption.recovery();
+            recovery
+                .recover(recovery_key)
+                .await
+                .map_err(recover_error_message)
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -315,25 +390,28 @@ pub async fn export_room_keys(
     account_manager: tauri::State<'_, AccountManager>,
     request: RoomKeyFileRequest,
 ) -> Result<Option<String>, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    let account = active_account.snapshot();
-    let passphrase = normalized_passphrase(&request.passphrase)?;
-    let Some(destination) = room_key_export_destination(&app)? else {
-        return Ok(None);
-    };
-    let export_path = room_key_export_path(&app, &destination)?;
+    crate::utils::tracing::report_command_future("export_room_keys", "settings.encryption", async {
+        let active_account = account_manager.require_active_account(&app).await?;
+        let account = active_account.snapshot();
+        let passphrase = normalized_passphrase(&request.passphrase)?;
+        let Some(destination) = room_key_export_destination(&app)? else {
+            return Ok(None);
+        };
+        let export_path = room_key_export_path(&app, &destination)?;
 
-    let encryption = account.client.encryption();
-    encryption
-        .export_room_keys(export_path.clone(), &passphrase, |_room_key| true)
-        .await
-        .map_err(|error| format!("Failed to export room keys: {error}"))?;
-    if let RoomKeySelectedFile::DocumentUri(destination_uri) = &destination {
-        copy_local_file_to_document_uri(&app, &export_path, destination_uri.clone())?;
-        remove_transfer_file(&export_path)?;
-    }
+        let encryption = account.client.encryption();
+        encryption
+            .export_room_keys(export_path.clone(), &passphrase, |_room_key| true)
+            .await
+            .map_err(|error| format!("Failed to export room keys: {error}"))?;
+        if let RoomKeySelectedFile::DocumentUri(destination_uri) = &destination {
+            copy_local_file_to_document_uri(&app, &export_path, destination_uri.clone())?;
+            remove_transfer_file(&export_path)?;
+        }
 
-    Ok(Some(destination.to_display_string()))
+        Ok(Some(destination.to_display_string()))
+    })
+    .await
 }
 
 #[tauri::command]
@@ -342,27 +420,30 @@ pub async fn import_room_keys(
     account_manager: tauri::State<'_, AccountManager>,
     request: RoomKeyFileRequest,
 ) -> Result<Option<RoomKeyImportSummary>, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    let account = active_account.snapshot();
-    let passphrase = normalized_passphrase(&request.passphrase)?;
-    let Some(source) = room_key_import_source(&app)? else {
-        return Ok(None);
-    };
-    let import_path = room_key_import_path(&app, &source)?;
+    crate::utils::tracing::report_command_future("import_room_keys", "settings.encryption", async {
+        let active_account = account_manager.require_active_account(&app).await?;
+        let account = active_account.snapshot();
+        let passphrase = normalized_passphrase(&request.passphrase)?;
+        let Some(source) = room_key_import_source(&app)? else {
+            return Ok(None);
+        };
+        let import_path = room_key_import_path(&app, &source)?;
 
-    let encryption = account.client.encryption();
-    let result = encryption
-        .import_room_keys(import_path.clone(), &passphrase)
-        .await
-        .map_err(|error| format!("Failed to import room keys: {error}"))?;
-    if matches!(source, RoomKeySelectedFile::DocumentUri(_source_uri)) {
-        remove_transfer_file(&import_path)?;
-    }
+        let encryption = account.client.encryption();
+        let result = encryption
+            .import_room_keys(import_path.clone(), &passphrase)
+            .await
+            .map_err(|error| format!("Failed to import room keys: {error}"))?;
+        if matches!(source, RoomKeySelectedFile::DocumentUri(_source_uri)) {
+            remove_transfer_file(&import_path)?;
+        }
 
-    Ok(Some(RoomKeyImportSummary {
-        imported_count: result.imported_count,
-        total_count: result.total_count,
-    }))
+        Ok(Some(RoomKeyImportSummary {
+            imported_count: result.imported_count,
+            total_count: result.total_count,
+        }))
+    })
+    .await
 }
 
 #[tauri::command]
@@ -370,27 +451,36 @@ pub async fn reset_crypto_identity(
     app: AppHandle,
     account_manager: tauri::State<'_, AccountManager>,
 ) -> Result<CryptoIdentityResetOutcome, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    let account = active_account.snapshot();
+    crate::utils::tracing::report_command_future(
+        "reset_crypto_identity",
+        "settings.encryption",
+        async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            let account = active_account.snapshot();
 
-    let encryption = account.client.encryption();
-    let recovery = encryption.recovery();
-    let Some(handle) = recovery
-        .reset_identity()
-        .await
-        .map_err(|error| format!("Failed to reset crypto identity: {error}"))?
-    else {
-        return Ok(CryptoIdentityResetOutcome::Completed);
-    };
+            let encryption = account.client.encryption();
+            let recovery = encryption.recovery();
+            let Some(handle) = recovery
+                .reset_identity()
+                .await
+                .map_err(|error| format!("Failed to reset crypto identity: {error}"))?
+            else {
+                return Ok(CryptoIdentityResetOutcome::Completed);
+            };
 
-    match handle.auth_type() {
-        CrossSigningResetAuthType::Uiaa(_uiaa_auth_info) => {
-            Ok(CryptoIdentityResetOutcome::UiaaRequired)
-        }
-        CrossSigningResetAuthType::OAuth(info) => Ok(CryptoIdentityResetOutcome::OAuthRequired {
-            approval_url: info.approval_url.to_string(),
-        }),
-    }
+            match handle.auth_type() {
+                CrossSigningResetAuthType::Uiaa(_uiaa_auth_info) => {
+                    Ok(CryptoIdentityResetOutcome::UiaaRequired)
+                }
+                CrossSigningResetAuthType::OAuth(info) => {
+                    Ok(CryptoIdentityResetOutcome::OAuthRequired {
+                        approval_url: info.approval_url.to_string(),
+                    })
+                }
+            }
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -400,22 +490,34 @@ pub async fn set_verified_devices_only(
     shell_manager: tauri::State<'_, ShellManager>,
     enabled: bool,
 ) -> Result<(), String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    let account = active_account.snapshot();
-    let mut preferences =
-        AccountManager::load_encryption_preferences_for_store(&account.client, &account.store_dir)
+    crate::utils::tracing::report_command_future(
+        "set_verified_devices_only",
+        "settings.encryption",
+        async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            let account = active_account.snapshot();
+            let mut preferences = AccountManager::load_encryption_preferences_for_store(
+                &account.client,
+                &account.store_dir,
+            )
             .await?;
-    if preferences.verified_devices_only == enabled {
-        return Ok(());
-    }
+            if preferences.verified_devices_only == enabled {
+                return Ok(());
+            }
 
-    preferences.verified_devices_only = enabled;
-    AccountManager::persist_encryption_preferences_for_store(&account.store_dir, &preferences)?;
-    shell_manager.stop_account(&account.account_key).await;
-    account_manager.rebuild_active_client(&app).await?;
-    shell_manager
-        .ensure_active_account_sync(&app, &account_manager)
-        .await
+            preferences.verified_devices_only = enabled;
+            AccountManager::persist_encryption_preferences_for_store(
+                &account.store_dir,
+                &preferences,
+            )?;
+            shell_manager.stop_account(&account.account_key).await;
+            account_manager.rebuild_active_client(&app).await?;
+            shell_manager
+                .ensure_active_account_sync(&app, &account_manager)
+                .await
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -425,22 +527,34 @@ pub async fn set_share_encrypted_history_on_invite(
     shell_manager: tauri::State<'_, ShellManager>,
     enabled: bool,
 ) -> Result<(), String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    let account = active_account.snapshot();
-    let mut preferences =
-        AccountManager::load_encryption_preferences_for_store(&account.client, &account.store_dir)
+    crate::utils::tracing::report_command_future(
+        "set_share_encrypted_history_on_invite",
+        "settings.encryption",
+        async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            let account = active_account.snapshot();
+            let mut preferences = AccountManager::load_encryption_preferences_for_store(
+                &account.client,
+                &account.store_dir,
+            )
             .await?;
-    if preferences.share_encrypted_history_on_invite == enabled {
-        return Ok(());
-    }
+            if preferences.share_encrypted_history_on_invite == enabled {
+                return Ok(());
+            }
 
-    preferences.share_encrypted_history_on_invite = enabled;
-    AccountManager::persist_encryption_preferences_for_store(&account.store_dir, &preferences)?;
-    shell_manager.stop_account(&account.account_key).await;
-    account_manager.rebuild_active_client(&app).await?;
-    shell_manager
-        .ensure_active_account_sync(&app, &account_manager)
-        .await
+            preferences.share_encrypted_history_on_invite = enabled;
+            AccountManager::persist_encryption_preferences_for_store(
+                &account.store_dir,
+                &preferences,
+            )?;
+            shell_manager.stop_account(&account.account_key).await;
+            account_manager.rebuild_active_client(&app).await?;
+            shell_manager
+                .ensure_active_account_sync(&app, &account_manager)
+                .await
+        },
+    )
+    .await
 }
 
 fn normalized_passphrase(passphrase: &str) -> Result<String, String> {

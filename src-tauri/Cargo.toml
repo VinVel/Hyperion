@@ -30,6 +30,10 @@ tauri-plugin-dialog = { workspace = true }
 tauri-plugin-fs = { workspace = true }
 tauri-plugin-i18n = { workspace = true }
 tauri-plugin-os = { workspace = true }
+tauri-plugin-tracing = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 base64 = { workspace = true }
@@ -65,17 +69,22 @@ rustls-native-certs = { workspace = true }
 tauri-plugin-app-events = { workspace = true }
 tauri-plugin-mobile-webview-overlay = { workspace = true }
 webpki-roots = { workspace = true }
+tracing-logcat = { workspace = true }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 apple-native-keyring-store = { workspace = true, features = ["protected"] }
 tauri-plugin-app-events = { workspace = true }
 tauri-plugin-mobile-webview-overlay = { workspace = true }
+tracing-oslog = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-native-keyring-store = { workspace = true }
+tracing-etw = { workspace = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 apple-native-keyring-store = { workspace = true, features = ["keychain"] }
+tracing-oslog = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 linux-keyutils-keyring-store = { workspace = true }
+tracing-journald = { workspace = true }

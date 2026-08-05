@@ -146,7 +146,13 @@ impl ShellManager {
                 .ensure_active_account_sync(&app, &account_manager)
                 .await
             {
-                eprintln!("Failed to refresh cached shell room list in background: {error}");
+                crate::utils::tracing::report_background_error(
+                    "shell.rooms",
+                    "refresh_cached_room_list",
+                    "shell.room_list_refresh_failed",
+                    "room",
+                    &error,
+                );
             }
         });
     }
@@ -164,7 +170,13 @@ impl ShellManager {
         {
             Ok(redacted_event_ids) => redacted_event_ids,
             Err(error) => {
-                eprintln!("Failed to inspect redacted timeline items for search: {error}");
+                crate::utils::tracing::report_recoverable_error(
+                    "shell.search",
+                    "inspect_redacted_items",
+                    "shell.search_index_failed",
+                    "search",
+                    &error,
+                );
                 return;
             }
         };
@@ -193,7 +205,13 @@ impl ShellManager {
         {
             Ok(redacted_event_ids) => redacted_event_ids,
             Err(error) => {
-                eprintln!("Failed to inspect focused redacted timeline items for search: {error}");
+                crate::utils::tracing::report_recoverable_error(
+                    "shell.search",
+                    "inspect_focused_redacted_items",
+                    "shell.search_index_failed",
+                    "search",
+                    &error,
+                );
                 return;
             }
         };

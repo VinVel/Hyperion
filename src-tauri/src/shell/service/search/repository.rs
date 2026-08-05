@@ -315,7 +315,13 @@ impl<'connection> SearchRepository<'connection> {
             match row {
                 Ok(hit) if search_hit_matches_query(&hit, query) => hits.push(hit),
                 Ok(_hit) => {}
-                Err(error) => eprintln!("Skipping malformed search row: {error}"),
+                Err(error) => crate::utils::tracing::report_recoverable_error(
+                    "shell.search",
+                    "read_search_row",
+                    "shell.search_row_malformed",
+                    "search",
+                    &error,
+                ),
             }
         }
 

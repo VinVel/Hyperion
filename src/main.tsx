@@ -15,6 +15,7 @@
 
 import React from "react";
 import ReactDOM from "react-dom/client";
+import type { ErrorInfo } from "react";
 import App from "./App";
 import {
   AppErrorBoundary,
@@ -22,20 +23,47 @@ import {
   ToastProvider,
 } from "./components/ui";
 import { ThemeProvider } from "./components/context";
+import {
+  error as traceError,
+  initializeTracing,
+  tracingComponents,
+} from "./utils/tracing";
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <ThemeProvider>
-      <ToastProvider>
-        <AppWindowFrame
-          iconSrc="/Hyperion-icon.svg"
-          titlebarLabel="Hyperion window controls"
-        >
-          <AppErrorBoundary>
-            <App />
-          </AppErrorBoundary>
-        </AppWindowFrame>
-      </ToastProvider>
-    </ThemeProvider>
-  </React.StrictMode>,
-);
+function reportUiError(error: unknown, _errorInfo: ErrorInfo) {
+  traceError("ui.render_failed", {
+    component: tracingComponents.ui,
+    operation: "render",
+    errorCode: "ui.render_failed",
+    errorCategory: "ui",
+    diagnosticDetails: error,
+  });
+}
+
+function reportThemeStorageError(error: unknown) {
+  traceError("theme.storage_load_failed", {
+    component: tracingComponents.theme,
+    operation: "load_preferences",
+    errorCode: "settings.theme_load_failed",
+    errorCategory: "settings",
+    diagnosticDetails: error,
+  });
+}
+
+void initializeTracing().finally(() => {
+  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+    <React.StrictMode>
+      <ThemeProvider onStorageError={reportThemeStorageError}>
+        <ToastProvider>
+          <AppWindowFrame
+            iconSrc="/Hyperion-icon.svg"
+            titlebarLabel="Hyperion window controls"
+          >
+            <AppErrorBoundary onError={reportUiError}>
+              <App />
+            </AppErrorBoundary>
+          </AppWindowFrame>
+        </ToastProvider>
+      </ThemeProvider>
+    </React.StrictMode>,
+  );
+});

@@ -29,6 +29,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { Link, Pencil, Reply, SmilePlus, Trash2 } from "lucide-react";
 import { Button, Typography } from "../../../components/ui";
+import { isTracingLevelEnabled } from "../../../utils/tracing";
 import {
   mapTimelineReplyPreview,
   type BackendRoomTimelineReplyPreview,
@@ -47,8 +48,6 @@ import {
   logTimelineGeometry,
   logTimelineItemIdentityChanges,
   rawTimelineScrollerMetrics,
-  timelineDebugEnabled,
-  useTimelineDebugApi,
   useTimelineRowDebug,
 } from "./timelineDebug";
 import "./RoomTimelineView.css";
@@ -151,13 +150,7 @@ function RoomTimelineView({
   const focusedEventId = timeline?.focusedEventId ?? null;
   const timelineContext = timelineContextKey(focusedEventId);
   const [oldestBoundaryIsVisible, setOldestBoundaryIsVisible] = useState(false);
-  const timelineDebugIsEnabled = timelineDebugEnabled();
-  useTimelineDebugApi(
-    timelineDebugIsEnabled,
-    timelineRootRef,
-    timelineItems,
-    bottomAnchorTolerancePixels,
-  );
+  const timelineTraceIsEnabled = isTracingLevelEnabled("trace");
 
   function runTimelineAction(action: () => void) {
     const snapshot = captureTimelineScroll(timelineRootRef.current);
@@ -174,7 +167,7 @@ function RoomTimelineView({
   }
 
   useLayoutEffect(() => {
-    if (timelineDebugIsEnabled) {
+    if (timelineTraceIsEnabled) {
       logTimelineItemIdentityChanges(
         previousTimelineItemsRef.current,
         timelineItems,
@@ -221,7 +214,7 @@ function RoomTimelineView({
       scrollToTimelineBottom(
         timelineRootRef.current,
         virtuosoRef.current,
-        timelineDebugIsEnabled,
+        timelineTraceIsEnabled,
       );
     }
 
@@ -231,7 +224,7 @@ function RoomTimelineView({
     focusedEventId,
     roomId,
     timelineContext,
-    timelineDebugIsEnabled,
+    timelineTraceIsEnabled,
     timelineItems,
   ]);
 
@@ -287,7 +280,7 @@ function RoomTimelineView({
         wasAtBottom ||
         isAtBottomRef.current ||
         timelineScrollerIsAtBottom(timelineRootRef.current);
-      if (timelineDebugIsEnabled) {
+      if (timelineTraceIsEnabled) {
         logTimelineDebug("follow-output", {
           wasAtBottom,
           isAtBottomRef: isAtBottomRef.current,
@@ -306,7 +299,7 @@ function RoomTimelineView({
 
       return "auto";
     },
-    [focusedEventId, timelineDebugIsEnabled],
+    [focusedEventId, timelineTraceIsEnabled],
   );
 
   const scrollerContext = useMemo<TimelineScrollerContext>(
@@ -358,7 +351,7 @@ function RoomTimelineView({
 
   function handleVirtuosoScrollingChange(isScrolling: boolean) {
     isVirtuosoScrollingRef.current = isScrolling;
-    if (timelineDebugIsEnabled) {
+    if (timelineTraceIsEnabled) {
       logTimelineDebug("virtuoso-scrolling-change", {
         isScrolling,
         rawMetrics: rawTimelineScrollerMetrics(
@@ -589,7 +582,7 @@ function RoomTimelineView({
         data={timelineItems}
         atBottomStateChange={(isAtBottom) => {
           isAtBottomRef.current = isAtBottom;
-          if (timelineDebugIsEnabled) {
+          if (timelineTraceIsEnabled) {
             logTimelineDebug("at-bottom-state-change", {
               isAtBottom,
               rawMetrics: rawTimelineScrollerMetrics(
@@ -619,7 +612,7 @@ function RoomTimelineView({
           <TimelineMessageRow
             item={item}
             actionsAreOpen={activeActionEventId === item.id}
-            debugEnabled={timelineDebugIsEnabled}
+            traceEnabled={timelineTraceIsEnabled}
             isFocused={
               focusedEventId === item.id ||
               navigationHighlightedEventId === item.id
@@ -708,7 +701,7 @@ function TimelineHeader({
 
 type TimelineMessageRowProps = {
   actionsAreOpen: boolean;
-  debugEnabled: boolean;
+  traceEnabled: boolean;
   isFocused: boolean;
   item: RoomTimelineItem;
   onBeginEditMessage: (eventId: string, body: string) => void;
@@ -724,7 +717,7 @@ type TimelineMessageRowProps = {
 
 const TimelineMessageRow = memo(function TimelineMessageRow({
   actionsAreOpen,
-  debugEnabled,
+  traceEnabled,
   isFocused,
   item,
   onBeginEditMessage,
@@ -737,7 +730,7 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
   onToggleReaction,
   replyPreview,
 }: TimelineMessageRowProps) {
-  useTimelineRowDebug(debugEnabled, item);
+  useTimelineRowDebug(traceEnabled, item);
   const longPressTimeoutRef = useRef<number | null>(null);
   const longPressStartRef = useRef<{
     pointerId: number;
@@ -1040,9 +1033,9 @@ function restoreTimelineScroll(
 function scrollToTimelineBottom(
   root: HTMLDivElement | null,
   virtuoso: VirtuosoHandle | null,
-  debugEnabled = false,
+  traceEnabled = false,
 ): void {
-  if (debugEnabled) {
+  if (traceEnabled) {
     logTimelineDebug("scroll-to-bottom-before", {
       rawMetrics: rawTimelineScrollerMetrics(root, bottomAnchorTolerancePixels),
     });
@@ -1060,7 +1053,7 @@ function scrollToTimelineBottom(
     }
 
     scroller.scrollTop = timelineMaximumScrollTop(scroller);
-    if (debugEnabled) {
+    if (traceEnabled) {
       logTimelineDebug("scroll-to-bottom-after", {
         rawMetrics: rawTimelineScrollerMetrics(
           root,

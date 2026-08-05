@@ -13,6 +13,8 @@
  * Project home: hyperion.velcore.net
  */
 
+import { debug, tracingComponents } from "../../utils/tracing";
+
 export type PaginationDiagnosticPayload = Record<
   string,
   boolean | number | string | null | undefined
@@ -22,5 +24,18 @@ export function logPaginationDiagnostic(
   label: string,
   payload: PaginationDiagnosticPayload,
 ): void {
-  console.info(`[Hyperion pagination] ${label}`, payload);
+  debug(label, () => ({
+    component: tracingComponents.pagination,
+    operation: label,
+    accountId:
+      typeof payload.accountKey === "string" ? payload.accountKey : undefined,
+    roomId: typeof payload.roomId === "string" ? payload.roomId : undefined,
+    outcome:
+      typeof payload.success === "boolean"
+        ? payload.success
+          ? "success"
+          : "failure"
+        : undefined,
+    diagnosticDetails: payload,
+  }));
 }

@@ -1,11 +1,15 @@
 packages:
   - plugins/tauri-plugin-app-events
+  - plugins/tauri-plugin-tracing
 allowBuilds:
   esbuild: true
 
 catalog:
   "@eslint/js": 9.39.4
+  "@biomejs/biome": ^2.4.14
   "@razein97/tauri-plugin-i18n": ^2.0.1
+  "@rollup/plugin-node-resolve": 16.0.3
+  "@rollup/plugin-terser": 0.4.4
   "@rollup/plugin-typescript": ^11.1.6
   "@tauri-apps/api": ^2.11.0
   "@tauri-apps/cli": ^2.11.2
@@ -19,6 +23,7 @@ catalog:
   "@typescript-eslint/eslint-plugin": ^8.60.0
   "@typescript-eslint/parser": ^8.60.0
   "@vitejs/plugin-react": ^4.7.0
+  covector: ^0.12.4
   eslint: 9.39.4
   eslint-config-prettier: ^10.1.8
   eslint-plugin-react: ^7.37.5

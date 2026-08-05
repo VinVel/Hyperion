@@ -58,7 +58,6 @@ pub(super) struct RoomInterest {
     pub(super) key: RoomInterestKey,
     pub(super) reason: String,
     pub(super) created_at_unix_ms: u64,
-    pub(super) updated_at_unix_ms: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -221,7 +220,6 @@ impl ShellSyncCoordinator {
                 key,
                 reason: reason.to_owned(),
                 created_at_unix_ms,
-                updated_at_unix_ms: now,
             },
         );
 
@@ -343,11 +341,10 @@ impl ShellSyncCoordinator {
             .values()
             .map(|interest| {
                 format!(
-                    "{}:{}:{}:{}",
+                    "{}:{}:{}",
                     interest.key.kind.label(),
                     interest.key.owner,
-                    interest.reason,
-                    interest.updated_at_unix_ms
+                    interest.reason
                 )
             })
             .collect::<Vec<String>>();

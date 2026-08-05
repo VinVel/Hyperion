@@ -235,7 +235,13 @@ impl ShellManager {
             .mark_live_timeline_as_read(&account.account_key, &room)
             .await
         {
-            eprintln!("Failed to mark sent room message as read: {error}");
+            crate::utils::tracing::report_recoverable_error(
+                "shell.room",
+                "mark_sent_message_read",
+                "shell.mark_read_failed",
+                "room",
+                &error,
+            );
         } else if event_id.starts_with('$') {
             mark_room_read_locally(
                 self.sync_coordinator.locally_read_room_state(),

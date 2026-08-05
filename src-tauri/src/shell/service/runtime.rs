@@ -89,7 +89,13 @@ impl ShellTimelineService {
             if let Err(error) =
                 warm_room_recent_timeline(&client, &room_id, RECENT_TIMELINE_WARM_LIMIT).await
             {
-                eprintln!("Failed to warm recent room timeline for {room_id}: {error}");
+                crate::utils::tracing::report_background_error(
+                    "shell.timeline",
+                    "warm_recent_timeline",
+                    "shell.timeline_warm_failed",
+                    "timeline",
+                    &error,
+                );
                 return;
             }
 
@@ -106,7 +112,13 @@ impl ShellTimelineService {
                 .upsert_timeline_items(&account_key, &store_dir, &room_id, &title, &items)
                 .await
             {
-                eprintln!("Failed to index warmed room timeline for search: {error}");
+                crate::utils::tracing::report_recoverable_error(
+                    "shell.search",
+                    "index_warmed_timeline",
+                    "shell.search_index_failed",
+                    "search",
+                    &error,
+                );
             }
         });
 
@@ -209,7 +221,13 @@ impl ShellSearchService {
             .upsert_room_summary(account_key, store_dir, summary)
             .await
         {
-            eprintln!("Failed to index room summary for search: {error}");
+            crate::utils::tracing::report_recoverable_error(
+                "shell.search",
+                "index_room_summary",
+                "shell.search_index_failed",
+                "search",
+                &error,
+            );
         }
     }
 
@@ -224,7 +242,13 @@ impl ShellSearchService {
             .upsert_space_summary(account_key, store_dir, summary)
             .await
         {
-            eprintln!("Failed to index space summary for search: {error}");
+            crate::utils::tracing::report_recoverable_error(
+                "shell.search",
+                "index_space_summary",
+                "shell.search_index_failed",
+                "search",
+                &error,
+            );
         }
     }
 
@@ -239,7 +263,13 @@ impl ShellSearchService {
             .tombstone_stale_rooms(account_key, store_dir, active_room_ids)
             .await
         {
-            eprintln!("Failed to tombstone stale room search documents: {error}");
+            crate::utils::tracing::report_recoverable_error(
+                "shell.search",
+                "tombstone_stale_rooms",
+                "shell.search_index_failed",
+                "search",
+                &error,
+            );
         }
     }
 
@@ -254,7 +284,13 @@ impl ShellSearchService {
             .tombstone_stale_spaces(account_key, store_dir, active_space_ids)
             .await
         {
-            eprintln!("Failed to tombstone stale space search documents: {error}");
+            crate::utils::tracing::report_recoverable_error(
+                "shell.search",
+                "tombstone_stale_spaces",
+                "shell.search_index_failed",
+                "search",
+                &error,
+            );
         }
     }
 
@@ -291,7 +327,13 @@ impl ShellSearchService {
             .upsert_timeline_items(account_key, store_dir, room_id, room_title, items)
             .await
         {
-            eprintln!("Failed to index room timeline for search: {error}");
+            crate::utils::tracing::report_recoverable_error(
+                "shell.search",
+                "index_room_timeline",
+                "shell.search_index_failed",
+                "search",
+                &error,
+            );
             drop(
                 self.indexer
                     .record_room_error(account_key, store_dir, room_id, "message_room", &error)
@@ -312,7 +354,13 @@ impl ShellSearchService {
             .delete_message_documents(account_key, store_dir, room_id, event_ids)
             .await
         {
-            eprintln!("Failed to remove redacted messages from search: {error}");
+            crate::utils::tracing::report_recoverable_error(
+                "shell.search",
+                "remove_redacted_messages",
+                "shell.search_index_failed",
+                "search",
+                &error,
+            );
         }
     }
 }

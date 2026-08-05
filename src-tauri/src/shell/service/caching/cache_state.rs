@@ -162,7 +162,13 @@ impl ShellCacheState {
         let cached_rooms = match cached_room_thread_summaries(account_key, store_dir) {
             Ok(cached_rooms) => cached_rooms,
             Err(error) => {
-                eprintln!("Failed to read cached room list: {error}");
+                crate::utils::tracing::report_recoverable_error(
+                    "shell.cache",
+                    "read_room_list",
+                    "shell.cache_read_failed",
+                    "cache",
+                    &error,
+                );
                 return None;
             }
         };
@@ -192,7 +198,13 @@ impl ShellCacheState {
         let cached_rooms = match cached_room_thread_summaries(account_key, store_dir) {
             Ok(cached_rooms) => cached_rooms,
             Err(error) => {
-                eprintln!("Failed to read cached room summary: {error}");
+                crate::utils::tracing::report_recoverable_error(
+                    "shell.cache",
+                    "read_room_summary",
+                    "shell.cache_read_failed",
+                    "cache",
+                    &error,
+                );
                 return None;
             }
         };
@@ -217,7 +229,13 @@ impl ShellCacheState {
         summaries: &[RoomThreadSummary],
     ) {
         if let Err(error) = remember_room_thread_summaries(account_key, store_dir, summaries) {
-            eprintln!("Failed to persist cached room list: {error}");
+            crate::utils::tracing::report_recoverable_error(
+                "shell.cache",
+                "write_room_list",
+                "shell.cache_write_failed",
+                "cache",
+                &error,
+            );
         }
     }
 
@@ -228,7 +246,13 @@ impl ShellCacheState {
         let cached_spaces = match cached_space_summaries(store_dir) {
             Ok(cached_spaces) => cached_spaces,
             Err(error) => {
-                eprintln!("Failed to read cached spaces: {error}");
+                crate::utils::tracing::report_recoverable_error(
+                    "shell.cache",
+                    "read_spaces",
+                    "shell.cache_read_failed",
+                    "cache",
+                    &error,
+                );
                 return None;
             }
         };
@@ -252,7 +276,13 @@ impl ShellCacheState {
         summaries: &[SpaceSummary],
     ) {
         if let Err(error) = remember_space_summaries(store_dir, summaries) {
-            eprintln!("Failed to persist cached spaces: {error}");
+            crate::utils::tracing::report_recoverable_error(
+                "shell.cache",
+                "write_spaces",
+                "shell.cache_write_failed",
+                "cache",
+                &error,
+            );
         }
     }
 
@@ -264,7 +294,13 @@ impl ShellCacheState {
         match cached_room_timeline(account_key, store_dir, room_id) {
             Ok(timeline) => timeline,
             Err(error) => {
-                eprintln!("Failed to read cached room timeline: {error}");
+                crate::utils::tracing::report_recoverable_error(
+                    "shell.cache",
+                    "read_room_timeline",
+                    "shell.cache_read_failed",
+                    "cache",
+                    &error,
+                );
                 None
             }
         }
@@ -279,7 +315,13 @@ impl ShellCacheState {
         match cached_room_timeline_item(account_key, store_dir, room_id, event_id) {
             Ok(item) => item,
             Err(error) => {
-                eprintln!("Failed to read cached room timeline item: {error}");
+                crate::utils::tracing::report_recoverable_error(
+                    "shell.cache",
+                    "read_room_timeline_item",
+                    "shell.cache_read_failed",
+                    "cache",
+                    &error,
+                );
                 None
             }
         }
@@ -301,7 +343,13 @@ impl ShellCacheState {
             next_before,
             redacted_event_ids,
         ) {
-            eprintln!("Failed to merge refreshed room timeline cache: {error}");
+            crate::utils::tracing::report_recoverable_error(
+                "shell.cache",
+                "merge_refreshed_timeline",
+                "shell.cache_write_failed",
+                "cache",
+                &error,
+            );
         }
     }
 
@@ -315,7 +363,13 @@ impl ShellCacheState {
         if let Err(error) =
             prepend_cached_room_timeline_items(account_key, store_dir, room_id, items, next_before)
         {
-            eprintln!("Failed to merge cached room timeline items: {error}");
+            crate::utils::tracing::report_recoverable_error(
+                "shell.cache",
+                "prepend_timeline_items",
+                "shell.cache_write_failed",
+                "cache",
+                &error,
+            );
         }
     }
 
@@ -327,7 +381,13 @@ impl ShellCacheState {
         match remembered_room_timeline_item_count(account_key, store_dir, room_id) {
             Ok(count) => count,
             Err(error) => {
-                eprintln!("Failed to read timeline view cache state: {error}");
+                crate::utils::tracing::report_recoverable_error(
+                    "shell.cache",
+                    "read_timeline_view_state",
+                    "shell.cache_read_failed",
+                    "cache",
+                    &error,
+                );
                 None
             }
         }
@@ -350,7 +410,13 @@ impl ShellCacheState {
         if let Err(error) =
             remember_room_timeline_item_count(account_key, store_dir, room_id, visible_item_count)
         {
-            eprintln!("Failed to persist timeline view cache state: {error}");
+            crate::utils::tracing::report_recoverable_error(
+                "shell.cache",
+                "write_timeline_view_state",
+                "shell.cache_write_failed",
+                "cache",
+                &error,
+            );
         }
     }
 

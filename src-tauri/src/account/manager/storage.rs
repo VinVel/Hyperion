@@ -226,16 +226,37 @@ impl AccountManager {
         let store_key = match Self::load_store_key(app, &storage.store_id) {
             Ok(Some(store_key)) => store_key,
             Ok(None) => {
-                eprintln!(
+                #[cfg(debug_assertions)]
+                tracing::warn!(
+                    target: "hyperion",
+                    event_name = "account.restore_skipped",
+                    component = "account.storage",
+                    operation = "restore_account",
+                    error_code = "account.storage_key_missing",
+                    error_category = "storage",
+                    store_id = storage.store_id,
                     "Skipping persisted account store {} because its secure encryption key is missing",
                     storage.store_id
+                );
+                #[cfg(not(debug_assertions))]
+                tracing::warn!(
+                    target: "hyperion",
+                    event_name = "account.restore_skipped",
+                    component = "account.storage",
+                    operation = "restore_account",
+                    error_code = "account.storage_key_missing",
+                    error_category = "storage",
+                    "Persisted account restore was skipped"
                 );
                 return Ok(DiscoveredAccountRestore::SkippedMissingKey);
             }
             Err(error) => {
-                eprintln!(
-                    "Deferring persisted account store {} because its secure encryption key could not be read: {error}",
-                    storage.store_id
+                crate::utils::tracing::report_recoverable_error(
+                    "account.storage",
+                    "read_store_key",
+                    "account.storage_read_failed",
+                    "storage",
+                    &error,
                 );
                 return Ok(DiscoveredAccountRestore::RetryNeeded);
             }
@@ -289,9 +310,12 @@ impl AccountManager {
         {
             Ok(client) => client,
             Err(error) => {
-                eprintln!(
-                    "Deferring persisted account store {} because the Matrix client could not be rebuilt yet: {error}",
-                    storage.store_id
+                crate::utils::tracing::report_recoverable_error(
+                    "account.storage",
+                    "rebuild_client",
+                    "account.client_restore_failed",
+                    "account",
+                    &error,
                 );
                 return Ok(None);
             }
@@ -310,9 +334,12 @@ impl AccountManager {
         };
 
         if let Err(error) = client.restore_session(session.clone()).await {
-            eprintln!(
-                "Deferring persisted account {} because the Matrix session could not be restored yet: {error}",
-                metadata.user_id
+            crate::utils::tracing::report_recoverable_error(
+                "account.storage",
+                "restore_session",
+                "account.session_restore_failed",
+                "account",
+                &error,
             );
             return Ok(None);
         }
@@ -356,16 +383,42 @@ impl AccountManager {
         // A discovered store with no persisted metadata or no session cannot be
         // restored into a valid account. Removing it avoids repeated startup
         // warnings from abandoned login/registration attempts.
-        eprintln!(
+        #[cfg(debug_assertions)]
+        tracing::warn!(
+            target: "hyperion",
+            event_name = "account.incomplete_store_removed",
+            component = "account.storage",
+            operation = "prune_incomplete_store",
+            outcome = "recovery",
+            store_id = storage.store_id,
+            reason,
             "Removing incomplete persisted account store {} because {reason}",
             storage.store_id
         );
+        #[cfg(not(debug_assertions))]
+        {
+            let _ = reason;
+            tracing::warn!(
+                target: "hyperion",
+                event_name = "account.incomplete_store_removed",
+                component = "account.storage",
+                operation = "prune_incomplete_store",
+                outcome = "recovery",
+                "Incomplete persisted account store is being removed"
+            );
+        }
 
         if let Err(error) = Self::remove_dir_with_retries(
             &storage.store_dir,
             "Failed to remove incomplete account store directory",
         ) {
-            eprintln!("{error}");
+            crate::utils::tracing::report_recoverable_error(
+                "account.storage",
+                "remove_incomplete_store",
+                "account.storage_cleanup_failed",
+                "storage",
+                &error,
+            );
             return;
         }
 
@@ -377,7 +430,13 @@ impl AccountManager {
         let store_root_dir = match store_root_dir {
             Ok(store_root_dir) => store_root_dir,
             Err(error) => {
-                eprintln!("{error}");
+                crate::utils::tracing::report_recoverable_error(
+                    "account.storage",
+                    "resolve_incomplete_store_root",
+                    "account.storage_path_invalid",
+                    "storage",
+                    &error,
+                );
                 return;
             }
         };
@@ -386,7 +445,13 @@ impl AccountManager {
             store_root_dir,
             "Failed to remove incomplete account root directory",
         ) {
-            eprintln!("{error}");
+            crate::utils::tracing::report_recoverable_error(
+                "account.storage",
+                "remove_incomplete_store_root",
+                "account.storage_cleanup_failed",
+                "storage",
+                &error,
+            );
         }
 
         drop(secure_storage::delete_secret(

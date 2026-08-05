@@ -13,70 +13,12 @@
  * Project home: hyperion.velcore.net
  */
 
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useRef } from "react";
+import { trace, tracingComponents } from "../../../utils/tracing";
 import type { RoomTimelineItem } from "../appShellAdapters";
-
-export type TimelineDebugApi = {
-  dump: (label?: string) => void;
-};
-
-declare global {
-  interface Window {
-    __hyperionTimelineDebug?: TimelineDebugApi;
-  }
-}
-
-const timelineDebugStorageKey = "hyperion.timeline.debug";
 
 export function timelineItemMeasurementKey(item: RoomTimelineItem): string {
   return `${item.id}:${item.groupPosition}`;
-}
-
-export function timelineDebugEnabled(): boolean {
-  try {
-    const query = new URLSearchParams(window.location.search);
-    return (
-      window.localStorage.getItem(timelineDebugStorageKey) === "1" ||
-      query.get("timelineDebug") === "1" ||
-      query.has("timelineDebug")
-    );
-  } catch {
-    return false;
-  }
-}
-
-export function useTimelineDebugApi(
-  enabled: boolean,
-  rootRef: RefObject<HTMLDivElement | null>,
-  items: RoomTimelineItem[],
-  bottomAnchorTolerancePixels: number,
-): void {
-  useEffect(() => {
-    if (!enabled) {
-      return;
-    }
-
-    const debugApi: TimelineDebugApi = {
-      dump: (label = "manual-dump") => {
-        logTimelineGeometry(
-          label,
-          rootRef.current,
-          items,
-          bottomAnchorTolerancePixels,
-        );
-      },
-    };
-    window.__hyperionTimelineDebug = debugApi;
-    console.info(
-      "[Hyperion timeline debug] enabled. Run window.__hyperionTimelineDebug.dump('label') when the phantom gap is visible.",
-    );
-
-    return () => {
-      if (window.__hyperionTimelineDebug === debugApi) {
-        delete window.__hyperionTimelineDebug;
-      }
-    };
-  }, [bottomAnchorTolerancePixels, enabled, items, rootRef]);
 }
 
 export function useTimelineRowDebug(
@@ -120,11 +62,11 @@ export function useTimelineRowDebug(
 }
 
 export function logTimelineDebug(label: string, payload: unknown): void {
-  if (!timelineDebugEnabled()) {
-    return;
-  }
-
-  console.debug(`[Hyperion timeline debug] ${label}`, payload);
+  trace(`timeline.${label}`, () => ({
+    component: tracingComponents.timeline,
+    operation: label,
+    diagnosticDetails: payload,
+  }));
 }
 
 export function logTimelineGeometry(
@@ -133,86 +75,71 @@ export function logTimelineGeometry(
   items: RoomTimelineItem[],
   bottomAnchorTolerancePixels: number,
 ): void {
-  if (!timelineDebugEnabled()) {
-    return;
-  }
-
-  const snapshot = timelineGeometrySnapshot(
-    root,
-    items,
-    bottomAnchorTolerancePixels,
-  );
-  console.groupCollapsed(`[Hyperion timeline debug] geometry: ${label}`);
-  console.log("summary", snapshot.summary);
-  console.table(snapshot.renderedItems);
-  console.log("snapshot", snapshot);
-  console.groupEnd();
+  trace("timeline.geometry_snapshot", () => ({
+    component: tracingComponents.timeline,
+    operation: label,
+    itemCount: items.length,
+    diagnosticDetails: timelineGeometrySnapshot(
+      root,
+      items,
+      bottomAnchorTolerancePixels,
+    ),
+  }));
 }
 
 export function logTimelineItemIdentityChanges(
   previousItems: RoomTimelineItem[],
   currentItems: RoomTimelineItem[],
 ): void {
-  if (!timelineDebugEnabled()) {
-    return;
-  }
+  trace("timeline.item_identity_changes", () => {
+    const previousById = new Map(
+      previousItems.map((item) => [item.id, item] as const),
+    );
+    const currentById = new Map(
+      currentItems.map((item) => [item.id, item] as const),
+    );
+    const roleChanges = currentItems
+      .map((item) => {
+        const previousItem = previousById.get(item.id);
+        if (
+          !previousItem ||
+          previousItem.groupPosition === item.groupPosition
+        ) {
+          return null;
+        }
 
-  const previousById = new Map(
-    previousItems.map((item) => [item.id, item] as const),
-  );
-  const currentById = new Map(
-    currentItems.map((item) => [item.id, item] as const),
-  );
-  const roleChanges = currentItems
-    .map((item) => {
-      const previousItem = previousById.get(item.id);
-      if (!previousItem || previousItem.groupPosition === item.groupPosition) {
-        return null;
-      }
-
-      return {
+        return {
+          eventId: item.id,
+          previousGroupPosition: previousItem.groupPosition,
+          nextGroupPosition: item.groupPosition,
+          previousMeasurementKey: timelineItemMeasurementKey(previousItem),
+          nextMeasurementKey: timelineItemMeasurementKey(item),
+        };
+      })
+      .filter((change) => change !== null);
+    const insertedItems = currentItems
+      .filter((item) => !previousById.has(item.id))
+      .map((item) => ({
         eventId: item.id,
-        previousGroupPosition: previousItem.groupPosition,
-        nextGroupPosition: item.groupPosition,
-        previousMeasurementKey: timelineItemMeasurementKey(previousItem),
-        nextMeasurementKey: timelineItemMeasurementKey(item),
-      };
-    })
-    .filter((change) => change !== null);
-  const insertedItemIds = currentItems
-    .filter((item) => !previousById.has(item.id))
-    .map((item) => ({
-      eventId: item.id,
-      groupPosition: item.groupPosition,
-      measurementKey: timelineItemMeasurementKey(item),
-    }));
-  const removedItemIds = previousItems
-    .filter((item) => !currentById.has(item.id))
-    .map((item) => ({
-      eventId: item.id,
-      groupPosition: item.groupPosition,
-      measurementKey: timelineItemMeasurementKey(item),
-    }));
+        groupPosition: item.groupPosition,
+        measurementKey: timelineItemMeasurementKey(item),
+      }));
+    const removedItems = previousItems
+      .filter((item) => !currentById.has(item.id))
+      .map((item) => ({
+        eventId: item.id,
+        groupPosition: item.groupPosition,
+        measurementKey: timelineItemMeasurementKey(item),
+      }));
 
-  if (
-    roleChanges.length === 0 &&
-    insertedItemIds.length === 0 &&
-    removedItemIds.length === 0
-  ) {
-    return;
-  }
-
-  console.groupCollapsed("[Hyperion timeline debug] item identity changes");
-  if (roleChanges.length > 0) {
-    console.table(roleChanges);
-  }
-  if (insertedItemIds.length > 0) {
-    console.table(insertedItemIds);
-  }
-  if (removedItemIds.length > 0) {
-    console.table(removedItemIds);
-  }
-  console.groupEnd();
+    return {
+      component: tracingComponents.timeline,
+      operation: "reconcile_item_identity",
+      itemCount:
+        roleChanges.length + insertedItems.length + removedItems.length,
+      diagnosticDetails: { roleChanges, insertedItems, removedItems },
+    };
+  });
 }
 
 export function rawTimelineScrollerMetrics(

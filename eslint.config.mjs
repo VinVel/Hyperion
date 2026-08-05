@@ -13,6 +13,19 @@ export default defineConfig([
   ...tseslint.configs.recommended,
 
   {
+    files: [
+      "plugins/tauri-plugin-tracing/.scripts/**/*.js",
+      "plugins/tauri-plugin-tracing/**/*.config.js",
+    ],
+    languageOptions: {
+      globals: {
+        console: "readonly",
+        process: "readonly",
+      },
+    },
+  },
+
+  {
     ...reactPlugin.configs.flat.recommended,
     settings: {
       react: {

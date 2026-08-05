@@ -259,8 +259,12 @@ impl ShellSyncManager {
                 match room_updates.recv().await {
                     Ok(updates) => emit_shell_sync_updated(&app, &account_key, &updates),
                     Err(error) => {
-                        eprintln!(
-                            "Shell room update listener for account {account_key} stopped with error: {error}"
+                        crate::utils::tracing::report_background_error(
+                            "shell.sync",
+                            "listen_room_updates",
+                            "shell.sync_failed",
+                            "sync",
+                            &error,
                         );
                         break;
                     }
@@ -278,8 +282,12 @@ impl ShellSyncManager {
             let room_list = match sync_service.room_list_service().all_rooms().await {
                 Ok(room_list) => room_list,
                 Err(error) => {
-                    eprintln!(
-                        "Shell room list observer for account {account_key} could not start: {error}"
+                    crate::utils::tracing::report_background_error(
+                        "shell.sync",
+                        "observe_room_list",
+                        "shell.sync_failed",
+                        "sync",
+                        &error,
                     );
                     return;
                 }
@@ -317,9 +325,12 @@ impl ShellSyncManager {
                             .deauthorize_account_store(&app, &account.store_dir)
                             .await
                         {
-                            eprintln!(
-                                "Failed to remove externally deauthorized account {}: {error}",
-                                account.account_key
+                            crate::utils::tracing::report_recoverable_error(
+                                "shell.sync",
+                                "remove_deauthorized_account",
+                                "account.storage_cleanup_failed",
+                                "account",
+                                &error,
                             );
                         }
                         emit_session_deauthorized(&app, &account.account_key);
@@ -327,9 +338,12 @@ impl ShellSyncManager {
                     }
                     Ok(SessionChange::TokensRefreshed) => {}
                     Err(error) => {
-                        eprintln!(
-                            "Shell session-change listener for account {} stopped with error: {error}",
-                            account.account_key
+                        crate::utils::tracing::report_background_error(
+                            "shell.sync",
+                            "listen_session_changes",
+                            "shell.sync_failed",
+                            "sync",
+                            &error,
                         );
                         break;
                     }
@@ -368,7 +382,13 @@ impl ShellSyncManager {
         let owned_room_id = match RoomId::parse(room_id) {
             Ok(room_id) => room_id,
             Err(error) => {
-                eprintln!("Failed to parse focused room id {room_id}: {error}");
+                crate::utils::tracing::report_recoverable_error(
+                    "shell.sync",
+                    "parse_focused_room_id",
+                    "shell.room_id_invalid",
+                    "room",
+                    &error,
+                );
                 return;
             }
         };
@@ -517,7 +537,13 @@ fn emit_shell_sync_status(
     };
 
     if let Err(error) = app.emit(SHELL_SYNC_STATUS_EVENT, payload) {
-        eprintln!("Failed to emit shell sync status event: {error}");
+        crate::utils::tracing::report_recoverable_error(
+            "shell.sync",
+            "emit_sync_status",
+            "shell.sync_event_emit_failed",
+            "sync",
+            &error,
+        );
     }
 }
 
@@ -530,7 +556,13 @@ fn emit_session_deauthorized(app: &tauri::AppHandle, account_key: &str) {
     };
 
     if let Err(error) = app.emit(SHELL_SESSION_DEAUTHORIZED_EVENT, payload) {
-        eprintln!("Failed to emit shell session deauthorization event: {error}");
+        crate::utils::tracing::report_recoverable_error(
+            "shell.sync",
+            "emit_session_deauthorization",
+            "shell.sync_event_emit_failed",
+            "sync",
+            &error,
+        );
     }
 }
 
@@ -548,7 +580,13 @@ pub(in crate::shell) fn emit_shell_room_updated(
     };
 
     if let Err(error) = app.emit(SHELL_SYNC_UPDATED_EVENT, payload) {
-        eprintln!("Failed to emit shell room update event: {error}");
+        crate::utils::tracing::report_recoverable_error(
+            "shell.sync",
+            "emit_room_update",
+            "shell.sync_event_emit_failed",
+            "sync",
+            &error,
+        );
     }
 }
 
@@ -568,7 +606,13 @@ pub(in crate::shell) fn emit_shell_timeline_updated(
     };
 
     if let Err(error) = app.emit(SHELL_TIMELINE_UPDATED_EVENT, payload) {
-        eprintln!("Failed to emit shell timeline update event: {error}");
+        crate::utils::tracing::report_recoverable_error(
+            "shell.sync",
+            "emit_timeline_update",
+            "shell.sync_event_emit_failed",
+            "sync",
+            &error,
+        );
     }
 }
 
@@ -586,7 +630,13 @@ pub(in crate::shell) fn emit_shell_typing_updated(
     };
 
     if let Err(error) = app.emit(SHELL_TYPING_UPDATED_EVENT, payload) {
-        eprintln!("Failed to emit shell typing update event: {error}");
+        crate::utils::tracing::report_recoverable_error(
+            "shell.sync",
+            "emit_typing_update",
+            "shell.sync_event_emit_failed",
+            "sync",
+            &error,
+        );
     }
 }
 
@@ -603,7 +653,13 @@ fn emit_shell_room_list_updated(
     };
 
     if let Err(error) = app.emit(SHELL_SYNC_UPDATED_EVENT, payload) {
-        eprintln!("Failed to emit shell room-list update event: {error}");
+        crate::utils::tracing::report_recoverable_error(
+            "shell.sync",
+            "emit_room_list_update",
+            "shell.sync_event_emit_failed",
+            "sync",
+            &error,
+        );
     }
 }
 
@@ -653,7 +709,13 @@ fn emit_shell_sync_updated(app: &tauri::AppHandle, account_key: &str, updates: &
     };
 
     if let Err(error) = app.emit(SHELL_SYNC_UPDATED_EVENT, payload) {
-        eprintln!("Failed to emit shell sync update event: {error}");
+        crate::utils::tracing::report_recoverable_error(
+            "shell.sync",
+            "emit_sync_update",
+            "shell.sync_event_emit_failed",
+            "sync",
+            &error,
+        );
     }
 }
 

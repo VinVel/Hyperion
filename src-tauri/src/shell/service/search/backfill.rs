@@ -188,7 +188,13 @@ async fn run_room_backfill(
     .await
     {
         let backfill_state = state_for_backfill_error(&error);
-        eprintln!("Search backfill failed for {room_id}: {error}");
+        crate::utils::tracing::report_background_error(
+            "shell.search",
+            "backfill_room",
+            "shell.search_index_failed",
+            "search",
+            &error,
+        );
         drop(
             search_indexer
                 .mark_backfill_state(

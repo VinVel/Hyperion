@@ -22,6 +22,9 @@
 
 ## Building & Development
 
+Runtime logging, privacy rules, `RUST_LOG`, and native platform query commands
+are documented in [Native diagnostics](./docs/debugging.md).
+
 ### Android setup
 
 For a reproducible local setup set the environment variable `ANDROID_HOME` and it should just work when executing the following command:

@@ -242,7 +242,28 @@ impl AccountManager {
 
     fn release_deauthorized_account_store(&self, app: &AppHandle, store_dir: &Path) {
         let Some(store_root_dir) = store_dir.parent().map(Path::to_owned) else {
-            eprintln!("Failed to clean up a deauthorized account: store path has no parent");
+            #[cfg(debug_assertions)]
+            tracing::warn!(
+                target: "hyperion",
+                event_name = "account.cleanup_skipped",
+                component = "account.storage",
+                operation = "cleanup_deauthorized_account",
+                error_code = "account.storage_path_invalid",
+                error_category = "storage",
+                store_path = %store_dir.display(),
+                "Failed to clean up a deauthorized account: store path has no parent ({})",
+                store_dir.display()
+            );
+            #[cfg(not(debug_assertions))]
+            tracing::warn!(
+                target: "hyperion",
+                event_name = "account.cleanup_skipped",
+                component = "account.storage",
+                operation = "cleanup_deauthorized_account",
+                error_code = "account.storage_path_invalid",
+                error_category = "storage",
+                "Deauthorized account cleanup was skipped"
+            );
             return;
         };
         let Some(store_id) = store_root_dir
@@ -251,7 +272,28 @@ impl AccountManager {
             .filter(|value| !value.is_empty())
             .map(ToOwned::to_owned)
         else {
-            eprintln!("Failed to clean up a deauthorized account: account root has no store id");
+            #[cfg(debug_assertions)]
+            tracing::warn!(
+                target: "hyperion",
+                event_name = "account.cleanup_skipped",
+                component = "account.storage",
+                operation = "cleanup_deauthorized_account",
+                error_code = "account.storage_id_missing",
+                error_category = "storage",
+                store_path = %store_root_dir.display(),
+                "Failed to clean up a deauthorized account: account root has no store id ({})",
+                store_root_dir.display()
+            );
+            #[cfg(not(debug_assertions))]
+            tracing::warn!(
+                target: "hyperion",
+                event_name = "account.cleanup_skipped",
+                component = "account.storage",
+                operation = "cleanup_deauthorized_account",
+                error_code = "account.storage_id_missing",
+                error_category = "storage",
+                "Deauthorized account cleanup was skipped"
+            );
             return;
         };
 
@@ -265,9 +307,12 @@ impl AccountManager {
             &store_root_dir,
             "Failed to remove deauthorized account store directory",
         ) {
-            eprintln!(
-                "Failed to clean up the local store for a deauthorized account: \
-                 {cleanup_error}"
+            crate::utils::tracing::report_recoverable_error(
+                "account.storage",
+                "cleanup_deauthorized_account",
+                "account.storage_cleanup_failed",
+                "storage",
+                &cleanup_error,
             );
         }
     }

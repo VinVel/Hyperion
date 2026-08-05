@@ -51,7 +51,13 @@ pub(super) fn open_search_connection_with_recovery(
             recovered: false,
         }),
         Err(error) if paths.database_path.exists() => {
-            eprintln!("Search database could not be opened; recreating it: {error}");
+            crate::utils::tracing::report_recoverable_error(
+                "shell.search",
+                "recreate_database",
+                "shell.search_database_recovery",
+                "search",
+                &error,
+            );
             move_corrupt_database_aside(paths)?;
             let connection = open_search_connection_without_recovery(paths)?;
             Ok(SearchConnection {

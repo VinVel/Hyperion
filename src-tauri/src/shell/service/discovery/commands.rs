@@ -275,7 +275,13 @@ fn ensure_sync_in_background(
         if let Err(error) =
             ensure_active_account_sync(&app, &account_manager, &sync_coordinator).await
         {
-            eprintln!("Failed to refresh shell discovery data in background: {error}");
+            crate::utils::tracing::report_background_error(
+                "shell.discovery",
+                "refresh",
+                "shell.discovery_refresh_failed",
+                "discovery",
+                &error,
+            );
         }
     });
 }

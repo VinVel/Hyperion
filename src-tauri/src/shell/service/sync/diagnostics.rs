@@ -37,14 +37,35 @@ pub(super) fn emit_timeline_room_diagnostic(label: &'static str, account_key: &s
 }
 
 pub(super) fn emit_sync_diagnostic(label: &'static str, fields: &[(&str, &str)]) {
-    let rendered_fields = fields
-        .iter()
-        .map(|(name, value)| format!("{name}={value}"))
-        .collect::<Vec<String>>()
-        .join(" ");
-    if rendered_fields.is_empty() {
-        eprintln!("[hyperion sync diagnostic] label={label}");
-    } else {
-        eprintln!("[hyperion sync diagnostic] label={label} {rendered_fields}");
+    if !tracing::enabled!(target: "hyperion", tracing::Level::TRACE) {
+        return;
+    }
+
+    #[cfg(debug_assertions)]
+    let Some(rendered_fields) =
+        crate::utils::tracing::changed_diagnostic_fields("shell.sync", label, fields)
+    else {
+        return;
+    };
+    #[cfg(debug_assertions)]
+    tracing::trace!(
+        target: "hyperion",
+        event_name = label,
+        component = "shell.sync",
+        diagnostic_details = %rendered_fields,
+        "{label}: {rendered_fields}"
+    );
+
+    #[cfg(not(debug_assertions))]
+    {
+        if crate::utils::tracing::changed_diagnostic_fields("shell.sync", label, fields).is_none() {
+            return;
+        }
+        tracing::trace!(
+            target: "hyperion",
+            event_name = label,
+            component = "shell.sync",
+            "{label}"
+        );
     }
 }

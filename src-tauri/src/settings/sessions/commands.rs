@@ -79,7 +79,13 @@ pub fn register_session_verification_event_handler(
                 };
 
                 if let Err(error) = app.emit(SESSION_VERIFICATION_REQUEST_RECEIVED_EVENT, payload) {
-                    eprintln!("Failed to emit incoming verification request: {error}");
+                    crate::utils::tracing::report_recoverable_error(
+                        "settings.sessions",
+                        "emit_verification_request",
+                        "settings.session_event_emit_failed",
+                        "settings",
+                        &error,
+                    );
                 }
             }
         });
@@ -100,7 +106,13 @@ pub fn register_session_verification_event_handler(
                 };
 
                 if let Err(error) = app.emit(SESSION_VERIFICATION_REQUEST_RECEIVED_EVENT, payload) {
-                    eprintln!("Failed to emit incoming verification start: {error}");
+                    crate::utils::tracing::report_recoverable_error(
+                        "settings.sessions",
+                        "emit_verification_start",
+                        "settings.session_event_emit_failed",
+                        "settings",
+                        &error,
+                    );
                 }
             }
         });
@@ -111,34 +123,41 @@ pub async fn get_session_overview(
     app: AppHandle,
     account_manager: tauri::State<'_, AccountManager>,
 ) -> Result<SessionOverview, String> {
-    let Some(active_account) = account_manager.optional_active_account(&app).await? else {
-        return Ok(SessionOverview {
-            has_active_account: false,
-            account_key: None,
-            user_id: None,
-            current_device_id: None,
-            current_session_verified: false,
-            sessions: Vec::new(),
-            last_refreshed_at_unix_ms: None,
-        });
-    };
-    let account = active_account.snapshot();
+    crate::utils::tracing::report_command_future(
+        "get_session_overview",
+        "settings.sessions",
+        async {
+            let Some(active_account) = account_manager.optional_active_account(&app).await? else {
+                return Ok(SessionOverview {
+                    has_active_account: false,
+                    account_key: None,
+                    user_id: None,
+                    current_device_id: None,
+                    current_session_verified: false,
+                    sessions: Vec::new(),
+                    last_refreshed_at_unix_ms: None,
+                });
+            };
+            let account = active_account.snapshot();
 
-    let cached_overview = account_settings::read_session_overview(&account.store_dir)?;
-    schedule_session_overview_refresh(app, account.clone());
-    if let Some(overview) = cached_overview {
-        return Ok(overview);
-    }
+            let cached_overview = account_settings::read_session_overview(&account.store_dir)?;
+            schedule_session_overview_refresh(app, account.clone());
+            if let Some(overview) = cached_overview {
+                return Ok(overview);
+            }
 
-    Ok(SessionOverview {
-        has_active_account: true,
-        account_key: Some(account.account_key.clone()),
-        user_id: account.client.user_id().map(ToString::to_string),
-        current_device_id: account.client.device_id().map(ToString::to_string),
-        current_session_verified: false,
-        sessions: Vec::new(),
-        last_refreshed_at_unix_ms: None,
-    })
+            Ok(SessionOverview {
+                has_active_account: true,
+                account_key: Some(account.account_key.clone()),
+                user_id: account.client.user_id().map(ToString::to_string),
+                current_device_id: account.client.device_id().map(ToString::to_string),
+                current_session_verified: false,
+                sessions: Vec::new(),
+                last_refreshed_at_unix_ms: None,
+            })
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -147,6 +166,10 @@ pub async fn start_session_verification(
     account_manager: tauri::State<'_, AccountManager>,
     request: StartSessionVerificationRequest,
 ) -> Result<VerificationStart, String> {
+    crate::utils::tracing::report_command_future(
+        "start_session_verification",
+        "settings.sessions",
+        async {
     let active_account = account_manager.require_active_account(&app).await?;
     let account = active_account.snapshot();
     let user_id = active_user_id(account)?;
@@ -180,12 +203,15 @@ pub async fn start_session_verification(
         .map(|method| method.to_string())
         .collect();
 
-    Ok(VerificationStart {
+            Ok(VerificationStart {
         flow_id: verification.flow_id().to_owned(),
         device_id: request.device_id,
         supported_methods,
         state,
-    })
+            })
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -193,51 +219,60 @@ pub async fn start_current_session_verification(
     app: AppHandle,
     account_manager: tauri::State<'_, AccountManager>,
 ) -> Result<VerificationStart, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    let account = active_account.snapshot();
-    let user_id = active_user_id(account)?;
-    let encryption = account.client.encryption();
-    let has_devices_to_verify_against = encryption
-        .has_devices_to_verify_against()
-        .await
-        .map_err(|error| format!("Failed to check verified sessions: {error}"))?;
-    if !has_devices_to_verify_against {
-        return Err(String::from(
-            "No verified session is available to verify this session.",
-        ));
-    }
+    crate::utils::tracing::report_command_future(
+        "start_current_session_verification",
+        "settings.sessions",
+        async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            let account = active_account.snapshot();
+            let user_id = active_user_id(account)?;
+            let encryption = account.client.encryption();
+            let has_devices_to_verify_against = encryption
+                .has_devices_to_verify_against()
+                .await
+                .map_err(|error| format!("Failed to check verified sessions: {error}"))?;
+            if !has_devices_to_verify_against {
+                return Err(String::from(
+                    "No verified session is available to verify this session.",
+                ));
+            }
 
-    let Some(identity) = encryption
-        .request_user_identity(&user_id)
-        .await
-        .map_err(|error| format!("Failed to read account identity: {error}"))?
-    else {
-        return Err(String::from(
-            "The account identity is not available for verification.",
-        ));
-    };
-    let verification = identity
-        .request_verification_with_methods(sas_verification_methods())
-        .await
-        .map_err(|error| format!("Failed to request current-session verification: {error}"))?;
-    let state = verification_request_state(verification.flow_id(), verification.state());
-    let supported_methods = verification
-        .their_supported_methods()
-        .unwrap_or_default()
-        .into_iter()
-        .map(|method| method.to_string())
-        .collect();
+            let Some(identity) = encryption
+                .request_user_identity(&user_id)
+                .await
+                .map_err(|error| format!("Failed to read account identity: {error}"))?
+            else {
+                return Err(String::from(
+                    "The account identity is not available for verification.",
+                ));
+            };
+            let verification = identity
+                .request_verification_with_methods(sas_verification_methods())
+                .await
+                .map_err(|error| {
+                    format!("Failed to request current-session verification: {error}")
+                })?;
+            let state = verification_request_state(verification.flow_id(), verification.state());
+            let supported_methods = verification
+                .their_supported_methods()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|method| method.to_string())
+                .collect();
 
-    Ok(VerificationStart {
-        flow_id: verification.flow_id().to_owned(),
-        device_id: account
-            .client
-            .device_id()
-            .map(ToString::to_string)
-            .unwrap_or_default(),
-        supported_methods,
-        state,
-    })
+            Ok(VerificationStart {
+                flow_id: verification.flow_id().to_owned(),
+                device_id: account
+                    .client
+                    .device_id()
+                    .map(ToString::to_string)
+                    .unwrap_or_default(),
+                supported_methods,
+                state,
+            })
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -246,15 +281,23 @@ pub async fn accept_session_verification_request(
     account_manager: tauri::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<VerificationState, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    let account = active_account.snapshot();
-    let verification_request = active_verification_request(account, &request.flow_id).await?;
-    accept_verification_request_if_pending(&verification_request).await;
+    crate::utils::tracing::report_command_future(
+        "accept_session_verification_request",
+        "settings.sessions",
+        async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            let account = active_account.snapshot();
+            let verification_request =
+                active_verification_request(account, &request.flow_id).await?;
+            accept_verification_request_if_pending(&verification_request).await;
 
-    Ok(verification_request_state(
-        verification_request.flow_id(),
-        verification_request.state(),
-    ))
+            Ok(verification_request_state(
+                verification_request.flow_id(),
+                verification_request.state(),
+            ))
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -263,13 +306,21 @@ pub async fn deny_session_verification_request(
     account_manager: tauri::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<(), String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    let account = active_account.snapshot();
-    let verification_request = active_verification_request(account, &request.flow_id).await?;
-    verification_request
-        .cancel()
-        .await
-        .map_err(|error| format!("Failed to deny verification request: {error}"))
+    crate::utils::tracing::report_command_future(
+        "deny_session_verification_request",
+        "settings.sessions",
+        async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            let account = active_account.snapshot();
+            let verification_request =
+                active_verification_request(account, &request.flow_id).await?;
+            verification_request
+                .cancel()
+                .await
+                .map_err(|error| format!("Failed to deny verification request: {error}"))
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -278,10 +329,18 @@ pub async fn start_sas_verification(
     account_manager: tauri::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<SasVerificationView, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    let account = active_account.snapshot();
-    let verification_request = active_verification_request(account, &request.flow_id).await?;
-    advance_sas_verification(&verification_request).await
+    crate::utils::tracing::report_command_future(
+        "start_sas_verification",
+        "settings.sessions",
+        async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            let account = active_account.snapshot();
+            let verification_request =
+                active_verification_request(account, &request.flow_id).await?;
+            advance_sas_verification(&verification_request).await
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -290,14 +349,21 @@ pub async fn accept_sas_verification(
     account_manager: tauri::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<SasVerificationView, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    let account = active_account.snapshot();
-    let sas = get_sas_for_flow_raw(account, &request.flow_id).await?;
-    sas.accept()
-        .await
-        .map_err(|error| format!("Failed to accept emoji verification: {error}"))?;
+    crate::utils::tracing::report_command_future(
+        "accept_sas_verification",
+        "settings.sessions",
+        async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            let account = active_account.snapshot();
+            let sas = get_sas_for_flow_raw(account, &request.flow_id).await?;
+            sas.accept()
+                .await
+                .map_err(|error| format!("Failed to accept emoji verification: {error}"))?;
 
-    Ok(sas_view(&request.flow_id, &sas))
+            Ok(sas_view(&request.flow_id, &sas))
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -306,10 +372,18 @@ pub async fn get_sas_verification(
     account_manager: tauri::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<SasVerificationView, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    let account = active_account.snapshot();
-    let verification_request = active_verification_request(account, &request.flow_id).await?;
-    advance_sas_verification(&verification_request).await
+    crate::utils::tracing::report_command_future(
+        "get_sas_verification",
+        "settings.sessions",
+        async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            let account = active_account.snapshot();
+            let verification_request =
+                active_verification_request(account, &request.flow_id).await?;
+            advance_sas_verification(&verification_request).await
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -318,14 +392,21 @@ pub async fn confirm_sas_verification(
     account_manager: tauri::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<SasVerificationView, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    let account = active_account.snapshot();
-    let sas = get_sas_for_flow_raw(account, &request.flow_id).await?;
-    sas.confirm()
-        .await
-        .map_err(|error| format!("Failed to confirm emoji verification: {error}"))?;
+    crate::utils::tracing::report_command_future(
+        "confirm_sas_verification",
+        "settings.sessions",
+        async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            let account = active_account.snapshot();
+            let sas = get_sas_for_flow_raw(account, &request.flow_id).await?;
+            sas.confirm()
+                .await
+                .map_err(|error| format!("Failed to confirm emoji verification: {error}"))?;
 
-    Ok(sas_view(&request.flow_id, &sas))
+            Ok(sas_view(&request.flow_id, &sas))
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -334,14 +415,21 @@ pub async fn cancel_sas_verification(
     account_manager: tauri::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<SasVerificationView, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    let account = active_account.snapshot();
-    let sas = get_sas_for_flow_raw(account, &request.flow_id).await?;
-    sas.mismatch()
-        .await
-        .map_err(|error| format!("Failed to cancel emoji verification: {error}"))?;
+    crate::utils::tracing::report_command_future(
+        "cancel_sas_verification",
+        "settings.sessions",
+        async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            let account = active_account.snapshot();
+            let sas = get_sas_for_flow_raw(account, &request.flow_id).await?;
+            sas.mismatch()
+                .await
+                .map_err(|error| format!("Failed to cancel emoji verification: {error}"))?;
 
-    Ok(sas_view(&request.flow_id, &sas))
+            Ok(sas_view(&request.flow_id, &sas))
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -350,50 +438,57 @@ pub async fn deauthorize_sessions(
     account_manager: tauri::State<'_, AccountManager>,
     request: DeauthorizeSessionsRequest,
 ) -> Result<DeauthorizeSessionsOutcome, String> {
-    let active_account = account_manager.require_active_account(&app).await?;
-    let account = active_account.snapshot();
-    let current_device_id = account.client.device_id().map(ToOwned::to_owned);
-    let device_ids =
-        parse_deauthorization_device_ids(&request.device_ids, current_device_id.as_ref())?;
-    let auth_data = password_auth_data(
-        account,
-        request.auth_session.as_ref(),
-        request.password.as_deref(),
-    )?;
+    crate::utils::tracing::report_command_future(
+        "deauthorize_sessions",
+        "settings.sessions",
+        async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            let account = active_account.snapshot();
+            let current_device_id = account.client.device_id().map(ToOwned::to_owned);
+            let device_ids =
+                parse_deauthorization_device_ids(&request.device_ids, current_device_id.as_ref())?;
+            let auth_data = password_auth_data(
+                account,
+                request.auth_session.as_ref(),
+                request.password.as_deref(),
+            )?;
 
-    match account
-        .client
-        .delete_devices(&device_ids, auth_data.clone())
-        .await
-    {
-        Ok(_response) => Ok(DeauthorizeSessionsOutcome::Completed),
-        Err(error) => {
-            if let Some(uiaa_response) = error.as_uiaa_response() {
-                return Ok(DeauthorizeSessionsOutcome::PasswordRequired {
-                    auth_session: uiaa_response.session.clone(),
-                });
-            }
+            match account
+                .client
+                .delete_devices(&device_ids, auth_data.clone())
+                .await
+            {
+                Ok(_response) => Ok(DeauthorizeSessionsOutcome::Completed),
+                Err(error) => {
+                    if let Some(uiaa_response) = error.as_uiaa_response() {
+                        return Ok(DeauthorizeSessionsOutcome::PasswordRequired {
+                            auth_session: uiaa_response.session.clone(),
+                        });
+                    }
 
-            if is_unrecognized_endpoint_error(&error.to_string()) {
-                if let Some(account_management_url) =
-                    account_management_url_for_first_device(account, &device_ids).await
-                {
-                    return Ok(DeauthorizeSessionsOutcome::AccountManagementRequired {
-                        account_management_url,
-                    });
+                    if is_unrecognized_endpoint_error(&error.to_string()) {
+                        if let Some(account_management_url) =
+                            account_management_url_for_first_device(account, &device_ids).await
+                        {
+                            return Ok(DeauthorizeSessionsOutcome::AccountManagementRequired {
+                                account_management_url,
+                            });
+                        }
+
+                        return deauthorize_sessions_individually(
+                            account,
+                            &device_ids,
+                            request.password.as_deref(),
+                        )
+                        .await;
+                    }
+
+                    Err(format!("Failed to deauthorize sessions: {error}"))
                 }
-
-                return deauthorize_sessions_individually(
-                    account,
-                    &device_ids,
-                    request.password.as_deref(),
-                )
-                .await;
             }
-
-            Err(format!("Failed to deauthorize sessions: {error}"))
-        }
-    }
+        },
+    )
+    .await
 }
 
 async fn deauthorize_sessions_individually(
@@ -559,18 +654,36 @@ fn schedule_session_overview_refresh(app: AppHandle, account: AccountClientSnaps
         let overview = match refreshed_session_overview(&account).await {
             Ok(overview) => overview,
             Err(error) => {
-                eprintln!("Failed to refresh session overview in background: {error}");
+                crate::utils::tracing::report_background_error(
+                    "settings.sessions",
+                    "refresh_overview",
+                    "settings.session_refresh_failed",
+                    "settings",
+                    &error,
+                );
                 return;
             }
         };
 
         if let Err(error) = account_settings::write_session_overview(&account.store_dir, &overview)
         {
-            eprintln!("Failed to persist refreshed session overview: {error}");
+            crate::utils::tracing::report_recoverable_error(
+                "settings.sessions",
+                "persist_overview",
+                "settings.session_cache_write_failed",
+                "settings",
+                &error,
+            );
         }
 
         if let Err(error) = app.emit(SESSION_OVERVIEW_UPDATED_EVENT, overview) {
-            eprintln!("Failed to emit session overview update: {error}");
+            crate::utils::tracing::report_recoverable_error(
+                "settings.sessions",
+                "emit_overview",
+                "settings.session_event_emit_failed",
+                "settings",
+                &error,
+            );
         }
     });
 }
@@ -614,9 +727,12 @@ async fn accept_verification_request_if_pending(verification_request: &Verificat
         .accept_with_methods(sas_verification_methods())
         .await
     {
-        eprintln!(
-            "Failed to accept incoming verification request {}: {error}",
-            verification_request.flow_id()
+        crate::utils::tracing::report_recoverable_error(
+            "settings.sessions",
+            "accept_incoming_verification",
+            "settings.session_verification_failed",
+            "settings",
+            &error,
         );
     }
 }

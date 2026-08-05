@@ -44,8 +44,14 @@ pub fn unset_default_store() {
             Ok(mut initialized) => {
                 *initialized = false;
             }
-            Err(_poison_error) => {
-                eprintln!("Secure storage initialization state was poisoned during shutdown");
+            Err(poison_error) => {
+                crate::utils::tracing::report_recoverable_error(
+                    "account.secure_storage",
+                    "shutdown",
+                    "account.secure_storage_state_poisoned",
+                    "storage",
+                    &poison_error,
+                );
             }
         }
     }

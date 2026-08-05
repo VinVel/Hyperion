@@ -513,7 +513,13 @@ impl ShellManager {
         {
             Ok(items) => items,
             Err(error) => {
-                eprintln!("Failed to resolve replied message preview: {error}");
+                crate::utils::tracing::report_recoverable_error(
+                    "shell.timeline",
+                    "resolve_reply_preview",
+                    "shell.reply_preview_failed",
+                    "timeline",
+                    &error,
+                );
                 return Ok(RoomTimelineReplyPreview {
                     event_id: request.event_id,
                     state: RoomTimelineReplyPreviewState::FailedToLoad,
@@ -602,7 +608,13 @@ impl ShellManager {
                 .refresh_room_timeline_after_cached_response(&app, &account_manager, request)
                 .await
             {
-                eprintln!("Failed to refresh cached room timeline in background: {error}");
+                crate::utils::tracing::report_background_error(
+                    "shell.timeline",
+                    "refresh_cached_timeline",
+                    "shell.timeline_load_failed",
+                    "timeline",
+                    &error,
+                );
             }
         });
     }
@@ -785,7 +797,13 @@ impl ShellManager {
         {
             Ok(redacted_event_ids) => redacted_event_ids,
             Err(error) => {
-                eprintln!("Failed to inspect redacted timeline items: {error}");
+                crate::utils::tracing::report_recoverable_error(
+                    "shell.timeline",
+                    "inspect_redacted_items",
+                    "shell.timeline_redaction_scan_failed",
+                    "timeline",
+                    &error,
+                );
                 Vec::new()
             }
         }
@@ -805,7 +823,13 @@ impl ShellManager {
         {
             Ok(redacted_event_ids) => redacted_event_ids,
             Err(error) => {
-                eprintln!("Failed to inspect focused redacted timeline items: {error}");
+                crate::utils::tracing::report_recoverable_error(
+                    "shell.timeline",
+                    "inspect_focused_redacted_items",
+                    "shell.timeline_redaction_scan_failed",
+                    "timeline",
+                    &error,
+                );
                 Vec::new()
             }
         }
@@ -1605,15 +1629,40 @@ fn emit_pagination_backend_response(
 }
 
 fn emit_pagination_diagnostic(label: &'static str, fields: &[(&str, &str)]) {
-    let rendered_fields = fields
-        .iter()
-        .map(|(name, value)| format!("{name}={value}"))
-        .collect::<Vec<String>>()
-        .join(" ");
-    if rendered_fields.is_empty() {
-        eprintln!("[hyperion pagination diagnostic] label={label}");
-    } else {
-        eprintln!("[hyperion pagination diagnostic] label={label} {rendered_fields}");
+    if !tracing::enabled!(target: "hyperion", tracing::Level::DEBUG) {
+        return;
+    }
+
+    #[cfg(debug_assertions)]
+    let Some(rendered_fields) =
+        crate::utils::tracing::changed_diagnostic_fields("timeline.pagination", label, fields)
+    else {
+        return;
+    };
+    #[cfg(debug_assertions)]
+    tracing::debug!(
+        target: "hyperion",
+        event_name = label,
+        component = "shell.timeline",
+        operation = "paginate_backwards",
+        diagnostic_details = %rendered_fields,
+        "{label}: {rendered_fields}"
+    );
+
+    #[cfg(not(debug_assertions))]
+    {
+        if crate::utils::tracing::changed_diagnostic_fields("timeline.pagination", label, fields)
+            .is_none()
+        {
+            return;
+        }
+        tracing::debug!(
+            target: "hyperion",
+            event_name = label,
+            component = "shell.timeline",
+            operation = "paginate_backwards",
+            "{label}"
+        );
     }
 }
 

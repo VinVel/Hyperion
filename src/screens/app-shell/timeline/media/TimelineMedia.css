@@ -45,19 +45,22 @@
 
 .timeline-media-stage {
   position: relative;
-  display: grid;
-  place-items: center;
   min-height: 4rem;
   aspect-ratio: var(--timeline-media-aspect-ratio, 16 / 9);
   background: var(--surface-container-low);
+  background-position: center;
+  background-size: cover;
   overflow: hidden;
 }
 
 .timeline-media-stage img,
 .timeline-media-stage video {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
 }
 
 .timeline-media-stage--hidden img,
@@ -65,17 +68,49 @@
   filter: blur(1.25rem);
 }
 
-.timeline-media-placeholder,
-.timeline-media-error {
+.timeline-media-stage > .timeline-media-placeholder,
+.timeline-media-stage > .timeline-media-error {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: grid;
+  place-items: center;
   padding: var(--spacing-card-padding);
   color: var(--on-surface-variant);
   text-align: center;
+}
+
+.timeline-media-play-indicator {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  color: white;
+  pointer-events: none;
+}
+
+.timeline-media-play-indicator svg {
+  width: 3rem;
+  height: 3rem;
+  padding: var(--spacing-gap-small);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--scrim) 58%, transparent);
+}
+
+.timeline-media-stage > .ui-button {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  z-index: 4;
+  transform: translate(-50%, -50%);
 }
 
 .timeline-media-controls {
   position: absolute;
   inset-block-start: var(--spacing-gap-small);
   inset-inline-end: var(--spacing-gap-small);
+  z-index: 3;
   display: flex;
   gap: var(--spacing-gap-extra-small);
   padding: var(--spacing-gap-extra-small);
@@ -153,7 +188,7 @@
   padding: var(--spacing-panel-padding);
 }
 
-.timeline-media-viewer-image {
+.timeline-media-viewer-media {
   max-width: 100%;
   max-height: 100%;
   justify-self: center;

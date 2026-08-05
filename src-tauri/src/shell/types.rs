@@ -191,6 +191,7 @@ pub struct RoomTimelineAttachment {
     pub height: Option<u32>,
     pub duration_unix_ms: Option<u64>,
     pub size_bytes: Option<u64>,
+    pub blurhash: Option<String>,
     pub requires_reveal: bool,
 }
 

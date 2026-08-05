@@ -297,6 +297,7 @@ function attachmentsAreEqual(
         attachment.height === refreshedAttachment.height &&
         attachment.durationUnixMs === refreshedAttachment.durationUnixMs &&
         attachment.sizeBytes === refreshedAttachment.sizeBytes &&
+        attachment.blurhash === refreshedAttachment.blurhash &&
         attachment.requiresReveal === refreshedAttachment.requiresReveal
       );
     })

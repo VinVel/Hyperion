@@ -21,7 +21,10 @@ use std::{
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use matrix_sdk::ruma::events::room::MediaSource;
 
-use super::types::{MEDIA_URI_SCHEME, RegisteredMedia, RegisteredMediaFormat};
+use super::types::{
+    MEDIA_URI_SCHEME, RegisteredMedia, RegisteredMediaFormat,
+    TIMELINE_PREVIEW_THUMBNAIL_EDGE_PIXELS,
+};
 
 // Served media remains bounded because prepared videos and images can be large
 // and custom-protocol URLs otherwise keep their backing bytes for the app lifetime.
@@ -134,7 +137,13 @@ fn media_token(source: &MediaSource, is_thumbnail: bool) -> String {
         MediaSource::Plain(uri) => uri.to_string(),
         MediaSource::Encrypted(file) => file.url.to_string(),
     };
-    let prefix = if is_thumbnail { "thumb" } else { "file" };
+    // The requested preview edge participates in the handle so a size change
+    // cannot reuse larger thumbnail bytes persisted by an older build.
+    let prefix = if is_thumbnail {
+        format!("thumb-{TIMELINE_PREVIEW_THUMBNAIL_EDGE_PIXELS}")
+    } else {
+        String::from("file")
+    };
     format!("{prefix}-{}", URL_SAFE_NO_PAD.encode(source_label))
 }
 

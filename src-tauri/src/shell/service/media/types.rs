@@ -27,6 +27,10 @@ pub const DEFAULT_THUMBNAIL_CACHE_ITEM_LIMIT: usize = 100;
 // Prepared media is served through an app-local protocol rather than exposed files.
 pub const MEDIA_URI_SCHEME: &str = "hyperion-media";
 
+// Timeline previews ask the homeserver for a modest raster so inline rows do
+// not decode full-resolution media while scrolling.
+pub(super) const TIMELINE_PREVIEW_THUMBNAIL_EDGE_PIXELS: u32 = 480;
+
 #[derive(Clone)]
 pub(in crate::shell) struct RegisteredMedia {
     pub source: MediaSource,
@@ -47,9 +51,12 @@ impl RegisteredMedia {
             source: self.source.clone(),
             format: match self.format {
                 RegisteredMediaFormat::File => MediaFormat::File,
-                RegisteredMediaFormat::Thumbnail => MediaFormat::Thumbnail(
-                    MediaThumbnailSettings::new(800_u32.into(), 800_u32.into()),
-                ),
+                RegisteredMediaFormat::Thumbnail => {
+                    MediaFormat::Thumbnail(MediaThumbnailSettings::new(
+                        TIMELINE_PREVIEW_THUMBNAIL_EDGE_PIXELS.into(),
+                        TIMELINE_PREVIEW_THUMBNAIL_EDGE_PIXELS.into(),
+                    ))
+                }
             },
         }
     }

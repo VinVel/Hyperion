@@ -14,6 +14,6 @@
  */
 
 export { default as TimelineMedia } from "./TimelineMedia";
-export { mediaGalleryItems, preloadableTimelineMediaHandles } from "./gallery";
-export { cachedPreparedRoomMedia } from "./actions";
+export { mediaGalleryItems, timelineMediaPreloadCandidates } from "./gallery";
+export { cachedPreparedRoomMedia, cancelQueuedMediaPreloads } from "./actions";
 export type { TimelineMediaItem } from "./types";

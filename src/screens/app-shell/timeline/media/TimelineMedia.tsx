@@ -13,9 +13,16 @@
  * Project home: hyperion.velcore.net
  */
 
-import { memo, useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { createPortal } from "react-dom";
-import { Download, EyeOff, Info, Share2, ZoomIn } from "lucide-react";
+import { Download, EyeOff, Info, Play, Share2, ZoomIn } from "lucide-react";
 import { Button, Typography } from "../../../../components/ui";
 import type {
   RoomTimelineAttachment,
@@ -26,6 +33,7 @@ import {
   copyMediaLink,
   saveRoomMedia,
 } from "./actions";
+import { blurhashDataUrl } from "./blurhash";
 import MediaDetails from "./MediaDetails";
 import MediaViewer from "./MediaViewer";
 import {
@@ -33,6 +41,7 @@ import {
   mediaAspectRatio,
   mediaReservedWidth,
 } from "./presentation";
+import { inlineMediaHandle } from "./selection";
 import type { PreparedMedia, TimelineMediaItem } from "./types";
 import "./TimelineMedia.css";
 
@@ -67,29 +76,27 @@ function TimelineMedia({
 
   useEffect(() => {
     for (const attachment of attachments) {
-      if (
-        attachment.mediaType === "file" ||
-        attachment.mediaType === "unknown"
-      ) {
+      const mediaHandle = inlineMediaHandle(attachment);
+      if (!mediaHandle) {
         continue;
       }
 
-      if (requestedMediaHandlesRef.current.has(attachment.mediaHandle)) {
+      if (requestedMediaHandlesRef.current.has(mediaHandle)) {
         continue;
       }
 
-      requestedMediaHandlesRef.current.add(attachment.mediaHandle);
-      void cachedPreparedRoomMedia(cacheScope, attachment.mediaHandle)
+      requestedMediaHandlesRef.current.add(mediaHandle);
+      void cachedPreparedRoomMedia(cacheScope, mediaHandle)
         .then((preparedMedia) => {
           setPreparedMediaByHandle((currentMedia) => ({
             ...currentMedia,
-            [attachment.mediaHandle]: preparedMedia,
+            [mediaHandle]: preparedMedia,
           }));
         })
         .catch(() => {
           setPreparedMediaByHandle((currentMedia) => ({
             ...currentMedia,
-            [attachment.mediaHandle]: "error",
+            [mediaHandle]: "error",
           }));
         });
     }
@@ -104,7 +111,8 @@ function TimelineMedia({
   }
 
   function preparedForAttachment(attachment: RoomTimelineAttachment) {
-    return preparedMediaByHandle[attachment.mediaHandle];
+    const mediaHandle = inlineMediaHandle(attachment);
+    return mediaHandle ? preparedMediaByHandle[mediaHandle] : undefined;
   }
 
   if (attachments.length === 0) {
@@ -202,10 +210,16 @@ function VisualMedia({
 }: VisualMediaProps) {
   const mediaUrl =
     preparedMedia && preparedMedia !== "error" ? preparedMedia.media_url : "";
+  const blurhashUrl = useMemo(
+    () => (attachment.blurhash ? blurhashDataUrl(attachment.blurhash) : ""),
+    [attachment.blurhash],
+  );
   const isHidden = attachment.requiresReveal && !revealed;
-  const aspectRatioStyle = {
+  const stageStyle = {
     "--timeline-media-aspect-ratio": mediaAspectRatio(attachment),
     "--timeline-media-reserved-width": mediaReservedWidth(attachment),
+    backgroundImage:
+      blurhashUrl && !isHidden ? `url("${blurhashUrl}")` : undefined,
   } as CSSProperties;
   const frameClassName = `timeline-media-frame timeline-media-frame--${attachment.mediaType}`;
 
@@ -216,25 +230,30 @@ function VisualMedia({
           className={`timeline-media-stage${
             isHidden ? " timeline-media-stage--hidden" : ""
           }`}
-          style={aspectRatioStyle}
+          style={stageStyle}
         >
           {preparedMedia === "error" ? (
             <div className="timeline-media-error">
               Media could not be loaded
             </div>
           ) : mediaUrl ? (
-            attachment.mediaType === "video" ? (
-              <video controls preload="metadata" src={mediaUrl} />
-            ) : (
-              <img
-                alt={attachment.displayCaption || "Shared media"}
-                decoding="async"
-                src={mediaUrl}
-              />
-            )
+            <img
+              alt={attachment.displayCaption || visualMediaLabel(attachment)}
+              decoding="async"
+              src={mediaUrl}
+            />
           ) : (
-            <div className="timeline-media-placeholder">Loading media...</div>
+            <div
+              aria-label="Loading media"
+              className="timeline-media-placeholder"
+            />
           )}
+
+          {attachment.mediaType === "video" ? (
+            <span className="timeline-media-play-indicator" aria-hidden="true">
+              <Play />
+            </span>
+          ) : null}
 
           {isHidden ? (
             <Button
@@ -250,12 +269,15 @@ function VisualMedia({
           <div className="timeline-media-controls">
             <Button
               aria-label="Open media"
-              disabled={!mediaUrl || attachment.mediaType === "video"}
               iconOnly
               variant="ghost"
               onClick={() => onOpenViewer(attachment.mediaHandle)}
             >
-              <ZoomIn aria-hidden="true" />
+              {attachment.mediaType === "video" ? (
+                <Play aria-hidden="true" />
+              ) : (
+                <ZoomIn aria-hidden="true" />
+              )}
             </Button>
             <Button
               aria-label="Copy media link"
@@ -290,14 +312,13 @@ function VisualMedia({
         ) : null}
       </div>
 
-      {viewerHandle === attachment.mediaHandle && mediaUrl
+      {viewerHandle === attachment.mediaHandle
         ? createPortal(
             <MediaViewer
               attachment={attachment}
               cacheScope={cacheScope}
               getGalleryItems={getGalleryItems}
               item={item}
-              mediaUrl={mediaUrl}
               onClose={onCloseViewer}
             />,
             document.body,
@@ -305,6 +326,10 @@ function VisualMedia({
         : null}
     </>
   );
+}
+
+function visualMediaLabel(attachment: RoomTimelineAttachment): string {
+  return attachment.mediaType === "video" ? "Shared video" : "Shared media";
 }
 
 type AudioMediaProps = {

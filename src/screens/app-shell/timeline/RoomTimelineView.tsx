@@ -26,7 +26,7 @@ import {
   type RefObject,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import { Virtuoso, type ListRange, type VirtuosoHandle } from "react-virtuoso";
 import { Link, Pencil, Reply, SmilePlus, Trash2 } from "lucide-react";
 import { Button, Typography } from "../../../components/ui";
 import { isTracingLevelEnabled } from "../../../utils/tracing";
@@ -43,7 +43,13 @@ import TimelineMarkdown from "./TimelineMarkdown";
 import TimelineScroller, {
   type TimelineScrollerContext,
 } from "./TimelineScroller";
-import { TimelineMedia, mediaGalleryItems } from "./media";
+import {
+  TimelineMedia,
+  cachedPreparedRoomMedia,
+  cancelQueuedMediaPreloads,
+  mediaGalleryItems,
+  timelineMediaPreloadCandidates,
+} from "./media";
 import {
   logTimelineDebug,
   logTimelineGeometry,
@@ -109,6 +115,13 @@ const timelineRenderOverscan = {
   reverse: 320,
 } as const;
 
+// Only a small number of nearby attachments are warmed after scrolling rests;
+// visible rows always retain priority over this background work.
+const mediaPreloadAttachmentCountPerDirection = 8;
+
+// Debouncing keeps range notifications off WebKitGTK's active scroll frames.
+const mediaPreloadDelayMilliseconds = 120;
+
 function RoomTimelineView({
   accountKey,
   isLoadingOlderMessages,
@@ -136,6 +149,9 @@ function RoomTimelineView({
   const retryingReplyKeysRef = useRef<Set<string>>(new Set());
   const previousTimelineItemsRef = useRef<RoomTimelineItem[]>([]);
   const timelineItemsRef = useRef<RoomTimelineItem[]>([]);
+  const visibleTimelineRangeRef = useRef<ListRange | null>(null);
+  const preloadedMediaHandlesRef = useRef<Set<string>>(new Set());
+  const mediaPreloadTimeoutRef = useRef<number | null>(null);
   const pendingPaginationScrollSnapshotRef =
     useRef<TimelineScrollSnapshot | null>(null);
   const pendingPaginationRequestCountRef = useRef(0);
@@ -152,6 +168,51 @@ function RoomTimelineView({
   const getMediaGalleryItems = useCallback(
     () => mediaGalleryItems(timelineItemsRef.current),
     [],
+  );
+  const preloadTimelineMedia = useCallback(() => {
+    const visibleRange = visibleTimelineRangeRef.current;
+    if (!visibleRange || timelineItemsRef.current.length === 0) {
+      return;
+    }
+
+    cancelQueuedMediaPreloads(accountKey);
+    const preloadCandidates = timelineMediaPreloadCandidates(
+      timelineItemsRef.current,
+      visibleRange.startIndex,
+      visibleRange.endIndex,
+      mediaPreloadAttachmentCountPerDirection,
+    );
+    for (const { mediaHandle } of preloadCandidates) {
+      if (preloadedMediaHandlesRef.current.has(mediaHandle)) {
+        continue;
+      }
+
+      preloadedMediaHandlesRef.current.add(mediaHandle);
+      void cachedPreparedRoomMedia(accountKey, mediaHandle, {
+        priority: "preload",
+      }).catch(() => {
+        preloadedMediaHandlesRef.current.delete(mediaHandle);
+      });
+    }
+  }, [accountKey]);
+  const scheduleTimelineMediaPreload = useCallback(() => {
+    if (mediaPreloadTimeoutRef.current !== null) {
+      window.clearTimeout(mediaPreloadTimeoutRef.current);
+    }
+
+    mediaPreloadTimeoutRef.current = window.setTimeout(() => {
+      mediaPreloadTimeoutRef.current = null;
+      if (!isVirtuosoScrollingRef.current) {
+        preloadTimelineMedia();
+      }
+    }, mediaPreloadDelayMilliseconds);
+  }, [preloadTimelineMedia]);
+  const handleTimelineRangeChanged = useCallback(
+    (visibleRange: ListRange) => {
+      visibleTimelineRangeRef.current = visibleRange;
+      scheduleTimelineMediaPreload();
+    },
+    [scheduleTimelineMediaPreload],
   );
   const roomId = timeline?.roomId ?? null;
   const focusedEventId = timeline?.focusedEventId ?? null;
@@ -234,6 +295,17 @@ function RoomTimelineView({
     timelineTraceIsEnabled,
     timelineItems,
   ]);
+
+  useEffect(() => {
+    preloadedMediaHandlesRef.current.clear();
+    return () => {
+      if (mediaPreloadTimeoutRef.current !== null) {
+        window.clearTimeout(mediaPreloadTimeoutRef.current);
+        mediaPreloadTimeoutRef.current = null;
+      }
+      cancelQueuedMediaPreloads(accountKey);
+    };
+  }, [accountKey, roomId]);
 
   useEffect(() => {
     return () => {
@@ -369,6 +441,7 @@ function RoomTimelineView({
     }
     if (!isScrolling) {
       isUserScrollInteractionActiveRef.current = false;
+      scheduleTimelineMediaPreload();
     }
   }
 
@@ -615,6 +688,7 @@ function RoomTimelineView({
         }}
         isScrolling={handleVirtuosoScrollingChange}
         overscan={timelineRenderOverscan}
+        rangeChanged={handleTimelineRangeChanged}
         itemContent={(_index, item) => (
           <TimelineMessageRow
             item={item}

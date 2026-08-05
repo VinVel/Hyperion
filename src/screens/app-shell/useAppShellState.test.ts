@@ -265,6 +265,7 @@ function testTimelineAttachment(mimeType: string) {
     height: 480,
     durationUnixMs: null,
     sizeBytes: 1_024,
+    blurhash: "",
     requiresReveal: false,
   };
 }

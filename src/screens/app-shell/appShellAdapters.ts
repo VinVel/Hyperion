@@ -117,6 +117,7 @@ type BackendRoomTimelineAttachment = {
   height?: number | null;
   duration_unix_ms?: number | null;
   size_bytes?: number | null;
+  blurhash?: string | null;
   requires_reveal: boolean;
 };
 
@@ -221,6 +222,7 @@ export type RoomTimelineAttachment = {
   height: number | null;
   durationUnixMs: number | null;
   sizeBytes: number | null;
+  blurhash: string;
   requiresReveal: boolean;
 };
 
@@ -389,6 +391,7 @@ function mapTimelineAttachment(
     height: attachment.height ?? null,
     durationUnixMs: attachment.duration_unix_ms ?? null,
     sizeBytes: attachment.size_bytes ?? null,
+    blurhash: attachment.blurhash ?? "",
     requiresReveal: attachment.requires_reveal,
   };
 }

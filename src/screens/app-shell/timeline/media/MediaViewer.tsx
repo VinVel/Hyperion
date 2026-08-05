@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Download,
   Share2,
@@ -38,7 +38,6 @@ type MediaViewerProps = {
   cacheScope: string;
   getGalleryItems: () => TimelineMediaItem[];
   item: RoomTimelineItem;
-  mediaUrl: string;
   onClose: () => void;
 };
 
@@ -47,14 +46,14 @@ export default function MediaViewer({
   cacheScope,
   getGalleryItems,
   item,
-  mediaUrl,
   onClose,
 }: MediaViewerProps) {
-  const [currentMediaItem, setCurrentMediaItem] = useState({
-    attachment,
-    item,
-  });
-  const [currentUrl, setCurrentUrl] = useState(mediaUrl);
+  const [currentMediaItem, setCurrentMediaItem] = useState<TimelineMediaItem>(
+    () => ({ attachment, item }),
+  );
+  const [currentUrl, setCurrentUrl] = useState("");
+  const [currentLoadFailed, setCurrentLoadFailed] = useState(false);
+  const loadSequenceRef = useRef(0);
   const galleryItems = useMemo(getGalleryItems, [getGalleryItems]);
   const currentIndex = useMemo(
     () =>
@@ -77,13 +76,28 @@ export default function MediaViewer({
     }
 
     setCurrentMediaItem(nextMediaItem);
+  }
+
+  useEffect(() => {
+    const loadSequence = loadSequenceRef.current + 1;
+    loadSequenceRef.current = loadSequence;
+    setCurrentUrl("");
+    setCurrentLoadFailed(false);
     void cachedPreparedRoomMedia(
       cacheScope,
-      nextMediaItem.attachment.mediaHandle,
-    ).then((preparedMedia) => {
-      setCurrentUrl(preparedMedia.media_url);
-    });
-  }
+      currentMediaItem.attachment.mediaHandle,
+    )
+      .then((preparedMedia) => {
+        if (loadSequenceRef.current === loadSequence) {
+          setCurrentUrl(preparedMedia.media_url);
+        }
+      })
+      .catch(() => {
+        if (loadSequenceRef.current === loadSequence) {
+          setCurrentLoadFailed(true);
+        }
+      });
+  }, [cacheScope, currentMediaItem.attachment.mediaHandle]);
 
   return (
     <div className="timeline-media-viewer" role="dialog" aria-modal="true">
@@ -125,12 +139,28 @@ export default function MediaViewer({
         >
           <SquareArrowLeft aria-hidden="true" />
         </Button>
-        <img
-          alt={currentMediaItem.attachment.displayCaption || "Shared media"}
-          className="timeline-media-viewer-image"
-          decoding="async"
-          src={currentUrl}
-        />
+        {currentLoadFailed ? (
+          <div className="timeline-media-error">Media could not be loaded</div>
+        ) : currentUrl ? (
+          currentMediaItem.attachment.mediaType === "video" ? (
+            <video
+              className="timeline-media-viewer-media"
+              controls
+              playsInline
+              preload="metadata"
+              src={currentUrl}
+            />
+          ) : (
+            <img
+              alt={currentMediaItem.attachment.displayCaption || "Shared media"}
+              className="timeline-media-viewer-media"
+              decoding="async"
+              src={currentUrl}
+            />
+          )
+        ) : (
+          <div className="timeline-media-placeholder">Loading media...</div>
+        )}
         <Button
           aria-label="Next media"
           disabled={!nextItem}

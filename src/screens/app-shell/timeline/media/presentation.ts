@@ -19,8 +19,8 @@ import type { RoomTimelineAttachment } from "../../appShellAdapters";
 // compact enough for message scanning.
 const maximumVisualMediaWidthPixels = 384;
 const maximumVisualMediaHeightPixels = 240;
-const maximumStickerMediaWidthPixels = 192;
-const maximumStickerMediaHeightPixels = 192;
+const maximumStickerMediaWidthPixels = 128;
+const maximumStickerMediaHeightPixels = 128;
 
 export function mediaAspectRatio(attachment: RoomTimelineAttachment): string {
   if (!attachment.width || !attachment.height) {

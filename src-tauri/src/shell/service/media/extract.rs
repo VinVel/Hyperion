@@ -19,10 +19,10 @@ use matrix_sdk::ruma::{
     UInt,
     events::{
         room::{
-            ImageInfo, MediaSource, ThumbnailInfo,
+            MediaSource, ThumbnailInfo,
             message::{
                 AudioMessageEventContent, FileMessageEventContent, ImageMessageEventContent,
-                MessageType, VideoInfo, VideoMessageEventContent,
+                MessageType, VideoMessageEventContent,
             },
         },
         sticker::StickerEventContent,
@@ -64,10 +64,11 @@ pub(in crate::shell) fn attachments_from_sticker(
             None,
             content.info.mimetype.as_deref(),
         ),
-        thumbnail_handle: thumbnail_handle(
+        thumbnail_handle: image_like_thumbnail_handle(
             media_service,
+            &source,
             content.info.thumbnail_source.as_ref(),
-            &content.info,
+            content.info.thumbnail_info.as_deref(),
         ),
         filename: None,
         display_caption: None,
@@ -76,6 +77,7 @@ pub(in crate::shell) fn attachments_from_sticker(
         height: optional_uint_to_u32(content.info.height),
         duration_unix_ms: None,
         size_bytes: optional_uint_to_u64(content.info.size),
+        blurhash: content.info.blurhash.clone(),
         requires_reveal: false,
     }]
 }
@@ -105,9 +107,12 @@ fn image_attachment(
             Some(content.filename()),
             info.and_then(|value| value.mimetype.as_deref()),
         ),
-        thumbnail_handle: info.and_then(|value| {
-            thumbnail_handle(media_service, value.thumbnail_source.as_ref(), value)
-        }),
+        thumbnail_handle: image_like_thumbnail_handle(
+            media_service,
+            &content.source,
+            info.and_then(|value| value.thumbnail_source.as_ref()),
+            info.and_then(|value| value.thumbnail_info.as_deref()),
+        ),
         filename: None,
         display_caption: caption_text(content.caption()),
         mime_type: info.and_then(|value| value.mimetype.clone()),
@@ -115,6 +120,7 @@ fn image_attachment(
         height: info.and_then(|value| optional_uint_to_u32(value.height)),
         duration_unix_ms: None,
         size_bytes: info.and_then(|value| optional_uint_to_u64(value.size)),
+        blurhash: info.and_then(|value| value.blurhash.clone()),
         requires_reveal: false,
     }
 }
@@ -134,7 +140,12 @@ fn video_attachment(
             Some(content.filename()),
             info.and_then(|value| value.mimetype.as_deref()),
         ),
-        thumbnail_handle: info.and_then(|value| video_thumbnail_handle(media_service, value)),
+        thumbnail_handle: image_like_thumbnail_handle(
+            media_service,
+            &content.source,
+            info.and_then(|value| value.thumbnail_source.as_ref()),
+            info.and_then(|value| value.thumbnail_info.as_deref()),
+        ),
         filename: None,
         display_caption: caption_text(content.caption()),
         mime_type: info.and_then(|value| value.mimetype.clone()),
@@ -142,6 +153,7 @@ fn video_attachment(
         height: info.and_then(|value| optional_uint_to_u32(value.height)),
         duration_unix_ms: info.and_then(|value| duration_to_milliseconds(value.duration)),
         size_bytes: info.and_then(|value| optional_uint_to_u64(value.size)),
+        blurhash: info.and_then(|value| value.blurhash.clone()),
         requires_reveal: false,
     }
 }
@@ -169,6 +181,7 @@ fn audio_attachment(
         height: None,
         duration_unix_ms: info.and_then(|value| duration_to_milliseconds(value.duration)),
         size_bytes: info.and_then(|value| optional_uint_to_u64(value.size)),
+        blurhash: None,
         requires_reveal: false,
     }
 }
@@ -200,24 +213,33 @@ fn file_attachment(
         height: None,
         duration_unix_ms: None,
         size_bytes: info.and_then(|value| optional_uint_to_u64(value.size)),
+        blurhash: None,
         requires_reveal: false,
     }
 }
 
-fn video_thumbnail_handle(media_service: &ShellMediaService, info: &VideoInfo) -> Option<String> {
-    info.thumbnail_source.as_ref().map(|source| {
-        register_thumbnail_handle(media_service, source, info.thumbnail_info.as_deref())
-    })
-}
-
-fn thumbnail_handle(
+fn image_like_thumbnail_handle(
     media_service: &ShellMediaService,
-    source: Option<&MediaSource>,
-    info: &ImageInfo,
+    full_source: &MediaSource,
+    thumbnail_source: Option<&MediaSource>,
+    thumbnail_info: Option<&ThumbnailInfo>,
 ) -> Option<String> {
-    source.map(|value| {
-        register_thumbnail_handle(media_service, value, info.thumbnail_info.as_deref())
-    })
+    if let Some(source) = thumbnail_source {
+        return Some(register_thumbnail_handle(
+            media_service,
+            source,
+            thumbnail_info,
+        ));
+    }
+
+    // A plain MXC source can be sent to the homeserver thumbnail endpoint.
+    // Encrypted originals need a separately encrypted thumbnail source or the
+    // SDK would have to download and decrypt the complete file.
+    if matches!(full_source, MediaSource::Plain(_)) {
+        return Some(register_thumbnail_handle(media_service, full_source, None));
+    }
+
+    None
 }
 
 fn register_file_handle(
@@ -297,5 +319,19 @@ mod tests {
             media_body_for_message_type(&MessageType::Image(content)),
             Some(String::new())
         );
+    }
+
+    #[test]
+    fn plain_media_without_dedicated_thumbnail_uses_homeserver_preview() {
+        let media_service = ShellMediaService::new();
+        let source = MediaSource::Plain(owned_mxc_uri!("mxc://example.org/image"));
+
+        let handle = image_like_thumbnail_handle(&media_service, &source, None, None)
+            .expect("plain MXC media should provide a generated thumbnail handle");
+        let media = media_service
+            .registered_media(&handle)
+            .expect("generated thumbnail handle should be registered");
+
+        assert!(media.format == RegisteredMediaFormat::Thumbnail);
     }
 }

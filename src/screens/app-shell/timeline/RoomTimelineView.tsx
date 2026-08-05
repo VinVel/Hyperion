@@ -43,6 +43,7 @@ import TimelineMarkdown from "./TimelineMarkdown";
 import TimelineScroller, {
   type TimelineScrollerContext,
 } from "./TimelineScroller";
+import { TimelineMedia, mediaGalleryItems } from "./media";
 import {
   logTimelineDebug,
   logTimelineGeometry,
@@ -134,6 +135,7 @@ function RoomTimelineView({
   const resolvingReplyKeysRef = useRef<Set<string>>(new Set());
   const retryingReplyKeysRef = useRef<Set<string>>(new Set());
   const previousTimelineItemsRef = useRef<RoomTimelineItem[]>([]);
+  const timelineItemsRef = useRef<RoomTimelineItem[]>([]);
   const pendingPaginationScrollSnapshotRef =
     useRef<TimelineScrollSnapshot | null>(null);
   const pendingPaginationRequestCountRef = useRef(0);
@@ -146,6 +148,11 @@ function RoomTimelineView({
     null,
   );
   const timelineItems = timeline?.items ?? [];
+  timelineItemsRef.current = timelineItems;
+  const getMediaGalleryItems = useCallback(
+    () => mediaGalleryItems(timelineItemsRef.current),
+    [],
+  );
   const roomId = timeline?.roomId ?? null;
   const focusedEventId = timeline?.focusedEventId ?? null;
   const timelineContext = timelineContextKey(focusedEventId);
@@ -611,6 +618,7 @@ function RoomTimelineView({
         itemContent={(_index, item) => (
           <TimelineMessageRow
             item={item}
+            accountKey={accountKey}
             actionsAreOpen={activeActionEventId === item.id}
             traceEnabled={timelineTraceIsEnabled}
             isFocused={
@@ -625,6 +633,7 @@ function RoomTimelineView({
             onScrollToTimelineEvent={scrollToTimelineEvent}
             onOpenMessageActions={setActiveActionEventId}
             onToggleReaction={onToggleReaction}
+            getMediaGalleryItems={getMediaGalleryItems}
             replyPreview={replyPreviewForItem(item)}
           />
         )}
@@ -700,8 +709,10 @@ function TimelineHeader({
 }
 
 type TimelineMessageRowProps = {
+  accountKey: string;
   actionsAreOpen: boolean;
   traceEnabled: boolean;
+  getMediaGalleryItems: () => ReturnType<typeof mediaGalleryItems>;
   isFocused: boolean;
   item: RoomTimelineItem;
   onBeginEditMessage: (eventId: string, body: string) => void;
@@ -716,8 +727,10 @@ type TimelineMessageRowProps = {
 };
 
 const TimelineMessageRow = memo(function TimelineMessageRow({
+  accountKey,
   actionsAreOpen,
   traceEnabled,
+  getMediaGalleryItems,
   isFocused,
   item,
   onBeginEditMessage,
@@ -934,19 +947,29 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
           </button>
         ) : null}
 
-        <div className="room-timeline-body-row">
-          <TimelineMarkdown
-            className={`room-timeline-body${
-              item.contentKind === "unableToDecrypt"
-                ? " room-timeline-body--system"
-                : ""
-            }`}
-            markdown={item.body ?? ""}
-          />
-          {item.isEdited ? (
-            <span className="room-timeline-edited">edited</span>
-          ) : null}
-        </div>
+        <TimelineMedia
+          cacheScope={accountKey}
+          getGalleryItems={getMediaGalleryItems}
+          item={item}
+        />
+
+        {item.body || item.isEdited ? (
+          <div className="room-timeline-body-row">
+            {item.body ? (
+              <TimelineMarkdown
+                className={`room-timeline-body${
+                  item.contentKind === "unableToDecrypt"
+                    ? " room-timeline-body--system"
+                    : ""
+                }`}
+                markdown={item.body}
+              />
+            ) : null}
+            {item.isEdited ? (
+              <span className="room-timeline-edited">edited</span>
+            ) : null}
+          </div>
+        ) : null}
         {reactions.length > 0 ? (
           <div className="room-timeline-reactions" aria-label="Reactions">
             {reactions.map((reaction) => (

@@ -48,6 +48,10 @@ use shell::{
             DiscoveryEntity, InviteTarget, InviteUserToRoomRequest, JoinDiscoveryRoomRequest,
             JoinDiscoveryRoomResponse, ListInviteTargetsRequest, SearchDiscoveryEntitiesRequest,
         },
+        media::{
+            MEDIA_URI_SCHEME, PrepareRoomMediaRequest, PrepareRoomMediaResponse,
+            SaveRoomMediaRequest, SaveRoomMediaResponse,
+        },
     },
     types::{
         EditRoomMessageRequest, GetRoomEventContextRequest, GetRoomSummaryRequest,
@@ -60,7 +64,7 @@ use shell::{
     },
 };
 
-use tauri::{AppHandle, RunEvent, State};
+use tauri::{AppHandle, Manager, RunEvent, State};
 
 use tauri_plugin_dialog as dialog;
 use tauri_plugin_fs as fs;
@@ -420,6 +424,32 @@ async fn set_room_typing(
 }
 
 #[tauri::command]
+async fn prepare_room_media(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: PrepareRoomMediaRequest,
+) -> Result<PrepareRoomMediaResponse, String> {
+    let active_account = account_manager.require_active_account(&app).await?;
+    shell_manager
+        .prepare_room_media(&active_account, request)
+        .await
+}
+
+#[tauri::command]
+async fn save_room_media(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: SaveRoomMediaRequest,
+) -> Result<SaveRoomMediaResponse, String> {
+    let active_account = account_manager.require_active_account(&app).await?;
+    shell_manager
+        .save_room_media(&app, &active_account, request)
+        .await
+}
+
+#[tauri::command]
 async fn list_spaces(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
@@ -601,6 +631,12 @@ pub fn run() {
     let _tracing_guard = utils::tracing::initialize();
 
     tauri::Builder::default()
+        .register_uri_scheme_protocol(MEDIA_URI_SCHEME, |context, request| {
+            context
+                .app_handle()
+                .state::<ShellManager>()
+                .media_protocol_response(&request)
+        })
         .manage(AccountManager::new())
         .manage(ShellManager::new())
         .plugin(dialog::init())
@@ -639,6 +675,8 @@ pub fn run() {
             reply_to_room_message,
             toggle_room_reaction,
             set_room_typing,
+            prepare_room_media,
+            save_room_media,
             list_spaces,
             global_search,
             search_discovery_entities,

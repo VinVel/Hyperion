@@ -20,6 +20,7 @@ use crate::account::AccountManager;
 mod caching;
 pub mod discovery;
 mod global_search;
+pub mod media;
 mod paging;
 mod read_state;
 mod room;
@@ -33,6 +34,7 @@ pub(super) use self::caching::ShellCacheState;
 pub(super) use self::sync::{emit_shell_room_updated, emit_shell_timeline_updated};
 
 use self::{
+    media::ShellMediaService,
     runtime::{ShellDiscoveryService, ShellSearchService},
     sync_coordinator::{RoomFocusMode, RoomInterestKind, ShellSyncCoordinator},
 };
@@ -64,21 +66,30 @@ pub(super) enum ShellRoomListKind {
     Spaces,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct ShellManager {
     sync_coordinator: ShellSyncCoordinator,
     cache_state: ShellCacheState,
     search_service: ShellSearchService,
     discovery_service: ShellDiscoveryService,
+    media_service: ShellMediaService,
+}
+
+impl Default for ShellManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ShellManager {
     pub fn new() -> Self {
+        let media_service = ShellMediaService::new();
         Self {
-            sync_coordinator: ShellSyncCoordinator::new(),
+            sync_coordinator: ShellSyncCoordinator::with_media_service(media_service.clone()),
             cache_state: ShellCacheState::new(),
             search_service: ShellSearchService::new(),
             discovery_service: ShellDiscoveryService::new(),
+            media_service,
         }
     }
 
@@ -114,6 +125,7 @@ impl ShellManager {
         self.cache_state.clear_served_space_cache(account_key);
         self.cache_state
             .clear_served_room_timeline_caches(account_key);
+        self.media_service.clear();
     }
 
     pub async fn stop_all_accounts(&self) {
@@ -124,6 +136,7 @@ impl ShellManager {
         self.cache_state.clear_all_served_room_thread_caches();
         self.cache_state.clear_all_served_space_caches();
         self.cache_state.clear_all_served_room_timeline_caches();
+        self.media_service.clear();
     }
 
     fn mark_room_focused(&self, account_key: &str, room_id: &str) {

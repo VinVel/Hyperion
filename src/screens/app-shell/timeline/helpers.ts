@@ -212,7 +212,11 @@ function timelineItemsAreEqual(
     currentItem.canReact === refreshedItem.canReact &&
     reactionsAreEqual(currentItem.reactions, refreshedItem.reactions) &&
     receiptsAreEqual(currentItem.receipts, refreshedItem.receipts) &&
-    replyPreviewsAreEqual(currentItem.replyPreview, refreshedItem.replyPreview)
+    replyPreviewsAreEqual(
+      currentItem.replyPreview,
+      refreshedItem.replyPreview,
+    ) &&
+    attachmentsAreEqual(currentItem.attachments, refreshedItem.attachments)
   );
 }
 
@@ -269,6 +273,33 @@ function replyPreviewsAreEqual(
       refreshedReplyPreview.senderDisplayName &&
     currentReplyPreview.body === refreshedReplyPreview.body &&
     currentReplyPreview.isRedacted === refreshedReplyPreview.isRedacted
+  );
+}
+
+function attachmentsAreEqual(
+  currentAttachments: RoomTimelineItem["attachments"],
+  refreshedAttachments: RoomTimelineItem["attachments"],
+): boolean {
+  return (
+    currentAttachments.length === refreshedAttachments.length &&
+    currentAttachments.every((attachment, index) => {
+      const refreshedAttachment = refreshedAttachments[index];
+      return (
+        refreshedAttachment !== undefined &&
+        attachment.eventId === refreshedAttachment.eventId &&
+        attachment.mediaType === refreshedAttachment.mediaType &&
+        attachment.mediaHandle === refreshedAttachment.mediaHandle &&
+        attachment.thumbnailHandle === refreshedAttachment.thumbnailHandle &&
+        attachment.filename === refreshedAttachment.filename &&
+        attachment.displayCaption === refreshedAttachment.displayCaption &&
+        attachment.mimeType === refreshedAttachment.mimeType &&
+        attachment.width === refreshedAttachment.width &&
+        attachment.height === refreshedAttachment.height &&
+        attachment.durationUnixMs === refreshedAttachment.durationUnixMs &&
+        attachment.sizeBytes === refreshedAttachment.sizeBytes &&
+        attachment.requiresReveal === refreshedAttachment.requiresReveal
+      );
+    })
   );
 }
 
@@ -430,6 +461,7 @@ function normalizeRoomTimelineItem(item: RoomTimelineItem): RoomTimelineItem {
     reactions: item.reactions ?? [],
     receipts: item.receipts ?? [],
     replyPreview: item.replyPreview ?? null,
+    attachments: item.attachments ?? [],
   };
 }
 export function roomTimelineFromUpdatePayload(

@@ -30,11 +30,13 @@ use super::{
     search::{SearchBackfillCoordinator, SearchIndexer},
 };
 use crate::{
-    shell::{engine::ShellTimelineRegistry, types::RoomThreadSummary},
+    shell::{
+        engine::ShellTimelineRegistry, service::media::ShellMediaService, types::RoomThreadSummary,
+    },
     utils::time::now_unix_ms,
 };
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub(super) struct ShellTimelineService {
     registry: ShellTimelineRegistry,
     recent_warm_state: Arc<RwLock<HashMap<String, u64>>>,
@@ -44,8 +46,12 @@ pub(super) struct ShellTimelineService {
 
 impl ShellTimelineService {
     pub(super) fn new() -> Self {
+        Self::with_media_service(ShellMediaService::new())
+    }
+
+    pub(super) fn with_media_service(media_service: ShellMediaService) -> Self {
         Self {
-            registry: ShellTimelineRegistry::new(),
+            registry: ShellTimelineRegistry::with_media_service(media_service),
             recent_warm_state: Arc::new(RwLock::new(HashMap::new())),
             recent_warm_handles: Arc::new(RwLock::new(HashMap::new())),
             locally_read_room_state: Arc::new(RwLock::new(HashMap::new())),
@@ -176,6 +182,12 @@ impl ShellTimelineService {
             .write()
             .expect("shell timeline service warm-state lock poisoned");
         warm_state.clear();
+    }
+}
+
+impl Default for ShellTimelineService {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

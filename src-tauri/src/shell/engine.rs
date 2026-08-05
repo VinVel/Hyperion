@@ -33,6 +33,13 @@ use tauri::async_runtime::Mutex as AsyncMutex;
 use super::{
     service::{
         ShellCacheState, emit_shell_room_updated, emit_shell_timeline_updated,
+        media::{
+            ShellMediaService,
+            extract::{
+                attachments_from_message_type, attachments_from_sticker,
+                media_body_for_message_type,
+            },
+        },
         timeline_reconciliation::reconcile_authoritative_timeline_items,
     },
     types::{
@@ -51,8 +58,9 @@ const TIMELINE_LATEST_EVENT_WAIT_STEP_MS: u64 = 50;
 // Restoring a remembered room depth can require multiple SDK UI pagination
 // passes because Matrix SDK may reveal cached events in smaller chunks.
 const TIMELINE_RESTORE_PAGINATION_ATTEMPTS: usize = 8;
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct ShellTimelineRegistry {
+    media_service: ShellMediaService,
     // Timeline instances are expensive live views with their own background
     // tasks, so cache them per active account+room instead of rebuilding them
     // on every command call during the first migration phase.
@@ -68,7 +76,16 @@ pub struct ShellTimelineRegistry {
 
 impl ShellTimelineRegistry {
     pub fn new() -> Self {
-        Self::default()
+        Self::with_media_service(ShellMediaService::new())
+    }
+
+    pub(in crate::shell) fn with_media_service(media_service: ShellMediaService) -> Self {
+        Self {
+            media_service,
+            live_timelines: Arc::new(AsyncMutex::new(HashMap::new())),
+            focused_timelines: Arc::new(AsyncMutex::new(HashMap::new())),
+            live_timeline_update_handles: Arc::new(AsyncMutex::new(HashMap::new())),
+        }
     }
 
     pub async fn live_timeline(
@@ -111,7 +128,7 @@ impl ShellTimelineRegistry {
 
         let shell_items = items
             .iter()
-            .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
+            .filter_map(|item| timeline_item_to_shell_item(&self.media_service, item.as_ref()))
             .rev()
             .take(usize::from(limit))
             .collect::<Vec<_>>()
@@ -143,7 +160,12 @@ impl ShellTimelineRegistry {
     ) -> Result<usize, String> {
         let timeline = self.live_timeline(account_key, room).await?;
         let items = timeline.items().await;
-        Ok(timeline_items_to_shell_items(items.iter(), room.room_id().as_str()).len())
+        Ok(timeline_items_to_shell_items(
+            &self.media_service,
+            items.iter(),
+            room.room_id().as_str(),
+        )
+        .len())
     }
 
     pub async fn subscribe_live_timeline_updates(
@@ -169,6 +191,7 @@ impl ShellTimelineRegistry {
         let room_id = room.room_id().to_string();
         let update_handles = self.live_timeline_update_handles.clone();
         let cache_key_for_task = cache_key.clone();
+        let media_service = self.media_service.clone();
         let handle = tauri::async_runtime::spawn(async move {
             while let Some(diffs) = timeline_stream.next().await {
                 if diffs.is_empty() {
@@ -176,7 +199,8 @@ impl ShellTimelineRegistry {
                 }
 
                 let items = timeline.items().await;
-                let shell_items = timeline_items_to_shell_items(items.iter(), &room_id);
+                let shell_items =
+                    timeline_items_to_shell_items(&media_service, items.iter(), &room_id);
                 let redacted_event_ids = redacted_event_ids_from_timeline_items(items.iter());
                 ShellCacheState::merge_refreshed_timeline(
                     &account_key,
@@ -220,7 +244,11 @@ impl ShellTimelineRegistry {
         let had_existing_items = !items.is_empty();
 
         let mut hit_timeline_start = false;
-        let mut shell_items = timeline_items_to_shell_items(items.iter(), room.room_id().as_str());
+        let mut shell_items = timeline_items_to_shell_items(
+            &self.media_service,
+            items.iter(),
+            room.room_id().as_str(),
+        );
         let mut restore_attempts = 0;
         while shell_items.len() < usize::from(visible_limit)
             && !hit_timeline_start
@@ -232,12 +260,20 @@ impl ShellTimelineRegistry {
                 .map_err(|error| format!("Failed to bootstrap the live room timeline: {error}"))?;
             restore_attempts += 1;
             items = timeline.items().await;
-            shell_items = timeline_items_to_shell_items(items.iter(), room.room_id().as_str());
+            shell_items = timeline_items_to_shell_items(
+                &self.media_service,
+                items.iter(),
+                room.room_id().as_str(),
+            );
         }
 
         Self::wait_for_timeline_to_reach_room_latest(room, &timeline).await;
         items = timeline.items().await;
-        shell_items = timeline_items_to_shell_items(items.iter(), room.room_id().as_str());
+        shell_items = timeline_items_to_shell_items(
+            &self.media_service,
+            items.iter(),
+            room.room_id().as_str(),
+        );
         let len = shell_items.len();
         let visible_limit = usize::from(visible_limit);
         let start_index = if had_existing_items {
@@ -279,7 +315,7 @@ impl ShellTimelineRegistry {
         let before_items = timeline.items().await;
         let loaded_shell_items = before_items
             .iter()
-            .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
+            .filter_map(|item| timeline_item_to_shell_item(&self.media_service, item.as_ref()))
             .collect::<Vec<_>>();
         let loaded_shell_items = reconcile_authoritative_timeline_items(
             loaded_shell_items,
@@ -309,7 +345,7 @@ impl ShellTimelineRegistry {
         let after_items = timeline.items().await;
         let new_items = after_items
             .iter()
-            .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
+            .filter_map(|item| timeline_item_to_shell_item(&self.media_service, item.as_ref()))
             .filter(|item| !seen_item_ids.contains(item.event_id()))
             .collect::<Vec<RoomTimelineItem>>();
 
@@ -369,7 +405,7 @@ impl ShellTimelineRegistry {
 
         let shell_items = items
             .iter()
-            .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
+            .filter_map(|item| timeline_item_to_shell_item(&self.media_service, item.as_ref()))
             .collect::<Vec<RoomTimelineItem>>();
         Ok(reconcile_authoritative_timeline_items(
             shell_items,
@@ -408,7 +444,7 @@ impl ShellTimelineRegistry {
         let before_items = timeline.items().await;
         let loaded_shell_items = before_items
             .iter()
-            .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
+            .filter_map(|item| timeline_item_to_shell_item(&self.media_service, item.as_ref()))
             .collect::<Vec<_>>();
         let loaded_shell_items = reconcile_authoritative_timeline_items(
             loaded_shell_items,
@@ -438,7 +474,7 @@ impl ShellTimelineRegistry {
         let after_items = timeline.items().await;
         let new_items = after_items
             .iter()
-            .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
+            .filter_map(|item| timeline_item_to_shell_item(&self.media_service, item.as_ref()))
             .filter(|item| !seen_item_ids.contains(item.event_id()))
             .collect::<Vec<RoomTimelineItem>>();
 
@@ -599,6 +635,12 @@ impl ShellTimelineRegistry {
     }
 }
 
+impl Default for ShellTimelineRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn loaded_timeline_page(
     loaded_items: &[RoomTimelineItem],
     page_index: usize,
@@ -619,12 +661,13 @@ fn loaded_timeline_page(
 }
 
 fn timeline_items_to_shell_items<'item>(
+    media_service: &ShellMediaService,
     items: impl IntoIterator<Item = &'item Arc<TimelineItem>>,
     room_id: &str,
 ) -> Vec<RoomTimelineItem> {
     let shell_items = items
         .into_iter()
-        .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
+        .filter_map(|item| timeline_item_to_shell_item(media_service, item.as_ref()))
         .collect::<Vec<RoomTimelineItem>>();
     reconcile_authoritative_timeline_items(shell_items, room_id, &[])
 }
@@ -640,6 +683,7 @@ fn timeline_item_id_from_string(value: &str) -> Result<TimelineEventItemId, Stri
 }
 
 fn timeline_item_to_shell_item(
+    media_service: &ShellMediaService,
     item: &matrix_sdk_ui::timeline::TimelineItem,
 ) -> Option<RoomTimelineItem> {
     let TimelineItemKind::Event(event) = item.kind() else {
@@ -651,6 +695,7 @@ fn timeline_item_to_shell_item(
     let event_id = event
         .event_id()
         .map_or_else(|| event.identifier().to_string(), ToString::to_string);
+    let attachments = timeline_event_attachments(media_service, &event_id, content);
 
     let mut shell_item = RoomTimelineItem::text_message(
         event_id,
@@ -666,6 +711,7 @@ fn timeline_item_to_shell_item(
     shell_item.matrix.content.is_redacted = event.content().is_redacted();
     shell_item.matrix.reactions = timeline_reactions(event);
     shell_item.matrix.receipts = timeline_receipts(event);
+    shell_item.matrix.attachments = attachments;
     shell_item.presentation.reply_preview = timeline_reply_preview(event);
     shell_item.presentation.compact_receipts =
         shell_item.matrix.receipts.iter().take(3).cloned().collect();
@@ -799,7 +845,14 @@ fn timeline_event_body(
     content: &matrix_sdk_ui::timeline::TimelineItemContent,
 ) -> Option<(String, bool)> {
     if let Some(message) = content.as_message() {
+        if let Some(media_body) = media_body_for_message_type(message.msgtype()) {
+            return Some((media_body, message.is_edited()));
+        }
         return Some((message.body().to_owned(), message.is_edited()));
+    }
+
+    if content.as_sticker().is_some() {
+        return Some((String::new(), false));
     }
 
     if content.is_unable_to_decrypt() {
@@ -807,6 +860,22 @@ fn timeline_event_body(
     }
 
     None
+}
+
+fn timeline_event_attachments(
+    media_service: &ShellMediaService,
+    event_id: &str,
+    content: &matrix_sdk_ui::timeline::TimelineItemContent,
+) -> Vec<crate::shell::types::RoomTimelineAttachment> {
+    if let Some(message) = content.as_message() {
+        return attachments_from_message_type(media_service, event_id, message.msgtype());
+    }
+
+    if let Some(sticker) = content.as_sticker() {
+        return attachments_from_sticker(media_service, event_id, sticker.content());
+    }
+
+    Vec::new()
 }
 
 fn sender_display_name(

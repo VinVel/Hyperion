@@ -17,11 +17,11 @@ use std::sync::{Arc, RwLock};
 
 use matrix_sdk_ui::room_list_service::RoomListService;
 
-use crate::shell::service::runtime::ShellTimelineService;
+use crate::shell::service::{media::ShellMediaService, runtime::ShellTimelineService};
 
 use super::{ShellSyncManager, ephemeral::TypingEphemeralStore, interests::RoomInterestStore};
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub(in crate::shell::service) struct ShellSyncCoordinator {
     pub(super) sync_manager: ShellSyncManager,
     pub(super) timeline_service: ShellTimelineService,
@@ -31,9 +31,13 @@ pub(in crate::shell::service) struct ShellSyncCoordinator {
 
 impl ShellSyncCoordinator {
     pub(in crate::shell::service) fn new() -> Self {
+        Self::with_media_service(ShellMediaService::new())
+    }
+
+    pub(in crate::shell::service) fn with_media_service(media_service: ShellMediaService) -> Self {
         Self {
             sync_manager: ShellSyncManager::new(),
-            timeline_service: ShellTimelineService::new(),
+            timeline_service: ShellTimelineService::with_media_service(media_service),
             room_interests: Arc::new(RwLock::new(RoomInterestStore::default())),
             typing_ephemeral_state: Arc::new(RwLock::new(TypingEphemeralStore::default())),
         }
@@ -43,5 +47,11 @@ impl ShellSyncCoordinator {
         account_key: &str,
     ) -> Option<Arc<RoomListService>> {
         self.sync_manager.room_list_service(account_key)
+    }
+}
+
+impl Default for ShellSyncCoordinator {
+    fn default() -> Self {
+        Self::new()
     }
 }

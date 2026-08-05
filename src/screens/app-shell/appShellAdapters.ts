@@ -108,11 +108,16 @@ type BackendRoomTimelineThreadRelation = {
 type BackendRoomTimelineAttachment = {
   event_id: string;
   media_type: "image" | "video" | "audio" | "file" | "sticker" | "unknown";
+  media_handle: string;
+  thumbnail_handle?: string | null;
   filename?: string | null;
+  display_caption?: string | null;
   mime_type?: string | null;
   width?: number | null;
   height?: number | null;
+  duration_unix_ms?: number | null;
   size_bytes?: number | null;
+  requires_reveal: boolean;
 };
 
 export type BackendRoomTimelineReplyPreview = {
@@ -201,6 +206,22 @@ export type RoomTimelineItem = {
   reactions: RoomTimelineReaction[];
   receipts: RoomTimelineReceipt[];
   replyPreview: RoomTimelineReplyPreview | null;
+  attachments: RoomTimelineAttachment[];
+};
+
+export type RoomTimelineAttachment = {
+  eventId: string;
+  mediaType: "image" | "video" | "audio" | "file" | "sticker" | "unknown";
+  mediaHandle: string;
+  thumbnailHandle: string | null;
+  filename: string;
+  displayCaption: string;
+  mimeType: string;
+  width: number | null;
+  height: number | null;
+  durationUnixMs: number | null;
+  sizeBytes: number | null;
+  requiresReveal: boolean;
 };
 
 export type RoomTimelineReaction = {
@@ -349,6 +370,26 @@ function mapRoomTimelineItem(item: BackendRoomTimelineItem): RoomTimelineItem {
     replyPreview: item.presentation.reply_preview
       ? mapTimelineReplyPreview(item.presentation.reply_preview)
       : null,
+    attachments: (item.matrix.attachments ?? []).map(mapTimelineAttachment),
+  };
+}
+
+function mapTimelineAttachment(
+  attachment: BackendRoomTimelineAttachment,
+): RoomTimelineAttachment {
+  return {
+    eventId: attachment.event_id,
+    mediaType: attachment.media_type,
+    mediaHandle: attachment.media_handle,
+    thumbnailHandle: attachment.thumbnail_handle ?? null,
+    filename: attachment.filename ?? "",
+    displayCaption: attachment.display_caption ?? "",
+    mimeType: attachment.mime_type ?? "",
+    width: attachment.width ?? null,
+    height: attachment.height ?? null,
+    durationUnixMs: attachment.duration_unix_ms ?? null,
+    sizeBytes: attachment.size_bytes ?? null,
+    requiresReveal: attachment.requires_reveal,
   };
 }
 

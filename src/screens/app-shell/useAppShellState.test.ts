@@ -122,6 +122,20 @@ describe("timeline reconciliation helpers", () => {
     expect(mergedTimeline.items[1]?.body).toBe("updated body");
   });
 
+  test("changed media attachment replaces its timeline item", () => {
+    const currentItem = testTimelineItem("$media", 1);
+    currentItem.attachments = [testTimelineAttachment("image/png")];
+    const refreshedItem = testTimelineItem("$media", 1);
+    refreshedItem.attachments = [testTimelineAttachment("image/webp")];
+
+    const mergedTimeline = mergeTimelineRefresh(
+      testTimeline([currentItem]),
+      testTimeline([refreshedItem]),
+    );
+
+    expect(mergedTimeline.items[0]).toBe(refreshedItem);
+  });
+
   test("older timeline pages prepend before visible window", () => {
     const currentItems = [testTimelineItem("$3", 3), testTimelineItem("$4", 4)];
     const olderItems = [testTimelineItem("$1", 1), testTimelineItem("$2", 2)];
@@ -230,9 +244,27 @@ function testTimelineItem(
     reactions: [],
     receipts: [],
     replyPreview: null,
+    attachments: [],
   };
 }
 
 function eventIds(items: RoomTimelineItem[]): string[] {
   return items.map((item) => item.id);
+}
+
+function testTimelineAttachment(mimeType: string) {
+  return {
+    eventId: "$media",
+    mediaType: "image" as const,
+    mediaHandle: "media-handle",
+    thumbnailHandle: null,
+    filename: "image",
+    displayCaption: "",
+    mimeType,
+    width: 640,
+    height: 480,
+    durationUnixMs: null,
+    sizeBytes: 1_024,
+    requiresReveal: false,
+  };
 }

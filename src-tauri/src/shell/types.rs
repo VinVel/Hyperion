@@ -182,11 +182,16 @@ pub struct RoomTimelineThreadRelation {
 pub struct RoomTimelineAttachment {
     pub event_id: String,
     pub media_type: RoomTimelineAttachmentType,
+    pub media_handle: String,
+    pub thumbnail_handle: Option<String>,
     pub filename: Option<String>,
+    pub display_caption: Option<String>,
     pub mime_type: Option<String>,
     pub width: Option<u32>,
     pub height: Option<u32>,
+    pub duration_unix_ms: Option<u64>,
     pub size_bytes: Option<u64>,
+    pub requires_reveal: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

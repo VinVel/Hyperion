@@ -1,0 +1,184 @@
+/*
+ * Copyright (c) 2026 VinVel
+ * 
+ * SPDX-License-Identifier: AGPL-3.0-only
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, version 3 only.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ * 
+ * Project home: hyperion.velcore.net
+ */
+
+.timeline-media-stack {
+  display: grid;
+  gap: var(--spacing-gap-small);
+}
+
+.timeline-media-frame,
+.timeline-media-file,
+.timeline-media-audio {
+  border-radius: var(--shape-radius-small);
+  background: var(--surface-container-high);
+  box-shadow: var(--elevation-outline-subtle);
+  overflow: hidden;
+}
+
+.timeline-media-frame {
+  position: relative;
+  display: grid;
+  width: min(100%, var(--timeline-media-reserved-width, 24rem));
+}
+
+.timeline-media-frame--sticker {
+  background: transparent;
+  box-shadow: none;
+}
+
+.timeline-media-file,
+.timeline-media-audio {
+  max-width: min(100%, 24rem);
+}
+
+.timeline-media-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 4rem;
+  aspect-ratio: var(--timeline-media-aspect-ratio, 16 / 9);
+  background: var(--surface-container-low);
+  overflow: hidden;
+}
+
+.timeline-media-stage img,
+.timeline-media-stage video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.timeline-media-stage--hidden img,
+.timeline-media-stage--hidden video {
+  filter: blur(1.25rem);
+}
+
+.timeline-media-placeholder,
+.timeline-media-error {
+  padding: var(--spacing-card-padding);
+  color: var(--on-surface-variant);
+  text-align: center;
+}
+
+.timeline-media-controls {
+  position: absolute;
+  inset-block-start: var(--spacing-gap-small);
+  inset-inline-end: var(--spacing-gap-small);
+  display: flex;
+  gap: var(--spacing-gap-extra-small);
+  padding: var(--spacing-gap-extra-small);
+  border-radius: var(--shape-radius-small);
+  background: color-mix(in srgb, var(--surface-container) 86%, transparent);
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.timeline-media-frame:hover .timeline-media-controls,
+.timeline-media-frame:focus-within .timeline-media-controls,
+.timeline-media-controls--visible {
+  opacity: 1;
+}
+
+.timeline-media-caption {
+  padding: var(--spacing-gap-small) var(--spacing-card-padding);
+  color: var(--on-surface);
+}
+
+.timeline-media-file,
+.timeline-media-audio {
+  display: grid;
+  gap: var(--spacing-gap-small);
+  padding: var(--spacing-card-padding);
+}
+
+.timeline-media-file-head {
+  display: grid;
+  min-width: 0;
+}
+
+.timeline-media-file-name {
+  overflow: hidden;
+  font-weight: var(--typography-font-weight-bold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-media-file-meta {
+  color: var(--on-surface-variant);
+  font-size: var(--typography-meta-size);
+}
+
+.timeline-media-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-gap-extra-small);
+}
+
+.timeline-media-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: color-mix(in srgb, var(--scrim) 76%, transparent);
+}
+
+.timeline-media-viewer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-gap-small);
+  padding: var(--spacing-gap-medium);
+}
+
+.timeline-media-viewer-stage {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--spacing-gap-medium);
+  padding: var(--spacing-panel-padding);
+}
+
+.timeline-media-viewer-image {
+  max-width: 100%;
+  max-height: 100%;
+  justify-self: center;
+  object-fit: contain;
+}
+
+.timeline-media-details {
+  position: fixed;
+  inset: auto var(--spacing-panel-padding) var(--spacing-panel-padding) auto;
+  z-index: 101;
+  width: min(22rem, calc(100vw - 2 * var(--spacing-panel-padding)));
+  display: grid;
+  gap: var(--spacing-gap-small);
+  padding: var(--spacing-card-padding);
+  border-radius: var(--shape-radius-small);
+  background: var(--surface-container);
+  box-shadow: var(--elevation-panel-raised), var(--elevation-outline-subtle);
+}
+
+@media (max-width: 640px) {
+  .timeline-media-viewer-stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .timeline-media-viewer-stage > .ui-button {
+    display: none;
+  }
+}

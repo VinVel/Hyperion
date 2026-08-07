@@ -45,7 +45,7 @@ On Debian or Ubuntu:
 sudo apt update
 sudo apt install libwebkit2gtk-4.1-dev \
   build-essential \
-  lld \
+  mold \
   curl \
   wget \
   file \
@@ -61,7 +61,7 @@ On Fedora:
 sudo dnf check-update
 sudo dnf install webkit2gtk4.1-devel \
   openssl-devel \
-  lld \
+  mold \
   curl \
   wget \
   file \

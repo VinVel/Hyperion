@@ -27,6 +27,13 @@ use tracing_subscriber::{
 };
 
 /// Reverse-DNS identity used by every native logging backend.
+#[cfg(any(
+    target_os = "android",
+    target_os = "ios",
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "windows"
+))]
 const NATIVE_LOG_IDENTIFIER: &str = "net.velcore.hyperion";
 
 /// Debug builds expose complete Hyperion diagnostics and useful Matrix SDK detail by default.
@@ -37,10 +44,6 @@ const DEBUG_DEFAULT_DIRECTIVES: &str =
 /// Release builds only expose explicitly redacted Hyperion application targets.
 #[cfg(not(debug_assertions))]
 const RELEASE_DEFAULT_DIRECTIVES: &str = "hyperion=info,hyperion_lib=info,hyperion::frontend=info";
-
-/// Stable Logcat tag used to query Hyperion events on Android.
-#[cfg(target_os = "android")]
-const ANDROID_LOG_TAG: &str = "Hyperion";
 
 /// ETW keywords are bitmasks; zero has special semantics and must not be used.
 #[cfg(target_os = "windows")]
@@ -406,7 +409,7 @@ fn initialize_native() -> bool {
 fn initialize_native() -> bool {
     use tracing_logcat::{LogcatMakeWriter, LogcatTag};
 
-    let tag = LogcatTag::Fixed(ANDROID_LOG_TAG.to_owned());
+    let tag = LogcatTag::Fixed(NATIVE_LOG_IDENTIFIER.to_owned());
     let Ok(writer) = LogcatMakeWriter::new(tag) else {
         return false;
     };

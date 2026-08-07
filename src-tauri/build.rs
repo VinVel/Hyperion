@@ -49,4 +49,8 @@ fn add_manifest() {
     );
     // Turn linker warnings into errors.
     println!("cargo:rustc-link-arg=/WX");
+    // tracing-etw's TraceLogging metadata uses specially attributed .rdata sections that
+    // MSVC 14.51 reports as LNK4078. Keep every other linker warning fatal while the
+    // dependency owns that section layout.
+    println!("cargo:rustc-link-arg=/IGNORE:4078");
 }

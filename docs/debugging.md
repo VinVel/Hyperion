@@ -7,7 +7,7 @@ in `src/utils/tracing.ts` share the same native destination:
 - Windows: ETW provider `net.velcore.hyperion`, keyword `1`
 - Linux: systemd journal identifier `net.velcore.hyperion`
 - macOS and iOS: OSLog subsystem `net.velcore.hyperion`, category `application`
-- Android: Logcat tag `Hyperion`
+- Android: Logcat tag `net.velcore.hyperion`
 
 There is deliberately no stdout, stderr, file, or WebView/DevTools logging
 layer. If the native sink cannot be initialized, Hyperion continues to start
@@ -88,7 +88,7 @@ capture the `net.velcore.hyperion` ETW provider with WPR, WPA, PerfView, or
 TraceView. On Android:
 
 ```bash
-adb logcat -s Hyperion
+adb logcat -s net.velcore.hyperion
 ```
 
 Platform release validation must confirm that identifiers, message content,

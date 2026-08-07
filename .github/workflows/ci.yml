@@ -175,6 +175,8 @@ jobs:
           if [[ "${1:-}" == "tauri" ]]; then
             shift
           fi
+          # Xcode build phases do not reliably preserve the job-level CI marker.
+          export CI=true
           exec pnpm tauri "$@"
           EOF
           chmod +x "$HOME/.cargo/bin/cargo-tauri"

@@ -1,5 +1,11 @@
 [![CI](https://github.com/VinVel/Hyperion/actions/workflows/ci.yml/badge.svg)](https://github.com/VinVel/Hyperion/actions/workflows/ci.yml)
 
+> [!NOTE]  
+> This repository makes heavy use of AI, especially for UI components. While I try to make sure everything works through CI, strict Clippy rules, extensive testing and common sense. I won't be able to catch all types of errors that appear when you use agentic coding. If you feel uncomfortable using such type of software I'd recommend not using it.
+
+> [!IMPORTANT]
+> Hyperion is pre-alpha. Nothing is stable, not even the master branch. If you somehow stumbled upon this repository, good luck!
+
 ## [LICENSE](./LICENSE)
 ```
     Hyperion, a multiplattform Matrix Client

@@ -44,9 +44,7 @@ pnpm tauri android dev
 
 ### Linux desktop setup
 
-For Tauri desktop builds on Linux, install the native libraries required by the
-current CEF-backed GTK runtime before running `pnpm tauri dev` or
-`pnpm tauri build`.
+For Tauri desktop builds on Linux, install the native libraries before running `pnpm tauri dev` or `pnpm tauri build`.
 
 On Debian or Ubuntu:
 

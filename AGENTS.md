@@ -9,8 +9,10 @@ Hyperion is a cross-platform Matrix client built with Tauri, React, TypeScript, 
 Primary repo areas:
 
 - `src/`: React and Vite UI code.
-- `src/hooks/useColorScheme.ts`: system color-scheme detection hook.
-- `src/themes/theme.ts`: current theme token source.
+- `src/components/`: shared React UI, contexts, hooks, theme primitives, and Storybook stories.
+- `src/components/hooks/useColorScheme.ts`: system color-scheme detection hook.
+- `src/components/themes/`: current palette and design-token sources.
+- `src/components/storybook/`: isolated stories for shared UI components and design tokens.
 - `src-tauri/`: Rust and Tauri backend code.
 - `src-tauri/gen/`: tracked platform scaffolding and generated platform project files.
 - `dist/` and `node_modules/`: ignored outputs and dependencies. Do not hand-edit these.
@@ -43,6 +45,13 @@ When choosing where new behavior belongs:
 - Put platform access, secure storage, session handling, protocol behavior, and durable logic in Rust.
 - Put screen flow, form state, rendering logic, local interaction state, and view-specific composition in React.
 
+### Shared UI host-integration boundary:
+
+- Keep `src/components/` completely free of Tauri dependencies. Do not import `@tauri-apps/*` or other native host APIs from shared components, contexts, hooks, themes, or Storybook stories.
+- Shared UI must use framework-neutral local ports, props, or contexts for host capabilities such as theme persistence and window controls.
+- Put the concrete Tauri implementations for those ports under `src/utils/tauri/`. Wire them into the application only at the composition root or another explicit host boundary.
+- Do not move Tauri-specific behavior back into `src/components/` to simplify a single component; extend the relevant local adapter or port instead.
+
 ### Shell backend structure note:
 
 - `ShellManager` is the Tauri-managed shell facade and shared lifecycle root. Keep it small: it should own long-lived shell services, coordinate account/sync teardown, and expose command-facing methods, but it should not accumulate feature-specific Matrix workflows or caches directly.
@@ -67,12 +76,15 @@ When choosing where new behavior belongs:
 
 - UI work must support adjustable layouts that behave well on both mobile and desktop. Do not build desktop-only or phone-only layouts unless the task explicitly targets a platform-specific surface.
 - Reuse the existing color and color-scheme system before introducing new visual values.
-- Keep `src/themes/theme.ts` focused on color palettes. Do not add typography, spacing, layout, shape, shadow, motion, or component tokens to this file.
-- Put non-color design primitives in dedicated files under `src/themes/`, such as `typography.ts`, `spacing.ts`, `sizing.ts`, `shape.ts`, `elevation.ts`, `motion.ts`, and `layout.ts`.
+- Keep `src/components/themes/colorpalette.ts` focused on color palettes. Do not add typography, spacing, layout, shape, shadow, motion, or component tokens to this file.
+- Put non-color design primitives in dedicated files under `src/components/themes/`, such as `typography.ts`, `spacing.ts`, `sizing.ts`, `shape.ts`, `elevation.ts`, `motion.ts`, and `layout.ts`.
 - Use long, self-documenting token names. Prefer names like `radiusSmall`, `gapExtraLarge`, and `fontWeightBold` over abbreviations like `radiusSm`, `gapXl`, or `fwBold`.
 - Treat primitives as low-level design values only: color palette, typography, spacing, sizing, shape, elevation/shadows, motion, and layout. Do not define React components in primitive files.
 - `ThemeContext` may expose palette and primitive values as CSS variables, but it must remain primitive-only and must not define or render UI components.
 - Shared UI patterns belong in `src/components/ui/`. Screens should compose shared components instead of duplicating button, input, card, feedback, badge, heading, or page-shell styling.
+- Every new reusable UI component implemented as a `.tsx` file under `src/components/ui/` must have a corresponding Storybook story under `src/components/storybook/`. The story must cover the default state and the component's meaningful interactive, disabled, error, responsive, or overflow states.
+- Keep Storybook stories separate from production component files under `src/components/storybook/`; do not place `*.stories.tsx` files inside `src/components/ui/` or `src/components/themes/`.
+- Storybook stories must remain Tauri-free and use deterministic browser-safe adapters or mocks.
 - Prefer the shared toast notification system for transient error, warning, info, and success feedback instead of rendering inline feedback boxes in screens. Keep inline feedback only when the content must remain persistently visible for the workflow, such as generated recovery keys, confirmation instructions, or durable status details.
 - If a UI decision would produce a substantial or broadly useful component, prefer adding a reusable version under `src/components/ui/` instead of keeping a large one-off implementation inside a screen.
 - Prefer the shared custom scrollbar pattern for scrollable UI. Use `src/components/ui/ScrollArea.tsx` and the existing `ui-scroll-area` / OverlayScrollbars styling instead of relying on native full scrollbars.
@@ -82,7 +94,7 @@ When choosing where new behavior belongs:
 - New screen work must first check existing primitives and `src/components/ui/` components before adding new local CSS.
 - Settings screen work under `src/screens/Settings/` should keep each detail section in its own `.tsx` file, such as `Appearance.tsx`, `Account.tsx`, or `Sessions.tsx`, instead of accumulating all settings content in `SettingsView.tsx`.
 - If a new reusable design value is needed, add it as a named primitive token before using it in components.
-- Use `src/hooks/useColorScheme.ts` for system color-scheme integration.
+- Use `src/components/hooks/useColorScheme.ts` for system color-scheme integration.
 - Prefer separate `.css` files for styling instead of embedding styles directly inside `.tsx` files, unless the existing local pattern or a task-specific constraint clearly requires otherwise.
 - Avoid redundant CSS declarations that only restate browser or layout defaults, such as `width: 100%`, `height: auto`, `flex: 0 1 auto`, `opacity: 1`, or zero-valued properties, unless the declaration is required to override inherited styles, satisfy a layout constraint, or document a deliberate non-default behavior.
 - Exception: viewport-bounded flex/grid scrolling is allowed to use declarations like `min-height: 0`, `max-height: 100%`, or similar defaults when they are necessary to make nested panes scroll correctly. In those cases, keep the declaration and add a short comment explaining why the bound is required.
@@ -178,6 +190,7 @@ Standard verification commands:
 - `just build-debug`
 - `cargo clippy --fix ...` when Clippy suggests a concrete automatic fix command instead of manual fixing.
 - relevant `pnpm tauri ...` commands when platform or integration behavior is affected
+- `pnpm build-storybook` when Storybook configuration, stories, or shared UI presentation changes.
 
 Verification rules:
 
@@ -196,6 +209,7 @@ Verification rules:
 ```
 - If platform-specific verification is not practical, say so explicitly.
 - If a change affects frontend-backend integration, do not report only one side.
+- Treat `src/components/storybook/static/` as generated Storybook output; keep it ignored by `src/components/.gitignore` and do not hand-edit or commit it.
 
 Testing expectations:
 

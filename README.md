@@ -31,6 +31,24 @@
 Runtime logging, privacy rules, `RUST_LOG`, and native platform query commands
 are documented in [Native diagnostics](./docs/debugging.md).
 
+### Storybook UI workshop
+
+Start the isolated shared UI workshop with:
+
+```bash
+pnpm storybook
+```
+
+Build the static Storybook output with:
+
+```bash
+pnpm build-storybook
+```
+
+The Storybook catalog contains the shared UI components and design-token
+overview. It runs without a Tauri host and provides theme mode and palette
+controls through the Storybook toolbar.
+
 ### Android setup
 
 For a reproducible local setup set the environment variable `ANDROID_HOME` and it should just work when executing the following command:

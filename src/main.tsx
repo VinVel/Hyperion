@@ -28,6 +28,11 @@ import {
   initializeTracing,
   tracingComponents,
 } from "./utils/tracing";
+import { createTauriThemePreferences } from "./utils/tauri/themePreferences";
+import { createTauriWindowController } from "./utils/tauri/windowController";
+
+const themePreferences = createTauriThemePreferences();
+const windowController = createTauriWindowController();
 
 function reportUiError(error: unknown, _errorInfo: ErrorInfo) {
   traceError("ui.render_failed", {
@@ -52,11 +57,15 @@ function reportThemeStorageError(error: unknown) {
 void initializeTracing().finally(() => {
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
-      <ThemeProvider onStorageError={reportThemeStorageError}>
+      <ThemeProvider
+        onStorageError={reportThemeStorageError}
+        preferences={themePreferences}
+      >
         <ToastProvider>
           <AppWindowFrame
             iconSrc="/Hyperion-icon.svg"
             titlebarLabel="Hyperion window controls"
+            windowController={windowController}
           >
             <AppErrorBoundary onError={reportUiError}>
               <App />

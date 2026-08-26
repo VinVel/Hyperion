@@ -20,8 +20,7 @@ use std::{
 
 use futures_util::{StreamExt, pin_mut};
 use matrix_sdk::{
-    Client, Error as MatrixError, HttpError, RefreshTokenError, SessionChange,
-    ruma::{RoomId, api::error::ErrorKind},
+    Client, Error as MatrixError, HttpError, RefreshTokenError, SessionChange, ruma::RoomId,
     sync::RoomUpdates,
 };
 use matrix_sdk_ui::room_list_service::{RoomListItem, RoomListService, filters};
@@ -504,30 +503,51 @@ fn shell_sync_status_parts(state: &SyncServiceState) -> (&'static str, Option<St
 }
 
 fn shell_sync_error_status(error: &SyncServiceError) -> &'static str {
+    shell_sync_error_kind(error).as_str()
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ShellSyncErrorKind {
+    Offline,
+    Unsupported,
+    Error,
+}
+
+impl ShellSyncErrorKind {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Offline => "offline",
+            Self::Unsupported => "unsupported",
+            Self::Error => "error",
+        }
+    }
+}
+
+fn shell_sync_error_kind(error: &SyncServiceError) -> ShellSyncErrorKind {
     let matrix_error = match error {
         SyncServiceError::RoomList(room_list_service::Error::SlidingSync(error))
         | SyncServiceError::EncryptionSync(
             encryption_sync_service::Error::SlidingSync(error)
             | encryption_sync_service::Error::ClientError(error)
             | encryption_sync_service::Error::LockError(error),
-        ) => Some(error),
-        SyncServiceError::RoomList(_) | SyncServiceError::Supervisor => None,
+        ) => error,
+        SyncServiceError::RoomList(_) | SyncServiceError::Supervisor => {
+            return ShellSyncErrorKind::Error;
+        }
     };
 
-    let Some(matrix_error) = matrix_error else {
-        return "error";
-    };
-    if matches!(
-        matrix_error.client_api_error_kind(),
-        Some(ErrorKind::Unrecognized)
-    ) {
-        return "unsupported";
+    if matrix_error_is_unsupported_sliding_sync_endpoint(matrix_error) {
+        return ShellSyncErrorKind::Unsupported;
     }
     if matrix_error_is_offline(matrix_error) {
-        "offline"
+        ShellSyncErrorKind::Offline
     } else {
-        "error"
+        ShellSyncErrorKind::Error
     }
+}
+
+fn matrix_error_is_unsupported_sliding_sync_endpoint(error: &MatrixError) -> bool {
+    matches!(error, MatrixError::Http(http_error) if http_error.is_endpoint_not_implemented())
 }
 
 fn matrix_error_is_offline(error: &MatrixError) -> bool {
@@ -756,4 +776,144 @@ fn focused_room_id_from_state(
         .expect("shell sync manager focused-rooms lock poisoned")
         .get(account_key)
         .map(|focused_room| focused_room.room_id.clone())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::TcpListener;
+
+    use matrix_sdk::{
+        Error as MatrixError, HttpError,
+        ruma::api::{
+            client::uiaa::UiaaResponse,
+            error::{
+                Error as RumaApiError, ErrorBody, ErrorKind, FromHttpResponseError,
+                StandardErrorBody,
+            },
+        },
+    };
+    use matrix_sdk_ui::{
+        encryption_sync_service, room_list_service, sync_service::Error as SyncServiceError,
+    };
+    use reqwest::StatusCode;
+
+    use super::{
+        ShellSyncErrorKind, shell_sync_error_kind, shell_sync_error_status, shell_sync_status_parts,
+    };
+
+    fn room_list_http_error(
+        status_code: StatusCode,
+        error_kind: ErrorKind,
+        message: &str,
+    ) -> SyncServiceError {
+        let ruma_error = RumaApiError::new(
+            status_code,
+            ErrorBody::Standard(StandardErrorBody::new(error_kind, message.to_owned())),
+        );
+        let http_error = HttpError::Api(Box::new(FromHttpResponseError::Server(
+            UiaaResponse::MatrixError(ruma_error),
+        )));
+        let matrix_error = MatrixError::Http(Box::new(http_error));
+
+        SyncServiceError::RoomList(room_list_service::Error::SlidingSync(matrix_error))
+    }
+
+    #[test]
+    fn classifies_unsupported_sliding_sync_endpoint_from_ruma_status_and_kind() {
+        let error = room_list_http_error(
+            StatusCode::NOT_FOUND,
+            ErrorKind::Unrecognized,
+            "the endpoint is not implemented",
+        );
+
+        assert_eq!(
+            shell_sync_error_kind(&error),
+            ShellSyncErrorKind::Unsupported
+        );
+        assert_eq!(shell_sync_error_status(&error), "unsupported");
+    }
+
+    #[test]
+    fn does_not_classify_error_message_text() {
+        let unrecognized_without_not_found = room_list_http_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            ErrorKind::Unrecognized,
+            "M_UNRECOGNIZED and 404 are merely diagnostic text",
+        );
+        let unrelated_error_with_endpoint_message = room_list_http_error(
+            StatusCode::NOT_FOUND,
+            ErrorKind::Forbidden,
+            "the sliding sync endpoint is unsupported",
+        );
+
+        assert_eq!(
+            shell_sync_error_kind(&unrecognized_without_not_found),
+            ShellSyncErrorKind::Error
+        );
+        assert_eq!(
+            shell_sync_error_kind(&unrelated_error_with_endpoint_message),
+            ShellSyncErrorKind::Error
+        );
+    }
+
+    #[test]
+    fn classifies_sdk_timeout_as_offline() {
+        let error = SyncServiceError::EncryptionSync(encryption_sync_service::Error::SlidingSync(
+            MatrixError::Timeout,
+        ));
+
+        assert_eq!(shell_sync_error_kind(&error), ShellSyncErrorKind::Offline);
+        assert_eq!(shell_sync_error_status(&error), "offline");
+    }
+
+    #[test]
+    fn classifies_transport_error_as_offline() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("test listener should bind");
+        let address = listener
+            .local_addr()
+            .expect("test listener should report its address");
+        drop(listener);
+
+        let transport_error = tauri::async_runtime::block_on(async {
+            reqwest::Client::new()
+                .get(format!("http://{address}"))
+                .send()
+                .await
+                .expect_err("closed local port should reject the request")
+        });
+        let error = SyncServiceError::EncryptionSync(encryption_sync_service::Error::ClientError(
+            MatrixError::Http(Box::new(HttpError::Reqwest(transport_error))),
+        ));
+
+        assert_eq!(shell_sync_error_kind(&error), ShellSyncErrorKind::Offline);
+    }
+
+    #[test]
+    fn classifies_non_matrix_sync_service_errors_as_error() {
+        let error =
+            SyncServiceError::RoomList(room_list_service::Error::UnknownList(String::from("all")));
+
+        assert_eq!(shell_sync_error_kind(&error), ShellSyncErrorKind::Error);
+        assert_eq!(shell_sync_error_status(&error), "error");
+    }
+
+    #[test]
+    fn retains_the_existing_non_error_sync_statuses() {
+        assert_eq!(
+            shell_sync_status_parts(&matrix_sdk_ui::sync_service::State::Idle),
+            ("idle", None)
+        );
+        assert_eq!(
+            shell_sync_status_parts(&matrix_sdk_ui::sync_service::State::Running),
+            ("running", None)
+        );
+        assert_eq!(
+            shell_sync_status_parts(&matrix_sdk_ui::sync_service::State::Offline),
+            ("offline", None)
+        );
+        assert_eq!(
+            shell_sync_status_parts(&matrix_sdk_ui::sync_service::State::Terminated),
+            ("terminated", None)
+        );
+    }
 }

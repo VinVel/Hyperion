@@ -19,49 +19,49 @@ equatable_if_let = "warn"
 tauri-plugin-mobile-webview-overlay = { path = "plugins/tauri-plugin-mobile-webview-overlay" }
 tauri-plugin-app-events = { path = "plugins/tauri-plugin-app-events" }
 tauri-plugin-tracing = { path = "plugins/tauri-plugin-tracing" }
-tauri = { version = "2.11.2", default-features = false }
-tauri-build = "2.6.2"
-tauri-plugin = "2.6.2"
-tauri-plugin-opener = "2.5.4"
-tauri-plugin-dialog = "2.7.1"
-tauri-plugin-fs = "2.5.1"
-tauri-plugin-i18n = "2.0.2"
-tauri-plugin-os = "2.3.2"
+tauri = { version = "2", default-features = false }
+tauri-build = "2"
+tauri-plugin = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-i18n = "2"
+tauri-plugin-os = "2"
 serde = "1"
 serde_json = "1"
 base64 = "0.22"
-rand = "0.10.1"
-rusqlite = "=0.37.0"
+rand = "0.10.2"
+rusqlite = "0.37.0"
 reqwest = { version = "0.13.4", default-features = false }
-rust-i18n = "4.1.0"
+rust-i18n = "4.2.1"
 futures-util = "0.3"
 eyeball-im = "0.8"
-matrix-sdk-crypto = { version = "0.17.0", default-features = false }
-matrix-sdk = { version = "0.17.0", default-features = false }
-matrix-sdk-ui = { version = "0.17.0", default-features = false }
+matrix-sdk-crypto = { version = "0.18.0", default-features = false }
+matrix-sdk = { version = "0.18.0", default-features = false }
+matrix-sdk-ui = { version = "0.18.0", default-features = false }
 keyring-core = "1.0.0"
 ndk-context = "0.1.1"
-rustls = "0.23.40"
-rustls-native-certs = "0.8.3"
-webpki-roots = "1.0.7"
+rustls = "0.23.43"
+rustls-native-certs = "0.8.4"
+webpki-roots = "1.0.9"
 android-native-keyring-store = "1.0.0"
-apple-native-keyring-store = "1.0.0"
+apple-native-keyring-store = "1.0.2"
 windows-native-keyring-store = "1.1.0"
 linux-keyutils-keyring-store = "1.0.0"
 thiserror = "2"
 colored = "3.1.1"
 criterion = "0.5"
 inferno = { version = "0.12", default-features = false }
-memchr = "2.8.0"
+memchr = "2.8.3"
 rolling-file = "0.2.0"
-serde_repr = "0.1.20"
+serde_repr = "0.1.21"
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 tauri-plugin-profiling = "0.1"
-time = { version = "0.3.47", default-features = false, features = [
+time = { version = "0.3.55", default-features = false, features = [
     "formatting",
     "local-offset",
 ] }
-tokio = { version = "1.52.2", features = ["full"] }
+tokio = { version = "1.53.1", features = ["full"] }
 tracing = "0.1.44"
 tracing-appender = "0.2.5"
 tracing-core = "0.1.36"

@@ -168,9 +168,7 @@ impl ShellSyncCoordinator {
                 ("typing_user_count", &typing_user_count),
             ],
         );
-        if !room_state.users.is_empty()
-            && let Some(app) = room_state.app.as_ref()
-        {
+        if let Some(app) = room_state.app.as_ref() {
             emit_shell_typing_updated(app, account_key, room_id, Vec::new());
         }
     }
@@ -253,6 +251,7 @@ impl ShellSyncCoordinator {
         let task_account_key = account_key.to_owned();
         let task_room_id = room_id.clone();
         let state = self.typing_ephemeral_state.clone();
+        let focused_rooms = self.focused_rooms.clone();
         let handle = tauri::async_runtime::spawn(async move {
             let _subscription_guard = drop_guard;
 
@@ -261,7 +260,14 @@ impl ShellSyncCoordinator {
                     .into_iter()
                     .map(|user_id| user_id.to_string())
                     .collect::<Vec<String>>();
-                update_typing_users(&state, &app, &task_account_key, &task_room_id, users);
+                update_typing_users(
+                    &state,
+                    &focused_rooms,
+                    &app,
+                    &task_account_key,
+                    &task_room_id,
+                    users,
+                );
             }
 
             clear_finished_typing_subscription(&state, &task_account_key, &task_room_id);
@@ -306,11 +312,22 @@ impl ShellSyncCoordinator {
 
 fn update_typing_users(
     state: &Arc<RwLock<TypingEphemeralStore>>,
+    focused_rooms: &Arc<RwLock<super::interests::FocusedRoomStore>>,
     app: &tauri::AppHandle,
     account_key: &str,
     room_id: &str,
     users: Vec<String>,
 ) {
+    let is_currently_focused = focused_rooms
+        .read()
+        .expect("shell sync focused-room lock poisoned")
+        .rooms
+        .get(account_key)
+        .is_some_and(|focused_room_id| focused_room_id == room_id);
+    if !is_currently_focused {
+        return;
+    }
+
     let typing_user_count = users.len().to_string();
     {
         let mut store = state

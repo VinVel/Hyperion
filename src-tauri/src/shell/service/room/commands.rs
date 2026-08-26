@@ -172,7 +172,7 @@ impl ShellManager {
             .await?;
 
         let room = resolve_room(&account.client, &request.room_id)?;
-        self.mark_room_focused(&account.account_key, room.room_id().as_str());
+        self.mark_room_focused(app, &account.account_key, &room);
 
         let title = room_title(&room).await?;
         let is_direct = room.is_direct().await.unwrap_or(false);
@@ -211,7 +211,6 @@ impl ShellManager {
         }
 
         let room = resolve_room(&account.client, &request.room_id)?;
-        self.mark_room_focused(&account.account_key, room.room_id().as_str());
         self.sync_coordinator
             .subscribe_live_timeline_updates(
                 app.clone(),

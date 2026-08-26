@@ -89,6 +89,9 @@ impl ShellManager {
             .await?;
 
         let room = resolve_room(&account.client, &request.room_id)?;
+        if request.before.is_none() {
+            self.mark_room_focused(app, &account.account_key, &room);
+        }
         self.prepare_room_timeline_load(account, &room);
         let (mut items, next_before) = self
             .load_room_timeline_items(app, account, &room, &request)
@@ -421,7 +424,6 @@ impl ShellManager {
             .await?;
 
         let room = resolve_room(&account.client, &request.room_id)?;
-        self.mark_room_focused(&account.account_key, room.room_id().as_str());
         let event_id = EventId::parse(&request.event_id)
             .map_err(|error| format!("Invalid event id: {error}"))?
             .clone();
@@ -579,8 +581,9 @@ impl ShellManager {
         }
         apply_timeline_presentation(&mut items, request.room_id.as_str());
 
-        self.mark_room_focused(&account.account_key, &request.room_id);
         if request.before.is_none() {
+            let room = resolve_room(&account.client, &request.room_id).ok()?;
+            self.mark_room_focused(app, &account.account_key, &room);
             self.cache_state
                 .mark_room_timeline_cache_served(&account.account_key, &request.room_id);
         }
@@ -658,7 +661,6 @@ impl ShellManager {
     }
 
     fn prepare_room_timeline_load(&self, account: &AccountClientSnapshot, room: &Room) {
-        self.mark_room_focused(&account.account_key, room.room_id().as_str());
         self.sync_coordinator.schedule_room_timeline_warmup(
             account.client.clone(),
             &account.account_key,
@@ -685,8 +687,6 @@ impl ShellManager {
                     room,
                 )
                 .await?;
-            self.sync_coordinator
-                .subscribe_typing_updates(app.clone(), &account.account_key, room);
             let remembered_count = ShellCacheState::remembered_timeline_item_count(
                 &account.account_key,
                 &account.store_dir,

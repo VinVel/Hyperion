@@ -125,8 +125,11 @@ impl ShellManager {
         self.cache_state.clear_all_served_room_timeline_caches();
     }
 
-    fn mark_room_focused(&self, account_key: &str, room_id: &str) {
-        self.sync_coordinator.set_focused_room(account_key, room_id);
+    fn mark_room_focused(&self, app: &tauri::AppHandle, account_key: &str, room: &Room) {
+        self.sync_coordinator
+            .set_focused_room(account_key, room.room_id().as_str());
+        self.sync_coordinator
+            .subscribe_typing_updates(app.clone(), account_key, room);
     }
 
     fn ensure_sync_in_background(&self, app: &tauri::AppHandle, account_manager: &AccountManager) {

@@ -1,3 +1,7 @@
+---
+pipeline-status:
+  - new
+---
 # Tauri - Reference
 
 **Pages:** 9
@@ -9,7 +13,6 @@
 **URL:** llms-txt#window-customization
 
 **Contents:**
-
 - Configuration
 - Usage
   - Creating a Custom Titlebar
@@ -98,7 +101,6 @@ Create the main window and change its background color:
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 #### Permissions
 
@@ -110,7 +112,6 @@ See the [Capabilities Overview](/security/capabilities/) for more information an
 ```
 
 Example 2 (unknown):
-
 ```unknown
 | Permission                                   | Description                                                                    |
 | -------------------------------------------- | ------------------------------------------------------------------------------ |
@@ -127,7 +128,6 @@ Add this CSS sample to keep it at the top of the screen and style the buttons:
 ```
 
 Example 3 (unknown):
-
 ```unknown
 #### HTML
 
@@ -135,7 +135,6 @@ Put this at the top of your `<body>` tag:
 ```
 
 Example 4 (unknown):
-
 ```unknown
 Note that you may need to move the rest of your content down so that the titlebar doesn't cover it.
 
@@ -151,7 +150,6 @@ On Windows, if you just want a title bar that doesn't need custom interactions, 
 **URL:** llms-txt#frontend-configuration
 
 **Contents:**
-
 - Configuration Checklist
 - JavaScript
 - Rust
@@ -168,15 +166,15 @@ Conceptually Tauri acts as a static web host. You need to provide Tauri with a f
 
 Below is a checklist of common scenarios needed to integrate a frontend with Tauri:
 
-{/_ TODO: Link to core concept of SSG/SSR, etc. _/}
-{/_ TODO: Link to mobile development server guide _/}
-{/_ TODO: Concept of how to do a client-server relationship? _/}
+{/* TODO: Link to core concept of SSG/SSR, etc. */}
+{/* TODO: Link to mobile development server guide */}
+{/* TODO: Concept of how to do a client-server relationship? */}
 
 - Use static site generation (SSG), single-page applications (SPA), or classic multi-page apps (MPA). Tauri does not natively support server based alternatives (such as SSR).
 - For mobile development, a development server of some kind is necessary that can host the frontend on your internal IP.
 - Use a proper client-server relationship between your app and your API's (no hybrid solutions with SSR).
 
-{/_ TODO: Help me with the wording here lol _/}
+{/* TODO: Help me with the wording here lol */}
 For most projects we recommend [Vite](https://vitejs.dev/) for SPA frameworks such as React, Vue, Svelte, and Solid, but also for plain JavaScript or TypeScript projects. Most other guides listed here show how to use Meta-Frameworks as they are typically designed for SSR and therefore require special configuration.
 
 <CardGrid>
@@ -203,7 +201,6 @@ Don't see a framework listed? It may work with Tauri without any additional conf
 **URL:** llms-txt#bundle-for-app-store-distribution
 
 **Contents:**
-
 - Versioning
 - Signing
 - Distributing
@@ -382,11 +379,10 @@ Distribute your application to Cloud services that globally distribute your appl
 **URL:** llms-txt#http-headers
 
 **Contents:**
-
-- Header Names
-- How to Configure Headers
-- Example
-- Frameworks
+  - Header Names
+  - How to Configure Headers
+  - Example
+  - Frameworks
 
 import SinceVersion from '../../../components/SinceVersion.astro';
 
@@ -399,7 +395,6 @@ To be more specific, every response sent via the `get_response` function in
 will include those headers.
 
 The header names are limited to:
-
 - <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Credentials" target="_blank">Access-Control-Allow-Credentials ↗</a>
 - <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Headers" target="_blank">Access-Control-Allow-Headers ↗</a>
 - <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Methods" target="_blank">Access-Control-Allow-Methods ↗</a>
@@ -468,7 +463,6 @@ For **Yew** and **Leptos** add the headers to `Trunk.toml`
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 :::note
 `Tauri-Custom-Header` is not intended for production use.
@@ -483,7 +477,6 @@ For the helloworld example, this config results in:
 ```
 
 Example 2 (unknown):
-
 ```unknown
 ### Frameworks
 
@@ -495,14 +488,12 @@ For setups running the build tool **Vite** (those include **Qwik, React, Solid, 
 ```
 
 Example 3 (unknown):
-
 ```unknown
 Sometimes the `vite.config.ts` is integrated into the frameworks configuration file, but the setup stays the same.
 In case of **Angular** add them to `angular.json`.
 ```
 
 Example 4 (unknown):
-
 ```unknown
 And in case of **Nuxt** to `nuxt.config.ts`.
 ```
@@ -514,7 +505,6 @@ And in case of **Nuxt** to `nuxt.config.ts`.
 **URL:** llms-txt#app-size
 
 **Contents:**
-
 - Cargo Configuration
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
@@ -538,7 +528,6 @@ Dependent on whether you use the stable or nightly Rust toolchain the options av
 **URL:** llms-txt#configuration-files
 
 **Contents:**
-
 - Tauri Config
   - Supported Formats
 
@@ -560,7 +549,7 @@ The default Tauri config format is JSON. The JSON5 or TOML format can be enabled
 
 The structure and values are the same across all formats, however, the formatting should be consistent with the respective file's format:
 
-````toml title=Tauri.toml
+```toml title=Tauri.toml
 [build]
 dev-url = "http://localhost:3000"
 
@@ -569,10 +558,9 @@ dev-url = "http://localhost:3000"
 Example 1 (unknown):
 ```unknown
 The structure and values are the same across all formats, however, the formatting should be consistent with the respective file's format:
-````
+```
 
 Example 2 (unknown):
-
 ```unknown
 
 ```
@@ -584,7 +572,6 @@ Example 2 (unknown):
 **URL:** llms-txt#project-structure
 
 **Contents:**
-
 - Next Steps
 
 A Tauri project is usually made of 2 parts, a Rust project and a JavaScript project (optional),
@@ -620,7 +607,6 @@ If you want to work with Rust code only, simply remove everything else and use t
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 .
 ├── package.json
@@ -650,7 +636,6 @@ Example 1 (unknown):
 **URL:** llms-txt#app-store
 
 **Contents:**
-
 - Requirements
 - Changing App Icon
 - Setting up
@@ -795,6 +780,7 @@ And change the CLI command and output path based on the Mac system you are runni
   instead of `target/universal-apple-darwin/release` in the paths referenced below.
 - if your build system uses an Intel chip:
   - install the Rust Apple Silicon target:
+    
   - change the `universal-apple-darwin` argument to `aarch64-apple-darwin`
     and use `target/aarch64-apple-darwin/release` instead of `target/universal-apple-darwin/release` in the paths referenced below.
 
@@ -861,7 +847,6 @@ The private key file path must be saved as `AuthKey\_<APPLE_API_KEY_ID>.p8` in o
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 :::caution
 Code signing is required. See the documentation for [macOS][macOS code signing] and [iOS][iOS code signing].
@@ -897,7 +882,6 @@ To apply the following config changes only when building for App Store, you can 
 ```
 
 Example 2 (unknown):
-
 ```unknown
 Then merge that config file with the main one when bundling your Tauri app for App Store:
 
@@ -927,7 +911,6 @@ Your app must define its [`tauri.conf.json > bundle > category`] to be displayed
 ```
 
 Example 3 (unknown):
-
 ```unknown
 - Provisioning profile
 
@@ -944,7 +927,6 @@ After creating the provisioning profile, download it and save it to a known loca
 ```
 
 Example 4 (unknown):
-
 ```unknown
 - Info.plist
 
@@ -962,7 +944,6 @@ Create a Info.plist file in the src-tauri folder:
 **URL:** llms-txt#microsoft-store
 
 **Contents:**
-
 - Requirements
 - Changing App Icon
 - Setting up
@@ -1050,7 +1031,6 @@ and link it in your application page in the Microsoft Store website.
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 Then merge that config file with the main one when bundling your Tauri app for Microsoft Store:
 
@@ -1081,7 +1061,6 @@ Since the publisher name cannot match the product name, the following configurat
 ```
 
 Example 2 (unknown):
-
 ```unknown
 In this case you can define the [publisher] value separately to fix this conflict:
 ```

@@ -1,3 +1,7 @@
+---
+pipeline-status:
+  - new
+---
 # Tauri - Plugins
 
 **Pages:** 5
@@ -15,12 +19,11 @@
 **URL:** llms-txt#updating-dependencies
 
 **Contents:**
-
 - Update npm Packages
 - Update Cargo Packages
 - Sync npm Packages and Cargo Crates versions
 
-{/_ TODO: Add plugin update example _/}
+{/* TODO: Add plugin update example */}
 
 import CommandTabs from '@components/CommandTabs.astro';
 
@@ -68,7 +71,6 @@ And for the plugins, we might introduce this type of changes in patch releases, 
 **Examples:**
 
 Example 1 (toml):
-
 ```toml
 [build-dependencies]
 tauri-build = "%version%"
@@ -78,7 +80,6 @@ tauri = { version = "%version%" }
 ```
 
 Example 2 (shell):
-
 ```shell
 cd src-tauri
 cargo update
@@ -97,7 +98,6 @@ cargo update
 **URL:** llms-txt#mock-tauri-apis
 
 **Contents:**
-
 - IPC Requests
   - Mocking Commands for `invoke`
   - Mocking Events
@@ -147,7 +147,6 @@ You can use the [`mockWindows()`] method to create fake window labels. The first
 **Examples:**
 
 Example 1 (javascript):
-
 ```javascript
 import { beforeAll, expect, test } from "vitest";
 import { randomFillSync } from "crypto";
@@ -179,7 +178,6 @@ test("invoke simple", async () => {
 ```
 
 Example 2 (javascript):
-
 ```javascript
 import { beforeAll, expect, test, vi } from "vitest";
 import { randomFillSync } from "crypto";
@@ -217,25 +215,24 @@ test("invoke", async () => {
 ```
 
 Example 3 (javascript):
-
 ```javascript
 mockIPC(async (cmd, args) => {
-  if (args.message.cmd === "execute") {
+  if (args.message.cmd === 'execute') {
     const eventCallbackId = `_${args.message.onEventFn}`;
     const eventEmitter = window[eventCallbackId];
 
     // 'Stdout' event can be called multiple times
     eventEmitter({
-      event: "Stdout",
-      payload: "some data sent from the process",
+      event: 'Stdout',
+      payload: 'some data sent from the process',
     });
 
     // 'Terminated' event must be called at the end to resolve the promise
     eventEmitter({
-      event: "Terminated",
+      event: 'Terminated',
       payload: {
         code: 0,
-        signal: "kill",
+        signal: 'kill',
       },
     });
   }
@@ -243,22 +240,21 @@ mockIPC(async (cmd, args) => {
 ```
 
 Example 4 (javascript):
-
 ```javascript
-import { mockIPC, clearMocks } from "@tauri-apps/api/mocks";
-import { emit, listen } from "@tauri-apps/api/event";
-import { afterEach, expect, test, vi } from "vitest";
+import { mockIPC, clearMocks } from '@tauri-apps/api/mocks';
+import { emit, listen } from '@tauri-apps/api/event';
+import { afterEach, expect, test, vi } from 'vitest';
 
-test("mocked event", () => {
+test('mocked event', () => {
   mockIPC(() => {}, { shouldMockEvents: true }); // enable event mocking
 
   const eventHandler = vi.fn();
-  listen("test-event", eventHandler);
+  listen('test-event', eventHandler);
 
-  emit("test-event", { foo: "bar" });
+  emit('test-event', { foo: 'bar' });
   expect(eventHandler).toHaveBeenCalledWith({
-    event: "test-event",
-    payload: { foo: "bar" },
+    event: 'test-event',
+    payload: { foo: 'bar' },
   });
 });
 ```

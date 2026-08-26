@@ -3,7 +3,6 @@
 > Tauri is a framework for building tiny, fast binaries for all major desktop and mobile platforms. Developers can integrate any frontend framework that compiles to HTML, JavaScript, and CSS for building their user experience while leveraging languages such as Rust, Swift, and Kotlin for backend logic when needed.
 
 # Start
-
 # Create a Project
 
 import { Steps } from '@astrojs/starlight/components';
@@ -14,7 +13,7 @@ One thing that makes Tauri so flexible is its ability to work with virtually any
 
 `create-tauri-app` currently includes templates for vanilla (HTML, CSS and JavaScript without a framework), [Vue.js](https://vuejs.org), [Svelte](https://svelte.dev), [React](https://reactjs.org/), [SolidJS](https://www.solidjs.com/), [Angular](https://angular.io/), [Preact](https://preactjs.com/), [Yew](https://yew.rs/), [Leptos](https://github.com/leptos-rs/leptos), and [Sycamore](https://sycamore-rs.netlify.app/). You can also find or add your own community templates and frameworks in the [Awesome Tauri repo](https://github.com/tauri-apps/awesome-tauri).
 
-{/_ TODO: redirect to integrate to existing front-end project specific docs _/}
+{/* TODO: redirect to integrate to existing front-end project specific docs */}
 Alternatively, you can [add Tauri to an existing project](#manual-setup-tauri-cli) to quickly turn your existing codebase into a Tauri app.
 
 ## Using `create-tauri-app`
@@ -104,7 +103,7 @@ We recommend starting with the vanilla template (HTML, CSS, and JavaScript witho
 
 Once completed, the utility reports that the template has been created and displays how to run it using the configured package manager. If it detects missing dependencies on your system, it prints a list of packages and prompts how to install them.
 
-{/_ TODO: Can CTA offer to install the deps? _/}
+{/* TODO: Can CTA offer to install the deps? */}
 
 #### Start the development server
 
@@ -235,7 +234,7 @@ Tauri is a framework for building tiny, fast binaries for all major desktop and 
 
 Get started building with [`create-tauri-app`](https://github.com/tauri-apps/create-tauri-app) by using one of the below commands. Be sure to follow the [prerequisites guide](/start/prerequisites/) to install all of the dependencies required by Tauri. For a more detailed walk through, see [Create a Project](/start/create-project/#using-create-tauri-app)
 
-import Cta from '../\_fragments/cta.mdx';
+import Cta from '../_fragments/cta.mdx';
 
 <Cta />
 
@@ -572,7 +571,7 @@ If you'd like to target your app for Android or iOS then there are a few additio
 1. Download and install [Android Studio from the Android Developers website](https://developer.android.com/studio)
 2. Set the `JAVA_HOME` environment variable:
 
-{/_ TODO: Can this be done in the 4th step? _/}
+{/* TODO: Can this be done in the 4th step? */}
 
 <Tabs syncKey="prereqs">
 <TabItem label="Linux">
@@ -762,9 +761,9 @@ Conceptually Tauri acts as a static web host. You need to provide Tauri with a f
 
 Below is a checklist of common scenarios needed to integrate a frontend with Tauri:
 
-{/_ TODO: Link to core concept of SSG/SSR, etc. _/}
-{/_ TODO: Link to mobile development server guide _/}
-{/_ TODO: Concept of how to do a client-server relationship? _/}
+{/* TODO: Link to core concept of SSG/SSR, etc. */}
+{/* TODO: Link to mobile development server guide */}
+{/* TODO: Concept of how to do a client-server relationship? */}
 
 - Use static site generation (SSG), single-page applications (SPA), or classic multi-page apps (MPA). Tauri does not natively support server based alternatives (such as SSR).
 - For mobile development, a development server of some kind is necessary that can host the frontend on your internal IP.
@@ -772,7 +771,7 @@ Below is a checklist of common scenarios needed to integrate a frontend with Tau
 
 ## JavaScript
 
-{/_ TODO: Help me with the wording here lol _/}
+{/* TODO: Help me with the wording here lol */}
 For most projects we recommend [Vite](https://vitejs.dev/) for SPA frameworks such as React, Vue, Svelte, and Solid, but also for plain JavaScript or TypeScript projects. Most other guides listed here show how to use Meta-Frameworks as they are typically designed for SSR and therefore require special configuration.
 
 <CardGrid>
@@ -941,15 +940,15 @@ Next.js is a meta framework for React. Learn more about Next.js at https://nextj
 
     ```ts
     // next.conf.mjs
-    const isProd = process.env.NODE_ENV === "production";
+    const isProd = process.env.NODE_ENV === 'production';
 
-    const internalHost = process.env.TAURI_DEV_HOST || "localhost";
+    const internalHost = process.env.TAURI_DEV_HOST || 'localhost';
 
     /** @type {import('next').NextConfig} */
     const nextConfig = {
       // Ensure Next.js uses SSG instead of SSR
       // https://nextjs.org/docs/pages/building-your-application/deploying/static-exports
-      output: "export",
+      output: 'export',
       // Note: This feature is required to use the Next.js Image component in SSG mode.
       // See https://nextjs.org/docs/messages/export-image-api for different workarounds.
       images: {
@@ -1064,14 +1063,14 @@ Nuxt is a meta framework for Vue. Learn more about Nuxt at https://nuxt.com. Thi
 
     ```ts
     export default defineNuxtConfig({
-      compatibilityDate: "2025-05-15",
+      compatibilityDate: '2025-05-15',
       // (optional) Enable the Nuxt devtools
       devtools: { enabled: true },
       // Enable SSG
       ssr: false,
       // Enables the development server to be discoverable by other devices when running on iOS physical devices
       devServer: {
-        host: "0",
+        host: '0',
       },
       vite: {
         // Better support for Tauri CLI output
@@ -1079,14 +1078,14 @@ Nuxt is a meta framework for Vue. Learn more about Nuxt at https://nuxt.com. Thi
         // Enable environment variables
         // Additional environment variables can be found at
         // https://v2.tauri.app/reference/environment-variables/
-        envPrefix: ["VITE_", "TAURI_"],
+        envPrefix: ['VITE_', 'TAURI_'],
         server: {
           // Tauri requires a consistent port
           strictPort: true,
         },
       },
       // Avoids error [unhandledRejection] EMFILE: too many open files, watch
-      ignore: ["**/src-tauri/**"],
+      ignore: ['**/src-tauri/**'],
     });
     ```
 
@@ -1191,8 +1190,8 @@ SvelteKit is a meta framework for Svelte. Learn more about SvelteKit at https://
 1.  ##### Update SvelteKit configuration:
 
     ```js title="svelte.config.js" {1}
-    import adapter from "@sveltejs/adapter-static";
-    import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
+    import adapter from '@sveltejs/adapter-static';
+    import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 
     /** @type {import('@sveltejs/kit').Config} */
     const config = {
@@ -1202,7 +1201,7 @@ SvelteKit is a meta framework for Svelte. Learn more about SvelteKit at https://
 
       kit: {
         adapter: adapter({
-          fallback: "index.html",
+          fallback: 'index.html',
         }),
       },
     };
@@ -1244,14 +1243,14 @@ This guide will walk you through creating your Tauri app using the Qwik web fram
 1.  ##### Create a new Qwik app
 
     <CommandTabs
-    npm={`npm create qwik@latest
-cd <PROJECT>`}
-    yarn={`yarn create qwik@latest
-cd <PROJECT>`}
-    pnpm={`pnpm create qwik@latest
-cd <PROJECT>`}
-    deno={`deno run -A npm:create-qwik@latest
-cd <PROJECT>`}
+      npm={`npm create qwik@latest
+    cd <PROJECT>`}
+      yarn={`yarn create qwik@latest
+    cd <PROJECT>`}
+      pnpm={`pnpm create qwik@latest
+    cd <PROJECT>`}
+      deno={`deno run -A npm:create-qwik@latest
+    cd <PROJECT>`}
     />
 
 1.  ##### Install the `static adapter`
@@ -1513,7 +1512,7 @@ This guide is accurate as of Vite 5.4.8.
 1.  ##### Update Vite configuration:
 
     ```js title="vite.config.js"
-    import { defineConfig } from "vite";
+    import { defineConfig } from 'vite';
 
     const host = process.env.TAURI_DEV_HOST;
 
@@ -1529,7 +1528,7 @@ This guide is accurate as of Vite 5.4.8.
         host: host || false,
         hmr: host
           ? {
-              protocol: "ws",
+              protocol: 'ws',
               host,
               port: 1421,
             }
@@ -1537,19 +1536,19 @@ This guide is accurate as of Vite 5.4.8.
 
         watch: {
           // tell vite to ignore watching `src-tauri`
-          ignored: ["**/src-tauri/**"],
+          ignored: ['**/src-tauri/**'],
         },
       },
       // Env variables starting with the item of `envPrefix` will be exposed in tauri's source code through `import.meta.env`.
-      envPrefix: ["VITE_", "TAURI_ENV_*"],
+      envPrefix: ['VITE_', 'TAURI_ENV_*'],
       build: {
         // Tauri uses Chromium on Windows and WebKit on macOS and Linux
         target:
-          process.env.TAURI_ENV_PLATFORM == "windows"
-            ? "chrome105"
-            : "safari13",
+          process.env.TAURI_ENV_PLATFORM == 'windows'
+            ? 'chrome105'
+            : 'safari13',
         // don't minify for debug builds
-        minify: !process.env.TAURI_ENV_DEBUG ? "esbuild" : false,
+        minify: !process.env.TAURI_ENV_DEBUG ? 'esbuild' : false,
         // produce sourcemaps for debug builds
         sourcemap: !!process.env.TAURI_ENV_DEBUG,
       },
@@ -1651,9 +1650,9 @@ Here's an example of a Vite configuration migration:
 - 2.0.0-beta:
 
 ```js
-import { defineConfig } from "vite";
-import { svelte } from "@sveltejs/vite-plugin-svelte";
-import { internalIpV4Sync } from "internal-ip";
+import { defineConfig } from 'vite';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { internalIpV4Sync } from 'internal-ip';
 
 const mobile = !!/android|ios/.exec(process.env.TAURI_ENV_PLATFORM);
 
@@ -1661,12 +1660,12 @@ export default defineConfig({
   plugins: [svelte()],
   clearScreen: false,
   server: {
-    host: mobile ? "0.0.0.0" : false,
+    host: mobile ? '0.0.0.0' : false,
     port: 1420,
     strictPort: true,
     hmr: mobile
       ? {
-          protocol: "ws",
+          protocol: 'ws',
           host: internalIpV4Sync(),
           port: 1421,
         }
@@ -1678,9 +1677,9 @@ export default defineConfig({
 - 2.0.0:
 
 ```js
-import { defineConfig } from "vite";
-import Unocss from "unocss/vite";
-import { svelte } from "@sveltejs/vite-plugin-svelte";
+import { defineConfig } from 'vite';
+import Unocss from 'unocss/vite';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -1693,7 +1692,7 @@ export default defineConfig({
     strictPort: true,
     hmr: host
       ? {
-          protocol: "ws",
+          protocol: 'ws',
           host: host,
           port: 1430,
         }
@@ -1960,7 +1959,7 @@ fn main() {
 ```
 
 ```javascript
-import { getMatches } from "@tauri-apps/plugin-cli";
+import { getMatches } from '@tauri-apps/plugin-cli';
 const matches = await getMatches();
 ```
 
@@ -2011,9 +2010,9 @@ fn main() {
 ```
 
 ```javascript
-import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
-await writeText("Tauri is awesome!");
-assert(await readText(), "Tauri is awesome!");
+import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
+await writeText('Tauri is awesome!');
+assert(await readText(), 'Tauri is awesome!');
 ```
 
 </TabItem>
@@ -2069,12 +2068,12 @@ fn main() {
 ```
 
 ```javascript
-import { save } from "@tauri-apps/plugin-dialog";
+import { save } from '@tauri-apps/plugin-dialog';
 const filePath = await save({
   filters: [
     {
-      name: "Image",
-      extensions: ["png", "jpeg"],
+      name: 'Image',
+      extensions: ['png', 'jpeg'],
     },
   ],
 });
@@ -2135,8 +2134,8 @@ fn main() {
 ```
 
 ```javascript
-import { mkdir, BaseDirectory } from "@tauri-apps/plugin-fs";
-await mkdir("db", { baseDir: BaseDirectory.AppLocalData });
+import { mkdir, BaseDirectory } from '@tauri-apps/plugin-fs';
+await mkdir('db', { baseDir: BaseDirectory.AppLocalData });
 ```
 
 Some functions and types have been renamed or removed:
@@ -2193,9 +2192,9 @@ fn main() {
 ```
 
 ```javascript
-import { register } from "@tauri-apps/plugin-global-shortcut";
-await register("CommandOrControl+Shift+C", () => {
-  console.log("Shortcut triggered");
+import { register } from '@tauri-apps/plugin-global-shortcut';
+await register('CommandOrControl+Shift+C', () => {
+  console.log('Shortcut triggered');
 });
 ```
 
@@ -2258,9 +2257,9 @@ fn main() {
 ```
 
 ```javascript
-import { fetch } from "@tauri-apps/plugin-http";
+import { fetch } from '@tauri-apps/plugin-http';
 const response = await fetch(
-  "https://raw.githubusercontent.com/tauri-apps/tauri/dev/package.json",
+  'https://raw.githubusercontent.com/tauri-apps/tauri/dev/package.json'
 );
 ```
 
@@ -2324,8 +2323,8 @@ fn main() {
 ```
 
 ```javascript
-import { sendNotification } from "@tauri-apps/plugin-notification";
-sendNotification("Tauri is awesome!");
+import { sendNotification } from '@tauri-apps/plugin-notification';
+sendNotification('Tauri is awesome!');
 ```
 
 </TabItem>
@@ -2504,7 +2503,7 @@ fn main() {
 ```
 
 ```javascript
-import { arch } from "@tauri-apps/plugin-os";
+import { arch } from '@tauri-apps/plugin-os';
 const architecture = await arch();
 ```
 
@@ -2559,7 +2558,7 @@ fn main() {
 ```
 
 ```javascript
-import { exit, relaunch } from "@tauri-apps/plugin-process";
+import { exit, relaunch } from '@tauri-apps/plugin-process';
 await exit(0);
 await relaunch();
 ```
@@ -2618,10 +2617,10 @@ fn main() {
 ```
 
 ```javascript
-import { Command, open } from "@tauri-apps/plugin-shell";
-const output = await Command.create("echo", "message").execute();
+import { Command, open } from '@tauri-apps/plugin-shell';
+const output = await Command.create('echo', 'message').execute();
 
-await open("https://github.com/tauri-apps/tauri");
+await open('https://github.com/tauri-apps/tauri');
 ```
 
 </TabItem>
@@ -2811,8 +2810,8 @@ fn main() {
 ```
 
 ```javascript
-import { check } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
+import { check } from '@tauri-apps/plugin-updater';
+import { relaunch } from '@tauri-apps/plugin-process';
 
 const update = await check();
 if (update?.available) {
@@ -2937,8 +2936,8 @@ import { LinkCard, CardGrid } from '@astrojs/starlight/components';
   />
 </CardGrid>
 
-# Concept
 
+# Concept
 # Tauri Architecture
 
 ## Introduction
@@ -3540,7 +3539,7 @@ For the purposes of this example, let's imagine we are in the same directory as 
 ```javascript
 window.__TAURI_ISOLATION_HOOK__ = (payload) => {
   // let's not verify or modify anything, just print the content from the hook
-  console.log("hook", payload);
+  console.log('hook', payload);
   return payload;
 };
 ```
@@ -3576,8 +3575,8 @@ Let's assume that our main frontend `frontendDist` is set to `../dist`. We also 
 [brownfield pattern]: /concept/inter-process-communication/brownfield/
 [integration testing with webdriver]: /develop/tests/webdriver/
 
-# Security
 
+# Security
 # Capabilities
 
 Tauri provides application and plugin developers with a capabilities system,
@@ -3999,7 +3998,6 @@ will include those headers.
 ### Header Names
 
 The header names are limited to:
-
 - <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Credentials" target="_blank">Access-Control-Allow-Credentials ↗</a>
 - <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Headers" target="_blank">Access-Control-Allow-Headers ↗</a>
 - <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Methods" target="_blank">Access-Control-Allow-Methods ↗</a>
@@ -4095,44 +4093,40 @@ Some development environments require extra settings, to emulate the production 
 
 #### JavaScript/TypeScript
 
-For setups running the build tool **Vite** (those include **Qwik, React, Solid, Svelte, and Vue**) add the wanted headers to `vite.config.ts`.
-
+For setups running the build tool **Vite** (those include **Qwik, React, Solid, Svelte, and Vue**) add the wanted headers to `vite.config.ts`. 
 ```typescript title=vite.config.ts
-import { defineConfig } from "vite";
+import { defineConfig } from 'vite';
 
 export default defineConfig({
   // ...
   server: {
-    // ...
-    headers: {
-      "Cross-Origin-Opener-Policy": "same-origin",
-      "Cross-Origin-Embedder-Policy": "require-corp",
-      "Timing-Allow-Origin":
-        "https://developer.mozilla.org, https://example.com",
-      "Access-Control-Expose-Headers": "Tauri-Custom-Header",
-      "Tauri-Custom-Header": "key1 'value1' 'value2'; key2 'value3'",
+      // ...
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+        'Timing-Allow-Origin': 'https://developer.mozilla.org, https://example.com',
+        'Access-Control-Expose-Headers': 'Tauri-Custom-Header',
+        'Tauri-Custom-Header': "key1 'value1' 'value2'; key2 'value3'"
+      },
     },
-  },
-});
+})
 ```
-
 Sometimes the `vite.config.ts` is integrated into the frameworks configuration file, but the setup stays the same.
 In case of **Angular** add them to `angular.json`.
-
 ```json title=angular.json
 {
   //...
-  "projects": {
+  "projects":{
     //...
-    "insert-project-name": {
+    "insert-project-name":{
       //...
-      "architect": {
+      "architect":{
         //...
-        "serve": {
+        "serve":{
           //...
-          "options": {
+          "options":{
             //...
-            "headers": {
+            "headers":{
               "Cross-Origin-Opener-Policy": "same-origin",
               "Cross-Origin-Embedder-Policy": "require-corp",
               "Timing-Allow-Origin": "https://developer.mozilla.org, https://example.com",
@@ -4146,9 +4140,7 @@ In case of **Angular** add them to `angular.json`.
   }
 }
 ```
-
 And in case of **Nuxt** to `nuxt.config.ts`.
-
 ```typescript title=nuxt.config.ts
 export default defineNuxtConfig({
   //...
@@ -4156,57 +4148,55 @@ export default defineNuxtConfig({
     //...
     server: {
       //...
-      headers: {
-        "Cross-Origin-Opener-Policy": "same-origin",
-        "Cross-Origin-Embedder-Policy": "require-corp",
-        "Timing-Allow-Origin":
-          "https://developer.mozilla.org, https://example.com",
-        "Access-Control-Expose-Headers": "Tauri-Custom-Header",
-        "Tauri-Custom-Header": "key1 'value1' 'value2'; key2 'value3'",
-      },
+      headers:{
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+        'Timing-Allow-Origin': 'https://developer.mozilla.org, https://example.com',
+        'Access-Control-Expose-Headers': 'Tauri-Custom-Header',
+        'Tauri-Custom-Header': "key1 'value1' 'value2'; key2 'value3'"
+      }
     },
   },
 });
 ```
-
 **Next.js** doesn't rely on **Vite**, so the approach is different.
 Read more about it <a href="https://nextjs.org/docs/pages/api-reference/next-config-js/headers" target="_blank">here ↗</a>.
 The headers are defined in `next.config.js`.
-
 ```javascript title=next.config.js
 module.exports = {
   //...
   async headers() {
     return [
       {
-        source: "/*",
+        source: '/*',
         headers: [
           {
-            key: "Cross-Origin-Opener-Policy",
-            value: "same-origin",
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
           },
           {
-            key: "Cross-Origin-Embedder-Policy",
-            value: "require-corp",
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
           },
           {
-            key: "Timing-Allow-Origin",
-            value: "https://developer.mozilla.org, https://example.com",
+            key: 'Timing-Allow-Origin',
+            value: 'https://developer.mozilla.org, https://example.com',
           },
           {
-            key: "Access-Control-Expose-Headers",
-            value: "Tauri-Custom-Header",
+            key: 'Access-Control-Expose-Headers',
+            value: 'Tauri-Custom-Header',
           },
           {
-            key: "Tauri-Custom-Header",
+            key: 'Tauri-Custom-Header',
             value: "key1 'value1' 'value2'; key2 'value3'",
           },
         ],
       },
-    ];
+    ]
   },
-};
+}
 ```
+
 
 #### Rust
 
@@ -4216,7 +4206,7 @@ For **Yew** and **Leptos** add the headers to `Trunk.toml`
 #...
 [serve]
 #...
-headers = {
+headers = { 
   "Cross-Origin-Opener-Policy" = "same-origin",
   "Cross-Origin-Embedder-Policy" = "require-corp",
   "Timing-Allow-Origin" = "https://developer.mozilla.org, https://example.com",
@@ -4851,11 +4841,11 @@ permissions = ["scope-applocaldata-reasonable", "allow-read-file"]
 These examples only highlight the scope functionality itself. Each plugin or application developer
 needs to consider reasonable combinations of scope depending on their use cases.
 
-# Develop
 
+# Develop
 # Calling Rust from the Frontend
 
-import { Content as FrontendListen } from './\_sections/frontend-listen.mdx';
+import { Content as FrontendListen } from './_sections/frontend-listen.mdx';
 
 This document includes guides on how to communicate with your Rust code from your application frontend.
 To see how to communicate with your frontend from your Rust code, see [Calling the Frontend from Rust].
@@ -4918,14 +4908,14 @@ Now, you can invoke the command from your JavaScript code:
 
 ```javascript
 // When using the Tauri API npm package:
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from '@tauri-apps/api/core';
 
 // When using the Tauri global script (if not using the npm package)
 // Be sure to set `app.withGlobalTauri` in `tauri.conf.json` to true
 const invoke = window.__TAURI__.core.invoke;
 
 // Invoke the command
-invoke("my_custom_command");
+invoke('my_custom_command');
 ```
 
 #### Defining Commands in a Separate Module
@@ -5003,7 +4993,7 @@ fn my_custom_command(invoke_message: String) {
 Arguments should be passed as a JSON object with camelCase keys:
 
 ```javascript
-invoke("my_custom_command", { invokeMessage: "Hello!" });
+invoke('my_custom_command', { invokeMessage: 'Hello!' });
 ```
 
 :::note
@@ -5015,7 +5005,7 @@ fn my_custom_command(invoke_message: String) {}
 ```
 
 ```javascript
-invoke("my_custom_command", { invoke_message: "Hello!" });
+invoke('my_custom_command', { invoke_message: 'Hello!' });
 ```
 
 :::
@@ -5025,7 +5015,7 @@ Arguments can be of any type, as long as they implement [`serde::Deserialize`].
 The corresponding JavaScript:
 
 ```javascript
-invoke("my_custom_command", { invoke_message: "Hello!" });
+invoke('my_custom_command', { invoke_message: 'Hello!' });
 ```
 
 ### Returning Data
@@ -5042,7 +5032,7 @@ fn my_custom_command() -> String {
 The `invoke` function returns a promise that resolves with the returned value:
 
 ```javascript
-invoke("my_custom_command").then((message) => console.log(message));
+invoke('my_custom_command').then((message) => console.log(message));
 ```
 
 Returned data can be of any type, as long as it implements [`serde::Serialize`].
@@ -5082,7 +5072,7 @@ fn login(user: String, password: String) -> Result<String, String> {
 If the command returns an error, the promise will reject, otherwise, it resolves:
 
 ```javascript
-invoke("login", { user: "tauri", password: "0j4rijw8=" })
+invoke('login', { user: 'tauri', password: '0j4rijw8=' })
   .then((message) => console.log(message))
   .catch((error) => console.error(error));
 ```
@@ -5180,11 +5170,11 @@ In your frontend you now get a `{ kind: 'io' | 'utf8', message: string }` error 
 
 ```ts
 type ErrorKind = {
-  kind: "io" | "utf8";
+  kind: 'io' | 'utf8';
   message: string;
 };
 
-invoke("read").catch((e: ErrorKind) => {});
+invoke('read').catch((e: ErrorKind) => {});
 ```
 
 ### Async Commands
@@ -5252,8 +5242,8 @@ async fn my_custom_command(value: &str) -> Result<String, ()> {
 Since invoking the command from JavaScript already returns a promise, it works just like any other command:
 
 ```javascript
-invoke("my_custom_command", { value: "Hello, Async!" }).then(() =>
-  console.log("Completed!"),
+invoke('my_custom_command', { value: 'Hello, Async!' }).then(() =>
+  console.log('Completed!')
 );
 ```
 
@@ -5397,9 +5387,9 @@ and include request headers in the third argument:
 
 ```js
 const data = new Uint8Array([1, 2, 3]);
-await __TAURI__.core.invoke("upload", data, {
+await __TAURI__.core.invoke('upload', data, {
   headers: {
-    Authorization: "apikey",
+    Authorization: 'apikey',
   },
 });
 ```
@@ -5476,14 +5466,14 @@ pub fn run() {
 ```
 
 ```javascript
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from '@tauri-apps/api/core';
 
 // Invocation from JavaScript
-invoke("my_custom_command", {
+invoke('my_custom_command', {
   number: 42,
 })
   .then((res) =>
-    console.log(`Message: ${res.message}, Other Val: ${res.other_val}`),
+    console.log(`Message: ${res.message}, Other Val: ${res.other_val}`)
   )
   .catch((e) => console.error(e));
 ```
@@ -5498,14 +5488,14 @@ Unlike commands, events are not type safe, are always async, cannot return value
 To trigger a global event you can use the [event.emit] or the [WebviewWindow#emit] functions:
 
 ```js
-import { emit } from "@tauri-apps/api/event";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { emit } from '@tauri-apps/api/event';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 // emit(eventName, payload)
-emit("file-selected", "/path/to/file");
+emit('file-selected', '/path/to/file');
 
 const appWebview = getCurrentWebviewWindow();
-appWebview.emit("route-changed", { url: window.location.href });
+appWebview.emit('route-changed', { url: window.location.href });
 ```
 
 :::note
@@ -5517,19 +5507,19 @@ Global events are delivered to **all** listeners
 To trigger an event to a listener registered by a specific webview you can use the [event.emitTo] or the [WebviewWindow#emitTo] functions:
 
 ```js
-import { emitTo } from "@tauri-apps/api/event";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { emitTo } from '@tauri-apps/api/event';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 // emitTo(webviewLabel, eventName, payload)
-emitTo("settings", "settings-update-requested", {
-  key: "notification",
-  value: "all",
+emitTo('settings', 'settings-update-requested', {
+  key: 'notification',
+  value: 'all',
 });
 
 const appWebview = getCurrentWebviewWindow();
-appWebview.emitTo("editor", "file-changed", {
-  path: "/path/to/file",
-  contents: "file contents",
+appWebview.emitTo('editor', 'file-changed', {
+  path: '/path/to/file',
+  contents: 'file contents',
 });
 ```
 
@@ -5539,15 +5529,15 @@ To listen to **any** event you must provide the `{ target: { kind: 'Any' } }` op
 which defines the listener to act as a catch-all for emitted events:
 
 ```js
-import { listen } from "@tauri-apps/api/event";
+import { listen } from '@tauri-apps/api/event';
 listen(
-  "state-changed",
+  'state-changed',
   (event) => {
-    console.log("got state changed event", event);
+    console.log('got state changed event', event);
   },
   {
-    target: { kind: "Any" },
-  },
+    target: { kind: 'Any' },
+  }
 );
 ```
 
@@ -5579,7 +5569,7 @@ To learn how to listen to events and emit events from your Rust code, see the [R
 
 # Calling the Frontend from Rust
 
-import { Content as FrontendListen } from './\_sections/frontend-listen.mdx';
+import { Content as FrontendListen } from './_sections/frontend-listen.mdx';
 
 This document includes guides on how to communicate with your application frontend from your Rust code.
 To see how to communicate with your Rust code from your frontend, see [Calling Rust from the Frontend].
@@ -5778,11 +5768,11 @@ fn download(app: AppHandle, url: String, on_event: Channel<DownloadEvent>) {
 When calling the download command you must create the channel and provide it as an argument:
 
 ```ts
-import { invoke, Channel } from "@tauri-apps/api/core";
+import { invoke, Channel } from '@tauri-apps/api/core';
 
 type DownloadEvent =
   | {
-      event: "started";
+      event: 'started';
       data: {
         url: string;
         downloadId: number;
@@ -5790,14 +5780,14 @@ type DownloadEvent =
       };
     }
   | {
-      event: "progress";
+      event: 'progress';
       data: {
         downloadId: number;
         chunkLength: number;
       };
     }
   | {
-      event: "finished";
+      event: 'finished';
       data: {
         downloadId: number;
       };
@@ -5808,8 +5798,8 @@ onEvent.onmessage = (message) => {
   console.log(`got download event ${message.event}`);
 };
 
-await invoke("download", {
-  url: "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-schema-generator/schemas/config.schema.json",
+await invoke('download', {
+  url: 'https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-schema-generator/schemas/config.schema.json',
   onEvent,
 });
 ```
@@ -5878,25 +5868,25 @@ The structure and values are the same across all formats, however, the formattin
 ```json5 title=tauri.conf.json or tauri.conf.json5
 {
   build: {
-    devUrl: "http://localhost:3000",
+    devUrl: 'http://localhost:3000',
     // start the dev server
-    beforeDevCommand: "npm run dev",
+    beforeDevCommand: 'npm run dev',
   },
   bundle: {
     active: true,
-    icon: ["icons/app.png"],
+    icon: ['icons/app.png'],
   },
   app: {
     windows: [
       {
-        title: "MyApp",
+        title: 'MyApp',
       },
     ],
   },
   plugins: {
     updater: {
-      pubkey: "updater pub key",
-      endpoints: ["https://my.app.updater/{{target}}/{{current_version}}"],
+      pubkey: 'updater pub key',
+      endpoints: ['https://my.app.updater/{{target}}/{{current_version}}'],
     },
   },
 }
@@ -6115,7 +6105,7 @@ To learn more about the `package.json` file format please refer to the [official
 
 # App Icons
 
-{/_ TODO: More platform specific explanations like macOS requiring padding in the icon (waiting for https://github.com/tauri-apps/tauri/pull/11037) _/}
+{/* TODO: More platform specific explanations like macOS requiring padding in the icon (waiting for https://github.com/tauri-apps/tauri/pull/11037) */}
 
 import CommandTabs from '@components/CommandTabs.astro';
 
@@ -6334,7 +6324,7 @@ To make your development server listen on the correct host to be accessible by t
 to use the `TAURI_DEV_HOST` value if it has been provided. Here is an example configuration for Vite:
 
 ```js
-import { defineConfig } from "vite";
+import { defineConfig } from 'vite';
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -6347,7 +6337,7 @@ export default defineConfig({
     strictPort: true,
     hmr: host
       ? {
-          protocol: "ws",
+          protocol: 'ws',
           host,
           port: 1421,
         }
@@ -6657,8 +6647,8 @@ fn hello(handle: tauri::AppHandle) {
 To resolve the path in JavaScript, use [`resolveResource`]:
 
 ```javascript
-import { resolveResource } from "@tauri-apps/api/path";
-const resourcePath = await resolveResource("lang/de.json");
+import { resolveResource } from '@tauri-apps/api/path';
+const resourcePath = await resolveResource('lang/de.json');
 ```
 
 </TabItem>
@@ -6791,10 +6781,10 @@ For more information, read [Scope Permissions] for other options, or [Scopes] fo
 :::
 
 ```javascript
-import { resolveResource } from "@tauri-apps/api/path";
-import { readTextFile } from "@tauri-apps/plugin-fs";
+import { resolveResource } from '@tauri-apps/api/path';
+import { readTextFile } from '@tauri-apps/plugin-fs';
 
-const resourcePath = await resolveResource("lang/de.json");
+const resourcePath = await resolveResource('lang/de.json');
 const langDe = JSON.parse(await readTextFile(resourcePath));
 console.log(langDe.hello); // This will print 'Guten Tag!' to the devtools console
 ```
@@ -6929,19 +6919,19 @@ rustc -Vv | Select-String "host:" | ForEach-Object {$_.Line.split(" ")[1]}
 Here's a Node.js script to append the target triple to a binary:
 
 ```javascript
-import { execSync } from "child_process";
-import fs from "fs";
+import { execSync } from 'child_process';
+import fs from 'fs';
 
-const extension = process.platform === "win32" ? ".exe" : "";
+const extension = process.platform === 'win32' ? '.exe' : '';
 
-const rustInfo = execSync("rustc -vV");
+const rustInfo = execSync('rustc -vV');
 const targetTriple = /host: (\S+)/g.exec(rustInfo)[1];
 if (!targetTriple) {
-  console.error("Failed to determine platform target triple");
+  console.error('Failed to determine platform target triple');
 }
 fs.renameSync(
   `src-tauri/binaries/sidecar${extension}`,
-  `src-tauri/binaries/sidecar-${targetTriple}${extension}`,
+  `src-tauri/binaries/sidecar-${targetTriple}${extension}`
 );
 ```
 
@@ -7031,8 +7021,8 @@ The `shell:allow-execute` identifier is used because the sidecar's child process
 In the JavaScript code, import the `Command` class from the `@tauri-apps/plugin-shell` module and use the `sidecar` static method.
 
 ```javascript
-import { Command } from "@tauri-apps/plugin-shell";
-const command = Command.sidecar("binaries/my-sidecar");
+import { Command } from '@tauri-apps/plugin-shell';
+const command = Command.sidecar('binaries/my-sidecar');
 const output = await command.execute();
 ```
 
@@ -7101,13 +7091,13 @@ async fn call_my_sidecar(app: tauri::AppHandle) {
 In JavaScript:
 
 ```javascript
-import { Command } from "@tauri-apps/plugin-shell";
+import { Command } from '@tauri-apps/plugin-shell';
 // notice that the args array matches EXACTLY what is specified in `capabilities/default.json`.
-const command = Command.sidecar("binaries/my-sidecar", [
-  "arg1",
-  "-a",
-  "--arg2",
-  "any-string-that-matches-the-validator",
+const command = Command.sidecar('binaries/my-sidecar', [
+  'arg1',
+  '-a',
+  '--arg2',
+  'any-string-that-matches-the-validator',
 ]);
 const output = await command.execute();
 ```
@@ -7303,7 +7293,7 @@ However, make sure to use the type alias as it is, and not wrap it in a [`Mutex`
 
 # Updating Dependencies
 
-{/_ TODO: Add plugin update example _/}
+{/* TODO: Add plugin update example */}
 
 import CommandTabs from '@components/CommandTabs.astro';
 
@@ -7446,7 +7436,7 @@ fn main() {
 }
 ```
 
-{/_ TODO: js version _/}
+{/* TODO: js version */}
 
 ## Rust Console
 
@@ -7680,7 +7670,7 @@ vim.keymap.set('n', '<Leader>R', function() overseer.run_template() end)
 
 # Debug in JetBrains IDEs
 
-{/_ TODO: Add support to light/dark mode images _/}
+{/* TODO: Add support to light/dark mode images */}
 
 In this guide, we'll be setting up JetBrains RustRover for debugging the [Core Process of your Tauri app](/concept/process-model/#the-core-process). It also mostly applies to IntelliJ and CLion.
 
@@ -7714,17 +7704,17 @@ You will need to set up two separate Run/Debug configurations:
 - To create a new configuration, click **+** on the toolbar and select **Cargo**.
 
 ![Add Run/Debug Configuration](@assets/develop/Debug/rustrover/add-cargo-config-light.png)
-{/_ ![Add Run/Debug Configuration](@assets/develop/Debug/rustrover/add-cargo-config-dark.png#gh-dark-mode-only) _/}
+{/* ![Add Run/Debug Configuration](@assets/develop/Debug/rustrover/add-cargo-config-dark.png#gh-dark-mode-only) */}
 
 With that created, we need to configure RustRover, so it instructs Cargo to build our app without any default features. This will tell Tauri to use your development server instead of reading assets from the disk. Normally this flag is passed by the Tauri CLI, but since we're completely sidestepping that here, we need to pass the flag manually.
 
 ![Add `--no-default-features` flag](@assets/develop/Debug/rustrover/set-no-default-features-light.png)
-{/_ ![Add `--no-default-features` flag](@assets/develop/Debug/rustrover/set-no-default-features-dark.png#gh-dark-mode-only) _/}
+{/* ![Add `--no-default-features` flag](@assets/develop/Debug/rustrover/set-no-default-features-dark.png#gh-dark-mode-only) */}
 
 Now we can optionally rename the Run/Debug Configuration to something more memorable, in this example we called it "Run Tauri App", but you can name it whatever you want.
 
 ![Rename Configuration](@assets/develop/Debug/rustrover/rename-configuration-light.png)
-{/_ ![Rename Configuration](@assets/develop/Debug/rustrover/rename-configuration-dark.png#gh-dark-mode-only) _/}
+{/* ![Rename Configuration](@assets/develop/Debug/rustrover/rename-configuration-dark.png#gh-dark-mode-only) */}
 
 ### Development Server
 
@@ -7739,21 +7729,21 @@ To create the corresponding Run configuration, you need to check the actual deve
 For `npm`, `pnpm`, or `yarn`, you could use the **npm** Run Configuration, for example:
 
 ![NPM Configuration](@assets/develop/Debug/rustrover/npm-configuration-light.png)
-{/_ ![NPM Configuration](@assets/develop/Debug/rustrover/npm-configuration-dark.png#gh-dark-mode-only) _/}
+{/* ![NPM Configuration](@assets/develop/Debug/rustrover/npm-configuration-dark.png#gh-dark-mode-only) */}
 
 Make sure you have the correct values in the **Command**, **Scripts**, and **Package Manager** fields.
 
 If your development server is `trunk` for Rust-based WebAssembly frontend frameworks, you could use the generic **Shell Script** Run Configuration:
 
 ![Trunk Serve Configuration](@assets/develop/Debug/rustrover/trunk-configuration-light.png)
-{/_ ![Trunk Serve Configuration](@assets/develop/Debug/rustrover/trunk-configuration-dark.png#gh-dark-mode-only) _/}
+{/* ![Trunk Serve Configuration](@assets/develop/Debug/rustrover/trunk-configuration-dark.png#gh-dark-mode-only) */}
 
 ## Launching a Debugging Session
 
 To launch a debugging session, you first need to run your development server, and then start debugging the Tauri App by clicking the **Debug** button next to the Run Configurations Switcher. RustRover will automatically recognize breakpoints placed in any Rust file in your project and stop on the first one hit.
 
 ![Debug Session](@assets/develop/Debug/rustrover/debug-session-light.png)
-{/_ ![Debug Session](@assets/develop/Debug/rustrover/debug-session-dark.png#gh-dark-mode-only) _/}
+{/* ![Debug Session](@assets/develop/Debug/rustrover/debug-session-dark.png#gh-dark-mode-only) */}
 
 From this point, you can explore the values of your variables, step further into the code, and check what's going at runtime in detail.
 
@@ -8375,7 +8365,7 @@ impl<R: Runtime> Notification<R> {
 
 ## Plugin Events
 
-{/_ TODO: Is this section a duplicate of Lifecycle Events above? _/}
+{/* TODO: Is this section a duplicate of Lifecycle Events above? */}
 
 Plugins can emit events at any point of time using the `trigger` function:
 
@@ -8444,11 +8434,11 @@ export async function onRequest(
 
 # Plugin Development
 
-{/_ TODO: Add a CLI section _/}
+{/* TODO: Add a CLI section */}
 
 import CommandTabs from '@components/CommandTabs.astro';
 
-{/_ TODO: Link to windowing system, commands for sending messages, and event system _/}
+{/* TODO: Link to windowing system, commands for sending messages, and event system */}
 
 :::tip[Plugin Development]
 
@@ -8462,7 +8452,7 @@ Tauri offers a windowing system with web view functionality, a way to send messa
 
 A Tauri plugin is composed of a Cargo crate and an optional NPM package that provides API bindings for its commands and events. Additionally, a plugin project can include an Android library project and a Swift package for iOS. You can learn more about developing plugins for Android and iOS in the [Mobile Plugin Development guide](/develop/plugins/develop-mobile/).
 
-{/_ TODO: https://github.com/tauri-apps/tauri/issues/7749 _/}
+{/* TODO: https://github.com/tauri-apps/tauri/issues/7749 */}
 
 ## Naming Convention
 
@@ -8900,7 +8890,7 @@ The `@tauri-apps/api` NPM package offers APIs to listen to both global and webvi
 - Listening to global events
 
   ```ts
-  import { listen } from "@tauri-apps/api/event";
+  import { listen } from '@tauri-apps/api/event';
 
   type DownloadStarted = {
     url: string;
@@ -8908,9 +8898,9 @@ The `@tauri-apps/api` NPM package offers APIs to listen to both global and webvi
     contentLength: number;
   };
 
-  listen<DownloadStarted>("download-started", (event) => {
+  listen<DownloadStarted>('download-started', (event) => {
     console.log(
-      `downloading ${event.payload.contentLength} bytes from ${event.payload.url}`,
+      `downloading ${event.payload.contentLength} bytes from ${event.payload.url}`
     );
   });
   ```
@@ -8918,11 +8908,11 @@ The `@tauri-apps/api` NPM package offers APIs to listen to both global and webvi
 - Listening to webview-specific events
 
   ```ts
-  import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+  import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
   const appWebview = getCurrentWebviewWindow();
-  appWebview.listen<string>("logged-in", (event) => {
-    localStorage.setItem("session-token", event.payload);
+  appWebview.listen<string>('logged-in', (event) => {
+    localStorage.setItem('session-token', event.payload);
   });
   ```
 
@@ -8930,9 +8920,9 @@ The `listen` function keeps the event listener registered for the entire lifetim
 To stop listening on an event you can use the `unlisten` function which is returned by the `listen` function:
 
 ```js
-import { listen } from "@tauri-apps/api/event";
+import { listen } from '@tauri-apps/api/event';
 
-const unlisten = await listen("download-started", (event) => {});
+const unlisten = await listen('download-started', (event) => {});
 unlisten();
 ```
 
@@ -8947,13 +8937,13 @@ This does not apply to a Single Page Application (SPA) router though.
 Additionally Tauri provides a utility function for listening to an event exactly once:
 
 ```js
-import { once } from "@tauri-apps/api/event";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { once } from '@tauri-apps/api/event';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
-once("ready", (event) => {});
+once('ready', (event) => {});
 
 const appWebview = getCurrentWebviewWindow();
-appWebview.once("ready", () => {});
+appWebview.once('ready', () => {});
 ```
 
 :::note
@@ -9154,22 +9144,22 @@ To mock IPC requests to a sidecar or shell command you need to grab the ID of th
 
 ```javascript
 mockIPC(async (cmd, args) => {
-  if (args.message.cmd === "execute") {
+  if (args.message.cmd === 'execute') {
     const eventCallbackId = `_${args.message.onEventFn}`;
     const eventEmitter = window[eventCallbackId];
 
     // 'Stdout' event can be called multiple times
     eventEmitter({
-      event: "Stdout",
-      payload: "some data sent from the process",
+      event: 'Stdout',
+      payload: 'some data sent from the process',
     });
 
     // 'Terminated' event must be called at the end to resolve the promise
     eventEmitter({
-      event: "Terminated",
+      event: 'Terminated',
       payload: {
         code: 0,
-        signal: "kill",
+        signal: 'kill',
       },
     });
   }
@@ -9183,20 +9173,20 @@ mockIPC(async (cmd, args) => {
 There is partial support of the [Event System] to simulate events emitted by your Rust code via the `shouldMockEvents` option:
 
 ```javascript
-import { mockIPC, clearMocks } from "@tauri-apps/api/mocks";
-import { emit, listen } from "@tauri-apps/api/event";
-import { afterEach, expect, test, vi } from "vitest";
+import { mockIPC, clearMocks } from '@tauri-apps/api/mocks';
+import { emit, listen } from '@tauri-apps/api/event';
+import { afterEach, expect, test, vi } from 'vitest';
 
-test("mocked event", () => {
+test('mocked event', () => {
   mockIPC(() => {}, { shouldMockEvents: true }); // enable event mocking
 
   const eventHandler = vi.fn();
-  listen("test-event", eventHandler);
+  listen('test-event', eventHandler);
 
-  emit("test-event", { foo: "bar" });
+  emit('test-event', { foo: 'bar' });
   expect(eventHandler).toHaveBeenCalledWith({
-    event: "test-event",
-    payload: { foo: "bar" },
+    event: 'test-event',
+    payload: { foo: 'bar' },
   });
 });
 ```
@@ -9215,14 +9205,14 @@ You can use the [`mockWindows()`] method to create fake window labels. The first
 :::
 
 ```javascript
-import { beforeAll, expect, test } from "vitest";
-import { randomFillSync } from "crypto";
+import { beforeAll, expect, test } from 'vitest';
+import { randomFillSync } from 'crypto';
 
-import { mockWindows } from "@tauri-apps/api/mocks";
+import { mockWindows } from '@tauri-apps/api/mocks';
 
 // jsdom doesn't come with a WebCrypto implementation
 beforeAll(() => {
-  Object.defineProperty(window, "crypto", {
+  Object.defineProperty(window, 'crypto', {
     value: {
       // @ts-ignore
       getRandomValues: (buffer) => {
@@ -9232,13 +9222,13 @@ beforeAll(() => {
   });
 });
 
-test("invoke", async () => {
-  mockWindows("main", "second", "third");
+test('invoke', async () => {
+  mockWindows('main', 'second', 'third');
 
-  const { getCurrent, getAll } = await import("@tauri-apps/api/webviewWindow");
+  const { getCurrent, getAll } = await import('@tauri-apps/api/webviewWindow');
 
-  expect(getCurrent()).toHaveProperty("label", "main");
-  expect(getAll().map((w) => w.label)).toEqual(["main", "second", "third"]);
+  expect(getCurrent()).toHaveProperty('label', 'main');
+  expect(getAll().map((w) => w.label)).toEqual(['main', 'second', 'third']);
 });
 ```
 
@@ -9406,7 +9396,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: "yarn"
+          cache: 'yarn'
 
       # install the application Node.js dependencies with Yarn
       - name: Yarn install
@@ -9519,24 +9509,24 @@ testing file at `test/test.js` by default, so let's create that file now.
 `test/test.js`:
 
 ```javascript
-import os from "os";
-import path from "path";
-import { expect } from "chai";
-import { spawn, spawnSync } from "child_process";
-import { Builder, By, Capabilities } from "selenium-webdriver";
-import { fileURLToPath } from "url";
+import os from 'os';
+import path from 'path';
+import { expect } from 'chai';
+import { spawn, spawnSync } from 'child_process';
+import { Builder, By, Capabilities } from 'selenium-webdriver';
+import { fileURLToPath } from 'url';
 
-const __dirname = fileURLToPath(new URL(".", import.meta.url));
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 // create the path to the expected application binary
 const application = path.resolve(
   __dirname,
-  "..",
-  "..",
-  "src-tauri",
-  "target",
-  "debug",
-  "tauri-app",
+  '..',
+  '..',
+  'src-tauri',
+  'target',
+  'debug',
+  'tauri-app'
 );
 
 // keep track of the webdriver instance we create
@@ -9551,37 +9541,37 @@ before(async function () {
   this.timeout(120000);
 
   // ensure the app has been built
-  spawnSync("yarn", ["tauri", "build", "--debug", "--no-bundle"], {
-    cwd: path.resolve(__dirname, "../.."),
-    stdio: "inherit",
+  spawnSync('yarn', ['tauri', 'build', '--debug', '--no-bundle'], {
+    cwd: path.resolve(__dirname, '../..'),
+    stdio: 'inherit',
     shell: true,
   });
 
   // start tauri-driver
   tauriDriver = spawn(
-    path.resolve(os.homedir(), ".cargo", "bin", "tauri-driver"),
+    path.resolve(os.homedir(), '.cargo', 'bin', 'tauri-driver'),
     [],
-    { stdio: [null, process.stdout, process.stderr] },
+    { stdio: [null, process.stdout, process.stderr] }
   );
-  tauriDriver.on("error", (error) => {
-    console.error("tauri-driver error:", error);
+  tauriDriver.on('error', (error) => {
+    console.error('tauri-driver error:', error);
     process.exit(1);
   });
-  tauriDriver.on("exit", (code) => {
+  tauriDriver.on('exit', (code) => {
     if (!exit) {
-      console.error("tauri-driver exited with code:", code);
+      console.error('tauri-driver exited with code:', code);
       process.exit(1);
     }
   });
 
   const capabilities = new Capabilities();
-  capabilities.set("tauri:options", { application });
-  capabilities.setBrowserName("wry");
+  capabilities.set('tauri:options', { application });
+  capabilities.setBrowserName('wry');
 
   // start the webdriver client
   driver = await new Builder()
     .withCapabilities(capabilities)
-    .usingServer("http://127.0.0.1:4444/")
+    .usingServer('http://127.0.0.1:4444/')
     .build();
 });
 
@@ -9590,25 +9580,25 @@ after(async function () {
   await closeTauriDriver();
 });
 
-describe("Hello Tauri", () => {
-  it("should be cordial", async () => {
-    const text = await driver.findElement(By.css("body > h1")).getText();
+describe('Hello Tauri', () => {
+  it('should be cordial', async () => {
+    const text = await driver.findElement(By.css('body > h1')).getText();
     expect(text).to.match(/^[hH]ello/);
   });
 
-  it("should be excited", async () => {
-    const text = await driver.findElement(By.css("body > h1")).getText();
+  it('should be excited', async () => {
+    const text = await driver.findElement(By.css('body > h1')).getText();
     expect(text).to.match(/!$/);
   });
 
-  it("should be easy on the eyes", async () => {
+  it('should be easy on the eyes', async () => {
     // selenium returns color css values as rgb(r, g, b)
     const text = await driver
-      .findElement(By.css("body"))
-      .getCssValue("background-color");
+      .findElement(By.css('body'))
+      .getCssValue('background-color');
 
     const rgb = text.match(/^rgb\((?<r>\d+), (?<g>\d+), (?<b>\d+)\)$/).groups;
-    expect(rgb).to.have.all.keys("r", "g", "b");
+    expect(rgb).to.have.all.keys('r', 'g', 'b');
 
     const luma = 0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b;
     expect(luma).to.be.lessThan(100);
@@ -9632,11 +9622,11 @@ function onShutdown(fn) {
     }
   };
 
-  process.on("exit", cleanup);
-  process.on("SIGINT", cleanup);
-  process.on("SIGTERM", cleanup);
-  process.on("SIGHUP", cleanup);
-  process.on("SIGBREAK", cleanup);
+  process.on('exit', cleanup);
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
+  process.on('SIGHUP', cleanup);
+  process.on('SIGBREAK', cleanup);
 }
 
 onShutdown(() => {
@@ -9764,34 +9754,34 @@ config file which controls most aspects of our testing suite.
 `wdio.conf.js`:
 
 ```javascript
-import os from "os";
-import path from "path";
-import { spawn, spawnSync } from "child_process";
-import { fileURLToPath } from "url";
+import os from 'os';
+import path from 'path';
+import { spawn, spawnSync } from 'child_process';
+import { fileURLToPath } from 'url';
 
-const __dirname = fileURLToPath(new URL(".", import.meta.url));
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 // keep track of the `tauri-driver` child process
 let tauriDriver;
 let exit = false;
 
 export const config = {
-  host: "127.0.0.1",
+  host: '127.0.0.1',
   port: 4444,
-  specs: ["./develop/tests/specs/**/*.js"],
+  specs: ['./develop/tests/specs/**/*.js'],
   maxInstances: 1,
   capabilities: [
     {
       maxInstances: 1,
-      "tauri:options": {
-        application: "../src-tauri/target/debug/tauri-app",
+      'tauri:options': {
+        application: '../src-tauri/target/debug/tauri-app',
       },
     },
   ],
-  reporters: ["spec"],
-  framework: "mocha",
+  reporters: ['spec'],
+  framework: 'mocha',
   mochaOpts: {
-    ui: "bdd",
+    ui: 'bdd',
     timeout: 60000,
   },
 
@@ -9799,31 +9789,31 @@ export const config = {
   onPrepare: () => {
     // Remove the extra `--` if you're not using npm!
     spawnSync(
-      "npm",
-      ["run", "tauri", "build", "--", "--debug", "--no-bundle"],
+      'npm',
+      ['run', 'tauri', 'build', '--', '--debug', '--no-bundle'],
       {
-        cwd: path.resolve(__dirname, ".."),
-        stdio: "inherit",
+        cwd: path.resolve(__dirname, '..'),
+        stdio: 'inherit',
         shell: true,
-      },
+      }
     );
   },
 
   // ensure we are running `tauri-driver` before the session starts so that we can proxy the webdriver requests
   beforeSession: () => {
     tauriDriver = spawn(
-      path.resolve(os.homedir(), ".cargo", "bin", "tauri-driver"),
+      path.resolve(os.homedir(), '.cargo', 'bin', 'tauri-driver'),
       [],
-      { stdio: [null, process.stdout, process.stderr] },
+      { stdio: [null, process.stdout, process.stderr] }
     );
 
-    tauriDriver.on("error", (error) => {
-      console.error("tauri-driver error:", error);
+    tauriDriver.on('error', (error) => {
+      console.error('tauri-driver error:', error);
       process.exit(1);
     });
-    tauriDriver.on("exit", (code) => {
+    tauriDriver.on('exit', (code) => {
       if (!exit) {
-        console.error("tauri-driver exited with code:", code);
+        console.error('tauri-driver exited with code:', code);
         process.exit(1);
       }
     });
@@ -9850,11 +9840,11 @@ function onShutdown(fn) {
     }
   };
 
-  process.on("exit", cleanup);
-  process.on("SIGINT", cleanup);
-  process.on("SIGTERM", cleanup);
-  process.on("SIGHUP", cleanup);
-  process.on("SIGBREAK", cleanup);
+  process.on('exit', cleanup);
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
+  process.on('SIGHUP', cleanup);
+  process.on('SIGBREAK', cleanup);
 }
 
 // ensure tauri-driver is closed when our test process exits
@@ -9877,7 +9867,7 @@ run them as it sees fit. Let's create our spec now in the directory we specified
 ```javascript
 // calculates the luma from a hex color `#abcdef`
 function luma(hex) {
-  if (hex.startsWith("#")) {
+  if (hex.startsWith('#')) {
     hex = hex.substring(1);
   }
 
@@ -9888,22 +9878,22 @@ function luma(hex) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-describe("Hello Tauri", () => {
-  it("should be cordial", async () => {
-    const header = await $("body > h1");
+describe('Hello Tauri', () => {
+  it('should be cordial', async () => {
+    const header = await $('body > h1');
     const text = await header.getText();
     expect(text).toMatch(/^[hH]ello/);
   });
 
-  it("should be excited", async () => {
-    const header = await $("body > h1");
+  it('should be excited', async () => {
+    const header = await $('body > h1');
     const text = await header.getText();
     expect(text).toMatch(/!$/);
   });
 
-  it("should be easy on the eyes", async () => {
-    const body = await $("body");
-    const backgroundColor = await body.getCSSProperty("background-color");
+  it('should be easy on the eyes', async () => {
+    const body = await $('body');
+    const backgroundColor = await body.getCSSProperty('background-color');
     expect(luma(backgroundColor.parsed.hex)).toBeLessThan(100);
   });
 });
@@ -9964,8 +9954,8 @@ of configuration and a single command to run it! Even better, we didn't have to 
 [webdriver documentation]: https://webdriver.io/docs/configurationfile
 [webdriverio api docs]: https://webdriver.io/docs/api
 
-# Distribute
 
+# Distribute
 # App Store
 
 import CommandTabs from '@components/CommandTabs.astro';
@@ -10333,7 +10323,7 @@ GStreamer plugins in the `ugly` package are licensed in a way that may make it h
 
 :::
 
-{/_ TODO: Add some reference links for gst setup/plugins _/}
+{/* TODO: Add some reference links for gst setup/plugins */}
 
 ## Custom Files
 
@@ -10799,7 +10789,7 @@ flatpak install flathub org.gnome.Platform//46 org.gnome.Sdk//46
 id: <identifier>
 
 runtime: org.gnome.Platform
-runtime-version: "46"
+runtime-version: '46'
 sdk: org.gnome.Sdk
 
 command: <main_binary_name>
@@ -10837,7 +10827,7 @@ modules:
       - tar -C deb-extract -xf deb-extract/data.tar.gz
 
       # Copy binary
-      - "install -Dm755 deb-extract/usr/bin/<executable_name> /app/bin/<executable_name>"
+      - 'install -Dm755 deb-extract/usr/bin/<executable_name> /app/bin/<executable_name>'
 
       # If you bundle files with additional resources, you should copy them:
       - mkdir -p /app/lib/<product_name>
@@ -11457,59 +11447,35 @@ By default the `build` command automatically bundles your application for the co
 If you need further customization on how the platform bundles are generated, you can split the build and bundle steps:
 
 <CommandTabs
-npm="npm run tauri build -- --no-bundle
-
+  npm="npm run tauri build -- --no-bundle
 # bundle for distribution outside the macOS App Store
-
 npm run tauri bundle -- --bundles app,dmg
-
 # bundle for App Store distribution
-
 npm run tauri bundle -- --bundles app --config src-tauri/tauri.appstore.conf.json"
-yarn="yarn tauri build --no-bundle
-
+  yarn="yarn tauri build --no-bundle
 # bundle for distribution outside the macOS App Store
-
 yarn tauri bundle --bundles app,dmg
-
 # bundle for App Store distribution
-
 yarn tauri bundle --bundles app --config src-tauri/tauri.appstore.conf.json"
-pnpm="pnpm tauri build --no-bundle
-
+  pnpm="pnpm tauri build --no-bundle
 # bundle for distribution outside the macOS App Store
-
 pnpm tauri bundle --bundles app,dmg
-
 # bundle for App Store distribution
-
 pnpm tauri bundle --bundles app --config src-tauri/tauri.appstore.conf.json"
-deno="deno task tauri build --no-bundle
-
+  deno="deno task tauri build --no-bundle
 # bundle for distribution outside the macOS App Store
-
 deno task tauri bundle --bundles app,dmg
-
 # bundle for App Store distribution
-
 deno task tauri bundle --bundles app --config src-tauri/tauri.appstore.conf.json"
-bun="bun tauri build --no-bundle
-
+  bun="bun tauri build --no-bundle
 # bundle for distribution outside the macOS App Store
-
 bun tauri bundle --bundles app,dmg
-
 # bundle for App Store distribution
-
 bun tauri bundle --bundles app --config src-tauri/tauri.appstore.conf.json"
-cargo="cargo tauri build --no-bundle
-
+  cargo="cargo tauri build --no-bundle
 # bundle for distribution outside the macOS App Store
-
 cargo tauri bundle --bundles app,dmg
-
 # bundle for App Store distribution
-
 cargo tauri bundle --bundles app --config src-tauri/tauri.appstore.conf.json"
 />
 
@@ -12310,15 +12276,15 @@ import { Tabs, TabItem, Card } from '@astrojs/starlight/components';
 
 **1. Install `snap`**
 
-{/_ prettier-ignore _/}
+{/* prettier-ignore */}
 <Tabs syncKey="distro">
-<TabItem label="Debian">
-`shell
+  <TabItem label="Debian">
+    ```shell
     sudo apt install snapd
-    `
-</TabItem>
-<TabItem label="Arch">
-`shell
+    ```
+  </TabItem>
+  <TabItem label="Arch">
+    ```shell
     sudo pacman -S --needed git base-devel
     git clone https://aur.archlinux.org/snapd.git
     cd snapd
@@ -12326,14 +12292,14 @@ import { Tabs, TabItem, Card } from '@astrojs/starlight/components';
     sudo systemctl enable --now snapd.socket
     sudo systemctl start snapd.socket
     sudo systemctl enable --now snapd.apparmor.service
-    `
-</TabItem>
-<TabItem label="Fedora">
-`shell
+    ```
+  </TabItem>
+  <TabItem label="Fedora">
+    ```shell
     sudo dnf install snapd
     # Enable classic snap support
     sudo ln -s /var/lib/snapd/snap /snap
-    `
+    ```
 
     Reboot your system afterwards.
 
@@ -12362,7 +12328,7 @@ sudo snap install snapcraft --classic
 ```yaml
 name: appname
 base: core22
-version: "0.1.0"
+version: '0.1.0'
 summary: Your summary # 79 char long summary
 description: |
   Your description
@@ -12457,7 +12423,7 @@ sudo snapcraft
 
 ## Testing
 
-{/_ TODO: This seems to be wrong _/}
+{/* TODO: This seems to be wrong */}
 
 ```shell
 snap run your-app
@@ -13247,12 +13213,12 @@ The release workflow shown below and in the `tauri-action` examples is triggered
 As another example, you can also change the trigger to run the workflow on the push of a version git tag such as `app-v0.7.0`:
 
 ```yaml
-name: "publish"
+name: 'publish'
 
 on:
   push:
     tags:
-      - "app-v*"
+      - 'app-v*'
 ```
 
 For a full list of possible trigger configurations, check out the official [GitHub documentation](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows).
@@ -13273,7 +13239,7 @@ The steps this workflow takes are:
 6. Lastly, it uses `tauri-apps/tauri-action@v0` to run `tauri build`, generate the artifacts, and create a GitHub release.
 
 ```yaml
-name: "publish"
+name: 'publish'
 
 on:
   workflow_dispatch:
@@ -13289,16 +13255,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: "macos-latest" # for Arm based macs (M1 and above).
-            args: "--target aarch64-apple-darwin"
-          - platform: "macos-latest" # for Intel based macs.
-            args: "--target x86_64-apple-darwin"
-          - platform: "ubuntu-22.04"
-            args: ""
-          - platform: "ubuntu-22.04-arm" # Only available in public repos.
-            args: ""
-          - platform: "windows-latest"
-            args: ""
+          - platform: 'macos-latest' # for Arm based macs (M1 and above).
+            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-latest' # for Intel based macs.
+            args: '--target x86_64-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            args: ''
+          - platform: 'ubuntu-22.04-arm' # Only available in public repos.
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -13314,7 +13280,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
-          cache: "yarn" # Set this to npm, yarn or pnpm.
+          cache: 'yarn' # Set this to npm, yarn or pnpm.
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable # Set this to dtolnay/rust-toolchain@nightly
@@ -13325,7 +13291,7 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: "./src-tauri -> target"
+          workspaces: './src-tauri -> target'
 
       - name: install frontend dependencies
         # If you don't have `beforeBuildCommand` configured you may want to build your frontend here too.
@@ -13336,8 +13302,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: app-v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
-          releaseName: "App v__VERSION__"
-          releaseBody: "See the assets to download this version and install."
+          releaseName: 'App v__VERSION__'
+          releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
@@ -13364,7 +13330,7 @@ This workflow uses [`pguyot/arm-runner-action`](https://github.com/pguyot/arm-ru
 :::
 
 ```yaml
-name: "Publish Linux Arm builds"
+name: 'Publish Linux Arm builds'
 
 on:
   workflow_dispatch:
@@ -13907,7 +13873,7 @@ Required secrets:
 Check out the official GitHub guide to learn [how to set up secrets](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions#creating-secrets-for-a-repository).
 
 ```yaml
-name: "build"
+name: 'build'
 
 on:
   push:
@@ -13920,10 +13886,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - args: "--target aarch64-apple-darwin"
-            arch: "silicon"
-          - args: "--target x86_64-apple-darwin"
-            arch: "intel"
+          - args: '--target aarch64-apple-darwin'
+            arch: 'silicon'
+          - args: '--target x86_64-apple-darwin'
+            arch: 'intel'
     runs-on: macos-latest
     env:
       APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -14145,7 +14111,7 @@ The secrets we used are as follows
 2. We will be using the [`tauri-action` publish template].
 
 ```yml
-name: "publish"
+name: 'publish'
 on:
   push:
     branches:
@@ -14181,8 +14147,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: app-v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version
-          releaseName: "App v__VERSION__"
-          releaseBody: "See the assets to download this version and install."
+          releaseName: 'App v__VERSION__'
+          releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false
 ```
@@ -14339,8 +14305,8 @@ You need to install [trusted-signing-cli](https://github.com/Levminer/trusted-si
 
   </Steps>
 
-# Learn
 
+# Learn
 # Learn
 
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
@@ -14389,22 +14355,22 @@ This section contains learning resources created by the Community that are not h
 ### Books
 
 <BookItem
-image={RoseRustBook}
-title="HTML, CSS, JavaScript, and Rust for Beginners: A Guide to Application Development with Tauri"
-alt="HTML, CSS, JavaScript, and Rust for Beginners Book Cover"
-author="James Alexander Rose"
-links={[
-{
-preText: 'Paperback on Amazon:',
-text: 'Buy Here',
-url: 'https://www.amazon.com/dp/B0DR6KZVVW',
-},
-{
-preText: 'Free PDF version:',
-text: 'Download (PDF 4MB)',
-url: '/assets/learn/community/HTML_CSS_JavaScript_and_Rust_for_Beginners_A_Guide_to_Application_Development_with_Tauri.pdf',
-},
-]}
+  image={RoseRustBook}
+  title="HTML, CSS, JavaScript, and Rust for Beginners: A Guide to Application Development with Tauri"
+  alt="HTML, CSS, JavaScript, and Rust for Beginners Book Cover"
+  author="James Alexander Rose"
+  links={[
+    {
+      preText: 'Paperback on Amazon:',
+      text: 'Buy Here',
+      url: 'https://www.amazon.com/dp/B0DR6KZVVW',
+    },
+    {
+      preText: 'Free PDF version:',
+      text: 'Download (PDF 4MB)',
+      url: '/assets/learn/community/HTML_CSS_JavaScript_and_Rust_for_Beginners_A_Guide_to_Application_Development_with_Tauri.pdf',
+    },
+  ]}
 />
 
 ### Guides & Tutorials
@@ -14500,7 +14466,7 @@ Without the plugin being initialized and configured the example won't work.
     const command = process.argv[2];
 
     switch (command) {
-      case "hello":
+      case 'hello':
         const message = process.argv[3];
         console.log(`Hello ${message}!`);
         break;
@@ -14530,20 +14496,20 @@ Without the plugin being initialized and configured the example won't work.
     To rename this file to the expected Tauri sidecar filename and also move to our Tauri project, we can use the following Node.js script as a starting example:
 
     ```js title="sidecar-app/rename.js"
-    import { execSync } from "child_process";
-    import fs from "fs";
+    import { execSync } from 'child_process';
+    import fs from 'fs';
 
-    const ext = process.platform === "win32" ? ".exe" : "";
+    const ext = process.platform === 'win32' ? '.exe' : '';
 
-    const rustInfo = execSync("rustc -vV");
+    const rustInfo = execSync('rustc -vV');
     const targetTriple = /host: (\S+)/g.exec(rustInfo)[1];
     if (!targetTriple) {
-      console.error("Failed to determine platform target triple");
+      console.error('Failed to determine platform target triple');
     }
     // TODO: create `src-tauri/binaries` dir
     fs.renameSync(
       `my-sidecar${ext}`,
-      `../src-tauri/binaries/my-sidecar-${targetTriple}${ext}`,
+      `../src-tauri/binaries/my-sidecar-${targetTriple}${ext}`
     );
     ```
 
@@ -14781,144 +14747,143 @@ If you are not an advanced user it's **highly recommended** that you use the opt
 
 1. ##### Start some setup tasks
 
-   Since splashscreens are generally intended to be used for the sake of hiding heavy setup related tasks, lets fake giving the app something heavy to do, some in the frontend and some in the backend.
+    Since splashscreens are generally intended to be used for the sake of hiding heavy setup related tasks, lets fake giving the app something heavy to do, some in the frontend and some in the backend.
 
-   To fake heavy setup in the frontend we're going to be using a simple `setTimeout` function.
+    To fake heavy setup in the frontend we're going to be using a simple `setTimeout` function.
+    
+    The easiest way to fake heavy operations in the backend is by using the Tokio crate, which is the Rust crate that Tauri uses in the backend to provide an asynchronous runtime. While Tauri provides the runtime there are various utilities that Tauri doesn't re-export from it, so we'll need to add the crate to our project in order to access them. This is a perfectly normal practice within the Rust ecosystem.
 
-   The easiest way to fake heavy operations in the backend is by using the Tokio crate, which is the Rust crate that Tauri uses in the backend to provide an asynchronous runtime. While Tauri provides the runtime there are various utilities that Tauri doesn't re-export from it, so we'll need to add the crate to our project in order to access them. This is a perfectly normal practice within the Rust ecosystem.
+    Don't use `std::thread::sleep` in async functions, they run cooperatively in a concurrent environment not in parallel, meaning that if you sleep the thread instead of the Tokio task you'll be locking all tasks scheduled to run on that thread from being executed, causing your app to freeze.
 
-   Don't use `std::thread::sleep` in async functions, they run cooperatively in a concurrent environment not in parallel, meaning that if you sleep the thread instead of the Tokio task you'll be locking all tasks scheduled to run on that thread from being executed, causing your app to freeze.
+    <ShowSolution>
+    ```sh frame=none
+    # Run this command where the `Cargo.toml` file is
+    cd src-tauri
+    # Add the Tokio crate
+    cargo add tokio
+    # Optionally go back to the top folder to keep developing
+    # `tauri dev` can figure out where to run automatically
+    cd ..
+    ```
 
-   <ShowSolution>
-   ```sh frame=none
-   # Run this command where the `Cargo.toml` file is
-   cd src-tauri
-   # Add the Tokio crate
-   cargo add tokio
-   # Optionally go back to the top folder to keep developing
-   # `tauri dev` can figure out where to run automatically
-   cd ..
-   ```
+    ```javascript
+    // src/main.ts
+    // These contents can be copy-pasted below the existing code, don't replace the entire file!!
 
-   ```javascript
-   // src/main.ts
-   // These contents can be copy-pasted below the existing code, don't replace the entire file!!
+    // Utility function to implement a sleep function in TypeScript
+    function sleep(seconds: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, seconds * 1000));
+    }
 
-   // Utility function to implement a sleep function in TypeScript
-   function sleep(seconds: number): Promise<void> {
-       return new Promise(resolve => setTimeout(resolve, seconds * 1000));
-   }
+    // Setup function
+    async function setup() {
+        // Fake perform some really heavy setup task
+        console.log('Performing really heavy frontend setup task...')
+        await sleep(3);
+        console.log('Frontend setup task complete!')
+        // Set the frontend task as being completed
+        invoke('set_complete', {task: 'frontend'})
+    }
 
-   // Setup function
-   async function setup() {
-       // Fake perform some really heavy setup task
-       console.log('Performing really heavy frontend setup task...')
-       await sleep(3);
-       console.log('Frontend setup task complete!')
-       // Set the frontend task as being completed
-       invoke('set_complete', {task: 'frontend'})
-   }
+    // Effectively a JavaScript main function
+    window.addEventListener("DOMContentLoaded", () => {
+        setup()
+    });
+    ```
 
-   // Effectively a JavaScript main function
-   window.addEventListener("DOMContentLoaded", () => {
-       setup()
-   });
-   ```
+    ```rust
+    // /src-tauri/src/lib.rs
+    // Import functionalities we'll be using
+    use std::sync::Mutex;
+    use tauri::async_runtime::spawn;
+    use tauri::{AppHandle, Manager, State};
+    use tokio::time::{sleep, Duration};
 
-   ```rust
-   // /src-tauri/src/lib.rs
-   // Import functionalities we'll be using
-   use std::sync::Mutex;
-   use tauri::async_runtime::spawn;
-   use tauri::{AppHandle, Manager, State};
-   use tokio::time::{sleep, Duration};
+    // Create a struct we'll use to track the completion of
+    // setup related tasks
+    struct SetupState {
+        frontend_task: bool,
+        backend_task: bool,
+    }
 
-   // Create a struct we'll use to track the completion of
-   // setup related tasks
-   struct SetupState {
-       frontend_task: bool,
-       backend_task: bool,
-   }
+    // Our main entrypoint in a version 2 mobile compatible app
+    #[cfg_attr(mobile, tauri::mobile_entry_point)]
+    pub fn run() {
+        // Don't write code before Tauri starts, write it in the
+        // setup hook instead!
+        tauri::Builder::default()
+            // Register a `State` to be managed by Tauri
+            // We need write access to it so we wrap it in a `Mutex`
+            .manage(Mutex::new(SetupState {
+                frontend_task: false,
+                backend_task: false,
+            }))
+            // Add a command we can use to check
+            .invoke_handler(tauri::generate_handler![greet, set_complete])
+            // Use the setup hook to execute setup related tasks
+            // Runs before the main loop, so no windows are yet created
+            .setup(|app| {
+                // Spawn setup as a non-blocking task so the windows can be
+                // created and ran while it executes
+                spawn(setup(app.handle().clone()));
+                // The hook expects an Ok result
+                Ok(())
+            })
+            // Run the app
+            .run(tauri::generate_context!())
+            .expect("error while running tauri application");
+    }
 
-   // Our main entrypoint in a version 2 mobile compatible app
-   #[cfg_attr(mobile, tauri::mobile_entry_point)]
-   pub fn run() {
-       // Don't write code before Tauri starts, write it in the
-       // setup hook instead!
-       tauri::Builder::default()
-           // Register a `State` to be managed by Tauri
-           // We need write access to it so we wrap it in a `Mutex`
-           .manage(Mutex::new(SetupState {
-               frontend_task: false,
-               backend_task: false,
-           }))
-           // Add a command we can use to check
-           .invoke_handler(tauri::generate_handler![greet, set_complete])
-           // Use the setup hook to execute setup related tasks
-           // Runs before the main loop, so no windows are yet created
-           .setup(|app| {
-               // Spawn setup as a non-blocking task so the windows can be
-               // created and ran while it executes
-               spawn(setup(app.handle().clone()));
-               // The hook expects an Ok result
-               Ok(())
-           })
-           // Run the app
-           .run(tauri::generate_context!())
-           .expect("error while running tauri application");
-   }
+    #[tauri::command]
+    fn greet(name: String) -> String {
+        format!("Hello {name} from Rust!")
+    }
 
-   #[tauri::command]
-   fn greet(name: String) -> String {
-       format!("Hello {name} from Rust!")
-   }
+    // A custom task for setting the state of a setup task
+    #[tauri::command]
+    async fn set_complete(
+        app: AppHandle,
+        state: State<'_, Mutex<SetupState>>,
+        task: String,
+    ) -> Result<(), ()> {
+        // Lock the state without write access
+        let mut state_lock = state.lock().unwrap();
+        match task.as_str() {
+            "frontend" => state_lock.frontend_task = true,
+            "backend" => state_lock.backend_task = true,
+            _ => panic!("invalid task completed!"),
+        }
+        // Check if both tasks are completed
+        if state_lock.backend_task && state_lock.frontend_task {
+            // Setup is complete, we can close the splashscreen
+            // and unhide the main window!
+            let splash_window = app.get_webview_window("splashscreen").unwrap();
+            let main_window = app.get_webview_window("main").unwrap();
+            splash_window.close().unwrap();
+            main_window.show().unwrap();
+        }
+        Ok(())
+    }
 
-   // A custom task for setting the state of a setup task
-   #[tauri::command]
-   async fn set_complete(
-       app: AppHandle,
-       state: State<'_, Mutex<SetupState>>,
-       task: String,
-   ) -> Result<(), ()> {
-       // Lock the state without write access
-       let mut state_lock = state.lock().unwrap();
-       match task.as_str() {
-           "frontend" => state_lock.frontend_task = true,
-           "backend" => state_lock.backend_task = true,
-           _ => panic!("invalid task completed!"),
-       }
-       // Check if both tasks are completed
-       if state_lock.backend_task && state_lock.frontend_task {
-           // Setup is complete, we can close the splashscreen
-           // and unhide the main window!
-           let splash_window = app.get_webview_window("splashscreen").unwrap();
-           let main_window = app.get_webview_window("main").unwrap();
-           splash_window.close().unwrap();
-           main_window.show().unwrap();
-       }
-       Ok(())
-   }
-
-   // An async function that does some heavy setup task
-   async fn setup(app: AppHandle) -> Result<(), ()> {
-       // Fake performing some heavy action for 3 seconds
-       println!("Performing really heavy backend setup task...");
-       sleep(Duration::from_secs(3)).await;
-       println!("Backend setup task completed!");
-       // Set the backend task as being completed
-       // Commands can be ran as regular functions as long as you take
-       // care of the input arguments yourself
-       set_complete(
-           app.clone(),
-           app.state::<Mutex<SetupState>>(),
-           "backend".to_string(),
-       )
-       .await?;
-       Ok(())
-   }
-   ```
-
-   </ShowSolution>
+    // An async function that does some heavy setup task
+    async fn setup(app: AppHandle) -> Result<(), ()> {
+        // Fake performing some heavy action for 3 seconds
+        println!("Performing really heavy backend setup task...");
+        sleep(Duration::from_secs(3)).await;
+        println!("Backend setup task completed!");
+        // Set the backend task as being completed
+        // Commands can be ran as regular functions as long as you take
+        // care of the input arguments yourself
+        set_complete(
+            app.clone(),
+            app.state::<Mutex<SetupState>>(),
+            "backend".to_string(),
+        )
+        .await?;
+        Ok(())
+    }
+    ```
+    </ShowSolution>
 
 1. ##### Run the application
 
@@ -14937,7 +14902,7 @@ user there's still setup tasks happening in the background.
 
 However, with that said, it can be a stylistic choice that you want to have a splashscreen,
 or you might have some very particular requirement that makes it impossible to start the
-app until some tasks are performed. It's definitely not _wrong_ to have a splashscreen, it
+app until some tasks are performed. It's definitely not *wrong* to have a splashscreen, it
 just tends to not be necessary and can make users feel like the app isn't very well optimized.
 
 # System Tray
@@ -14967,7 +14932,7 @@ The tray API is available in both JavaScript and Rust.
 Use the [`TrayIcon.new`] static function to create a new tray icon:
 
 ```javascript
-import { TrayIcon } from "@tauri-apps/api/tray";
+import { TrayIcon } from '@tauri-apps/api/tray';
 
 const options = {
   // here you can add a tray menu, title, tooltip, event handler, etc
@@ -15006,8 +14971,8 @@ When creating the tray you can use the application icon as the tray icon:
 <TabItem label="JavaScript">
 
 ```javascript
-import { TrayIcon } from "@tauri-apps/api/tray";
-import { defaultWindowIcon } from "@tauri-apps/api/app";
+import { TrayIcon } from '@tauri-apps/api/tray';
+import { defaultWindowIcon } from '@tauri-apps/api/app';
 
 const options = {
   icon: await defaultWindowIcon(),
@@ -15040,20 +15005,20 @@ To prevent the menu from popping up on left click, call the [`menu_on_left_click
 or set the [`menuOnLeftClick`] JavaScript option to `false`.
 :::
 
-{/_ TODO: link to the menu plugin documentation page _/}
+{/* TODO: link to the menu plugin documentation page */}
 
 <Tabs syncKey="lang">
 <TabItem label="JavaScript">
 
 ```javascript
-import { TrayIcon } from "@tauri-apps/api/tray";
-import { Menu } from "@tauri-apps/api/menu";
+import { TrayIcon } from '@tauri-apps/api/tray';
+import { Menu } from '@tauri-apps/api/menu';
 
 const menu = await Menu.new({
   items: [
     {
-      id: "quit",
-      text: "Quit",
+      id: 'quit',
+      text: 'Quit',
     },
   ],
 });
@@ -15097,7 +15062,7 @@ On JavaScript you can attach a menu click event listener directly to the menu it
 - Using a shared menu click handler
 
   ```javascript
-  import { Menu } from "@tauri-apps/api/menu";
+  import { Menu } from '@tauri-apps/api/menu';
 
   function onTrayMenuClick(itemId) {
     // itemId === 'quit'
@@ -15106,8 +15071,8 @@ On JavaScript you can attach a menu click event listener directly to the menu it
   const menu = await Menu.new({
     items: [
       {
-        id: "quit",
-        text: "Quit",
+        id: 'quit',
+        text: 'Quit',
         action: onTrayMenuClick,
       },
     ],
@@ -15117,15 +15082,15 @@ On JavaScript you can attach a menu click event listener directly to the menu it
 - Using a dedicated menu click handler
 
   ```javascript
-  import { Menu } from "@tauri-apps/api/menu";
+  import { Menu } from '@tauri-apps/api/menu';
 
   const menu = await Menu.new({
     items: [
       {
-        id: "quit",
-        text: "Quit",
+        id: 'quit',
+        text: 'Quit',
         action: () => {
-          console.log("quit pressed");
+          console.log('quit pressed');
         },
       },
     ],
@@ -15173,32 +15138,32 @@ Linux: Unsupported. The event is not emitted even though the icon is shown and w
 <TabItem label="JavaScript">
 
 ```javascript
-import { TrayIcon } from "@tauri-apps/api/tray";
+import { TrayIcon } from '@tauri-apps/api/tray';
 
 const options = {
   action: (event) => {
     switch (event.type) {
-      case "Click":
+      case 'Click':
         console.log(
-          `mouse ${event.button} button pressed, state: ${event.buttonState}`,
+          `mouse ${event.button} button pressed, state: ${event.buttonState}`
         );
         break;
-      case "DoubleClick":
+      case 'DoubleClick':
         console.log(`mouse ${event.button} button pressed`);
         break;
-      case "Enter":
+      case 'Enter':
         console.log(
-          `mouse hovered tray at ${event.rect.position.x}, ${event.rect.position.y}`,
+          `mouse hovered tray at ${event.rect.position.x}, ${event.rect.position.y}`
         );
         break;
-      case "Move":
+      case 'Move':
         console.log(
-          `mouse moved on tray at ${event.rect.position.x}, ${event.rect.position.y}`,
+          `mouse moved on tray at ${event.rect.position.x}, ${event.rect.position.y}`
         );
         break;
-      case "Leave":
+      case 'Leave':
         console.log(
-          `mouse left tray at ${event.rect.position.x}, ${event.rect.position.y}`,
+          `mouse left tray at ${event.rect.position.x}, ${event.rect.position.y}`
         );
         break;
     }
@@ -15433,7 +15398,7 @@ to make the title bar work with touch and pen inputs
 Use this code snippet to make the buttons work:
 
 ```javascript
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 // when using `"withGlobalTauri": true`, you may use
 // const { getCurrentWindow } = window.__TAURI__.window;
@@ -15441,14 +15406,14 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 const appWindow = getCurrentWindow();
 
 document
-  .getElementById("titlebar-minimize")
-  ?.addEventListener("click", () => appWindow.minimize());
+  .getElementById('titlebar-minimize')
+  ?.addEventListener('click', () => appWindow.minimize());
 document
-  .getElementById("titlebar-maximize")
-  ?.addEventListener("click", () => appWindow.toggleMaximize());
+  .getElementById('titlebar-maximize')
+  ?.addEventListener('click', () => appWindow.toggleMaximize());
 document
-  .getElementById("titlebar-close")
-  ?.addEventListener("click", () => appWindow.close());
+  .getElementById('titlebar-close')
+  ?.addEventListener('click', () => appWindow.close());
 ```
 
 Note that if you are using a Rust-based frontend, you can copy the code above into a `<script>` element in your `index.html` file.
@@ -15481,7 +15446,7 @@ Add an event listener to the titlebar element:
 
 ```js {2-9}
 // ...
-document.getElementById("titlebar")?.addEventListener("mousedown", (e) => {
+document.getElementById('titlebar')?.addEventListener('mousedown', (e) => {
   if (e.buttons === 1) {
     // Primary (left) button
     e.detail === 2
@@ -15577,33 +15542,33 @@ To create a base-level native window menu, and attach to a window. You can creat
 Use the [`Menu.new`] static function to create a window menu:
 
 ```javascript
-import { Menu } from "@tauri-apps/api/menu";
+import { Menu } from '@tauri-apps/api/menu';
 
 const menu = await Menu.new({
   items: [
     {
-      id: "quit",
-      text: "Quit",
+      id: 'quit',
+      text: 'Quit',
       action: () => {
-        console.log("quit pressed");
+        console.log('quit pressed');
       },
     },
     {
-      id: "check_item",
-      text: "Check Item",
+      id: 'check_item',
+      text: 'Check Item',
       checked: true,
     },
     {
-      type: "Separator",
+      type: 'Separator',
     },
     {
-      id: "disabled_item",
-      text: "Disabled Item",
+      id: 'disabled_item',
+      text: 'Disabled Item',
       enabled: false,
     },
     {
-      id: "status",
-      text: "Status: Processing...",
+      id: 'status',
+      text: 'Status: Processing...',
     },
   ],
 });
@@ -15611,12 +15576,12 @@ const menu = await Menu.new({
 // If a window was not created with an explicit menu or had one set explicitly,
 // this menu will be assigned to it.
 menu.setAsAppMenu().then(async (res) => {
-  console.log("menu set success", res);
+  console.log('menu set success', res);
 
   // Update individual menu item text
-  const statusItem = await menu.get("status");
+  const statusItem = await menu.get('status');
   if (statusItem) {
-    await statusItem.setText("Status: Ready");
+    await statusItem.setText('Status: Ready');
   }
 });
 ```
@@ -15666,22 +15631,22 @@ Each custom menu item triggers an event when clicked. Use the `on_menu_event` AP
 <TabItem label="JavaScript">
 
 ```javascript
-import { Menu } from "@tauri-apps/api/menu";
+import { Menu } from '@tauri-apps/api/menu';
 
 const menu = await Menu.new({
   items: [
     {
-      id: "Open",
-      text: "open",
+      id: 'Open',
+      text: 'open',
       action: () => {
-        console.log("open pressed");
+        console.log('open pressed');
       },
     },
     {
-      id: "Close",
-      text: "close",
+      id: 'Close',
+      text: 'close',
       action: () => {
-        console.log("close pressed");
+        console.log('close pressed');
       },
     },
   ],
@@ -15747,65 +15712,65 @@ Icon support for submenus is available since Tauri 2.8.0.
 <TabItem label="JavaScript">
 
 ```javascript
-import { Menu, MenuItem, Submenu } from "@tauri-apps/api/menu";
+import { Menu, MenuItem, Submenu } from '@tauri-apps/api/menu';
 
 // Will become the application submenu on MacOS
 const aboutSubmenu = await Submenu.new({
-  text: "About",
+  text: 'About',
   items: [
     await MenuItem.new({
-      id: "quit",
-      text: "Quit",
+      id: 'quit',
+      text: 'Quit',
       action: () => {
-        console.log("Quit pressed");
+        console.log('Quit pressed');
       },
     }),
   ],
 });
 
 const fileSubmenu = await Submenu.new({
-  text: "File",
-  icon: "folder", // Optional: Add an icon to the submenu
+  text: 'File',
+  icon: 'folder', // Optional: Add an icon to the submenu
   items: [
     await MenuItem.new({
-      id: "new",
-      text: "New",
+      id: 'new',
+      text: 'New',
       action: () => {
-        console.log("New clicked");
+        console.log('New clicked');
       },
     }),
     await MenuItem.new({
-      id: "open",
-      text: "Open",
+      id: 'open',
+      text: 'Open',
       action: () => {
-        console.log("Open clicked");
+        console.log('Open clicked');
       },
     }),
     await MenuItem.new({
-      id: "save_as",
-      text: "Save As...",
+      id: 'save_as',
+      text: 'Save As...',
       action: () => {
-        console.log("Save As clicked");
+        console.log('Save As clicked');
       },
     }),
   ],
 });
 
 const editSubmenu = await Submenu.new({
-  text: "Edit",
+  text: 'Edit',
   items: [
     await MenuItem.new({
-      id: "undo",
-      text: "Undo",
+      id: 'undo',
+      text: 'Undo',
       action: () => {
-        console.log("Undo clicked");
+        console.log('Undo clicked');
       },
     }),
     await MenuItem.new({
-      id: "redo",
-      text: "Redo",
+      id: 'redo',
+      text: 'Redo',
       action: () => {
-        console.log("Redo clicked");
+        console.log('Redo clicked');
       },
     }),
   ],
@@ -15818,9 +15783,9 @@ const menu = await Menu.new({
 menu.setAsAppMenu();
 
 // You can also update the submenu icon dynamically
-fileSubmenu.setIcon("document");
+fileSubmenu.setIcon('document');
 // Or set a native icon (only one type applies per platform)
-fileSubmenu.setNativeIcon("NSFolder");
+fileSubmenu.setNativeIcon('NSFolder');
 ```
 
 </TabItem>
@@ -15904,41 +15869,41 @@ To use built-in (native) menu items that has predefined behavior by the operatin
 <TabItem label="JavaScript">
 
 ```javascript
-import { Menu, PredefinedMenuItem } from "@tauri-apps/api/menu";
+import { Menu, PredefinedMenuItem } from '@tauri-apps/api/menu';
 
 const copy = await PredefinedMenuItem.new({
-  text: "copy-text",
-  item: "Copy",
+  text: 'copy-text',
+  item: 'Copy',
 });
 
 const separator = await PredefinedMenuItem.new({
-  text: "separator-text",
-  item: "Separator",
+  text: 'separator-text',
+  item: 'Separator',
 });
 
 const undo = await PredefinedMenuItem.new({
-  text: "undo-text",
-  item: "Undo",
+  text: 'undo-text',
+  item: 'Undo',
 });
 
 const redo = await PredefinedMenuItem.new({
-  text: "redo-text",
-  item: "Redo",
+  text: 'redo-text',
+  item: 'Redo',
 });
 
 const cut = await PredefinedMenuItem.new({
-  text: "cut-text",
-  item: "Cut",
+  text: 'cut-text',
+  item: 'Cut',
 });
 
 const paste = await PredefinedMenuItem.new({
-  text: "paste-text",
-  item: "Paste",
+  text: 'paste-text',
+  item: 'Paste',
 });
 
 const select_all = await PredefinedMenuItem.new({
-  text: "select_all-text",
-  item: "SelectAll",
+  text: 'select_all-text',
+  item: 'SelectAll',
 });
 
 const menu = await Menu.new({
@@ -15998,64 +15963,64 @@ import {
   CheckMenuItem,
   IconMenuItem,
   MenuItem,
-} from "@tauri-apps/api/menu";
-import { Image } from "@tauri-apps/api/image";
+} from '@tauri-apps/api/menu';
+import { Image } from '@tauri-apps/api/image';
 
-let currentLanguage = "en";
+let currentLanguage = 'en';
 
 const check_sub_item_en = await CheckMenuItem.new({
-  id: "en",
-  text: "English",
-  checked: currentLanguage === "en",
+  id: 'en',
+  text: 'English',
+  checked: currentLanguage === 'en',
   action: () => {
-    currentLanguage = "en";
-    check_sub_item_en.setChecked(currentLanguage === "en");
-    check_sub_item_zh.setChecked(currentLanguage === "cn");
-    console.log("English pressed");
+    currentLanguage = 'en';
+    check_sub_item_en.setChecked(currentLanguage === 'en');
+    check_sub_item_zh.setChecked(currentLanguage === 'cn');
+    console.log('English pressed');
   },
 });
 
 const check_sub_item_zh = await CheckMenuItem.new({
-  id: "zh",
-  text: "Chinese",
-  checked: currentLanguage === "zh",
+  id: 'zh',
+  text: 'Chinese',
+  checked: currentLanguage === 'zh',
   action: () => {
-    currentLanguage = "zh";
-    check_sub_item_en.setChecked(currentLanguage === "en");
-    check_sub_item_zh.setChecked(currentLanguage === "zh");
-    check_sub_item_zh.setAccelerator("Ctrl+L");
-    console.log("Chinese pressed");
+    currentLanguage = 'zh';
+    check_sub_item_en.setChecked(currentLanguage === 'en');
+    check_sub_item_zh.setChecked(currentLanguage === 'zh');
+    check_sub_item_zh.setAccelerator('Ctrl+L');
+    console.log('Chinese pressed');
   },
 });
 
 // Load icon from path
-const icon = await Image.fromPath("../src/icon.png");
-const icon2 = await Image.fromPath("../src/icon-2.png");
+const icon = await Image.fromPath('../src/icon.png');
+const icon2 = await Image.fromPath('../src/icon-2.png');
 
 const icon_item = await IconMenuItem.new({
-  id: "icon_item",
-  text: "Icon Item",
+  id: 'icon_item',
+  text: 'Icon Item',
   icon: icon,
   action: () => {
     icon_item.setIcon(icon2);
-    console.log("icon pressed");
+    console.log('icon pressed');
   },
 });
 
 const text_item = await MenuItem.new({
-  id: "text_item",
-  text: "Text Item",
+  id: 'text_item',
+  text: 'Text Item',
   action: () => {
-    text_item.setText("Text Item Changed");
-    console.log("text pressed");
+    text_item.setText('Text Item Changed');
+    console.log('text pressed');
   },
 });
 
 const menu = await Menu.new({
   items: [
     {
-      id: "change menu",
-      text: "change_menu",
+      id: 'change menu',
+      text: 'change_menu',
       items: [text_item, check_sub_item_en, check_sub_item_zh, icon_item],
     },
   ],
@@ -16185,274 +16150,272 @@ permissions are used.
 
 1. ### Create Tauri Application
 
-   Create your Tauri application.
-   In our example we will facilitate [`create-tauri-app`](https://github.com/tauri-apps/create-tauri-app):
+    Create your Tauri application.
+    In our example we will facilitate [`create-tauri-app`](https://github.com/tauri-apps/create-tauri-app):
 
-   <Cta />
+    <Cta />
 
-   We will proceed in this step-by-step explanation with `pnpm` but you can choose another
-   package manager and replace it in the commands accordingly.
+    We will proceed in this step-by-step explanation with `pnpm` but you can choose another
+    package manager and replace it in the commands accordingly.
 
-   <ShowSolution>
-   ```
-   pnpm create tauri-app
-   ```
 
-   ```
-   ✔ Project name · plugin-permission-demo
-   ✔ Choose which language to use for your frontend · TypeScript / JavaScript - (pnpm, yarn, npm, bun)
-   ✔ Choose your package manager · pnpm
-   ✔ Choose your UI template · Vanilla
-   ✔ Choose your UI flavor · TypeScript
+    <ShowSolution>
+    ```
+    pnpm create tauri-app
+    ```
 
-   Template created! To get started run:
-   cd plugin-permission-demo
-   pnpm install
-   pnpm tauri dev
-   ```
+    ```
+    ✔ Project name · plugin-permission-demo
+    ✔ Choose which language to use for your frontend · TypeScript / JavaScript - (pnpm, yarn, npm, bun)
+    ✔ Choose your package manager · pnpm
+    ✔ Choose your UI template · Vanilla
+    ✔ Choose your UI flavor · TypeScript
 
-   </ShowSolution>
+    Template created! To get started run:
+    cd plugin-permission-demo
+    pnpm install
+    pnpm tauri dev
+    ```
+    </ShowSolution>
 
 2. ### Add the `file-system` Plugin to Your Application
 
-   To search for existing plugins you can use multiple resources.
+    To search for existing plugins you can use multiple resources.
 
-   The most straight forward way would be to check out if your plugin is already
-   in the [Plugins](/plugin/) section of the documentation and therefore part of Tauri's
-   maintained plugin set.
-   The Filesystem plugin is part of the Tauri plugin workspace and you can add it to
-   your project by following the [instructions](/plugin/file-system/#setup).
+    The most straight forward way would be to check out if your plugin is already
+    in the [Plugins](/plugin/) section of the documentation and therefore part of Tauri's
+    maintained plugin set.
+    The Filesystem plugin is part of the Tauri plugin workspace and you can add it to
+    your project by following the [instructions](/plugin/file-system/#setup).
 
-   If the plugin is part of the community effort you can most likely find it
-   on [crates.io](https://crates.io/search?q=tauri-plugin-) when searching for `tauri-plugin-<your plugin name>`.
+    If the plugin is part of the community effort you can most likely find it
+    on [crates.io](https://crates.io/search?q=tauri-plugin-) when searching for `tauri-plugin-<your plugin name>`.
 
-   <ShowSolution>
-   If it is an existing plugin from our workspace you can use the automated way:
+    <ShowSolution>
+    If it is an existing plugin from our workspace you can use the automated way:
 
-   ```
-   pnpm tauri add fs
-   ```
+    ```
+    pnpm tauri add fs
+    ```
 
-   If you have found it on [crates.io](https://crates.io/crates/tauri-plugin-fs)
-   you need to manually add it as a dependency and modify the Tauri builder
-   to initialize the plugin:
+    If you have found it on [crates.io](https://crates.io/crates/tauri-plugin-fs)
+    you need to manually add it as a dependency and modify the Tauri builder
+    to initialize the plugin:
 
-   ```sh
-   cargo add tauri-plugin-fs
-   ```
+    ```sh
+    cargo add tauri-plugin-fs
+    ```
 
-   Modify `lib.rs` to initialize the plugin:
+    Modify `lib.rs` to initialize the plugin:
 
-   ```rust title="src-tauri/src/lib.rs" ins={4}
-   #[cfg_attr(mobile, tauri::mobile_entry_point)]
-   fn run() {
-     tauri::Builder::default()
-       .plugin(tauri_plugin_fs::init())
-       .run(tauri::generate_context!())
-       .expect("error while running tauri application");
-   }
-   ```
-
-   </ShowSolution>
+    ```rust title="src-tauri/src/lib.rs" ins={4}
+    #[cfg_attr(mobile, tauri::mobile_entry_point)]
+    fn run() {
+      tauri::Builder::default()
+        .plugin(tauri_plugin_fs::init())
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+    }
+    ```
+    </ShowSolution>
 
 3. ### Understand the Default Permissions of the `fs` Plugin
+    
+    Each plugin has a `default` permission set, which contains
+    all permissions and scopes to use the plugin out of the box
+    with a reasonable minimal feature set.
+    
+    In the case of official maintained plugins you can find a
+    rendered description in the documentation
+    (eg. [fs default](/plugin/file-system/#default-permission)).
 
-   Each plugin has a `default` permission set, which contains
-   all permissions and scopes to use the plugin out of the box
-   with a reasonable minimal feature set.
+    In case you are figuring this out for a community plugin you
+    need to check out the source code of the plugin.
+    This should be defined in `your-plugin/permissions/default.toml`.
 
-   In the case of official maintained plugins you can find a
-   rendered description in the documentation
-   (eg. [fs default](/plugin/file-system/#default-permission)).
+    <ShowSolution>
+    ```
+    "$schema" = "schemas/schema.json"
 
-   In case you are figuring this out for a community plugin you
-   need to check out the source code of the plugin.
-   This should be defined in `your-plugin/permissions/default.toml`.
+    [default]
+    description = """
+    # Tauri `fs` default permissions
 
-   <ShowSolution>
-   ```
-   "$schema" = "schemas/schema.json"
+    This configuration file defines the default permissions granted
+    to the filesystem.
 
-   [default]
-   description = """
+    ### Granted Permissions
 
-   # Tauri `fs` default permissions
+    This default permission set enables all read-related commands and
+    allows access to the `$APP` folder and sub directories created in it.
+    The location of the `$APP` folder depends on the operating system,
+    where the application is run.
 
-   This configuration file defines the default permissions granted
-   to the filesystem.
+    In general the `$APP` folder needs to be manually created
+    by the application at runtime, before accessing files or folders
+    in it is possible.
 
-   ### Granted Permissions
+    ### Denied Permissions
 
-   This default permission set enables all read-related commands and
-   allows access to the `$APP` folder and sub directories created in it.
-   The location of the `$APP` folder depends on the operating system,
-   where the application is run.
+    This default permission set prevents access to critical components
+    of the Tauri application by default.
+    On Windows the webview data folder access is denied.
 
-   In general the `$APP` folder needs to be manually created
-   by the application at runtime, before accessing files or folders
-   in it is possible.
+    """
+    permissions = ["read-all", "scope-app-recursive", "deny-default"]
 
-   ### Denied Permissions
+    ```
+    </ShowSolution>
 
-   This default permission set prevents access to critical components
-   of the Tauri application by default.
-   On Windows the webview data folder access is denied.
+  4. ### Find the Right Permissions
+      
+      This step is all about finding the permissions you need to
+      for your commands to be exposed to the frontend with the minimal
+      access to your system.
 
-   """
-   permissions = ["read-all", "scope-app-recursive", "deny-default"]
+      The `fs` plugin has autogenerated permissions which will disable
+      or enable individual commands and allow or disable global scopes.
 
-   ```
-   </ShowSolution>
+      These can be found in the [documentation](/plugin/file-system/#permission-table)
+      or in the source code of the plugin (`fs/permissions/autogenerated`).
 
-   ```
+      Let us assume we want to enable writing to a text file `test.txt`
+      located in the users `$HOME` folder.
 
-4. ### Find the Right Permissions
+      For this we would search in the autogenerated permissions for a
+      permission to enable writing to text files like `allow-write-text-file`
+      and then for a scope which would allow us to access the `$HOME/test.txt`
+      file.
 
-   This step is all about finding the permissions you need to
-   for your commands to be exposed to the frontend with the minimal
-   access to your system.
+      We need to add these to our `capabilities` section in our
+      `src-tauri/tauri.conf.json` or in a file in the `src-tauri/capabilities/` folder.
+      By default there is already a capability in `src-tauri/capabilities/default.json` we 
+      can modify.
 
-   The `fs` plugin has autogenerated permissions which will disable
-   or enable individual commands and allow or disable global scopes.
+      <ShowSolution>
 
-   These can be found in the [documentation](/plugin/file-system/#permission-table)
-   or in the source code of the plugin (`fs/permissions/autogenerated`).
-
-   Let us assume we want to enable writing to a text file `test.txt`
-   located in the users `$HOME` folder.
-
-   For this we would search in the autogenerated permissions for a
-   permission to enable writing to text files like `allow-write-text-file`
-   and then for a scope which would allow us to access the `$HOME/test.txt`
-   file.
-
-   We need to add these to our `capabilities` section in our
-   `src-tauri/tauri.conf.json` or in a file in the `src-tauri/capabilities/` folder.
-   By default there is already a capability in `src-tauri/capabilities/default.json` we
-   can modify.
-
-   <ShowSolution>
-
-   ```json title="src-tauri/capabilities/default.json" del={18} ins={19}
-   {
-     "$schema": "../gen/schemas/desktop-schema.json",
-     "identifier": "default",
-     "description": "Capability for the main window",
-     "windows": ["main"],
-     "permissions": [
-       "path:default",
-       "event:default",
-       "window:default",
-       "app:default",
-       "image:default",
-       "resources:default",
-       "menu:default",
-       "tray:default",
-       "shell:allow-open",
-       "fs:default",
-       "fs:allow-write-text-file"
-     ]
-   }
-   ```
-
-   </ShowSolution>
-
-   Since there are only autogenerated scopes in the `fs` plugin to
-   access the full `$HOME` folder, we need to configure our own scope.
-   This scope should be only enabled for the `write-text-file` command
-   and should only expose our `test.txt` file.
-
-   <ShowSolution>
-   ```json title="src-tauri/capabilities/default.json" del={18} ins={19-22}
+      ```json title="src-tauri/capabilities/default.json" del={18} ins={19}
       {
-     "$schema": "../gen/schemas/desktop-schema.json",
-     "identifier": "default",
-     "description": "Capability for the main window",
-     "windows": [
-       "main"
-     ],
-     "permissions": [
-       "path:default",
-       "event:default",
-       "window:default",
-       "app:default",
-       "image:default",
-       "resources:default",
-       "menu:default",
-       "tray:default",
-       "shell:allow-open",
-       "fs:allow-write-text-file",
-       {
-         "identifier": "fs:allow-write-text-file",
-         "allow": [{ "path": "$HOME/test.txt" }]
-       },
-     ]
-   }
-   ```
-   </ShowSolution>
+        "$schema": "../gen/schemas/desktop-schema.json",
+        "identifier": "default",
+        "description": "Capability for the main window",
+        "windows": [
+          "main"
+        ],
+        "permissions": [
+          "path:default",
+          "event:default",
+          "window:default",
+          "app:default",
+          "image:default",
+          "resources:default",
+          "menu:default",
+          "tray:default",
+          "shell:allow-open",
+          "fs:default",
+          "fs:allow-write-text-file",
+        ]
+      }
+      ```
 
-5. ### Test Permissions in Practice
+      </ShowSolution>
 
-   After we have added the necessary permission we want to
-   confirm that our application can access the file and write
-   it's content.
+      Since there are only autogenerated scopes in the `fs` plugin to
+      access the full `$HOME` folder, we need to configure our own scope.
+      This scope should be only enabled for the `write-text-file` command
+      and should only expose our `test.txt` file.
 
-   <ShowSolution>
-   We can use this snippet in our application to write to the file:
+      <ShowSolution>
+      ```json title="src-tauri/capabilities/default.json" del={18} ins={19-22}
+         {
+        "$schema": "../gen/schemas/desktop-schema.json",
+        "identifier": "default",
+        "description": "Capability for the main window",
+        "windows": [
+          "main"
+        ],
+        "permissions": [
+          "path:default",
+          "event:default",
+          "window:default",
+          "app:default",
+          "image:default",
+          "resources:default",
+          "menu:default",
+          "tray:default",
+          "shell:allow-open",
+          "fs:allow-write-text-file",
+          {
+            "identifier": "fs:allow-write-text-file",
+            "allow": [{ "path": "$HOME/test.txt" }]
+          },
+        ]
+      }
+      ```
+      </ShowSolution>
+    5. ### Test Permissions in Practice
 
-   ```ts title="src/main.ts"
-   import { writeTextFile, BaseDirectory } from "@tauri-apps/plugin-fs";
+        After we have added the necessary permission we want to
+        confirm that our application can access the file and write
+        it's content.
 
-   let greetInputEl: HTMLInputElement | null;
+        <ShowSolution>
+        We can use this snippet in our application to write to the file:
 
-   async function write(message: string) {
-     await writeTextFile("test.txt", message, { baseDir: BaseDirectory.Home });
-   }
+        ```ts title="src/main.ts"
+        import { writeTextFile, BaseDirectory } from '@tauri-apps/plugin-fs';
 
-   window.addEventListener("DOMContentLoaded", () => {
-     greetInputEl = document.querySelector("#greet-input");
-     document.querySelector("#greet-form")?.addEventListener("submit", (e) => {
-       e.preventDefault();
-       if (!greetInputEl) return;
+        let greetInputEl: HTMLInputElement | null;
 
-       write(
-         greetInputEl.value == "" ? "No input provided" : greetInputEl.value,
-       );
-     });
-   });
-   ```
+        async function write(message: string) {
+            await writeTextFile('test.txt', message, { baseDir: BaseDirectory.Home });
+        }
 
-   Replacing the `src/main.ts` with this snippet means we do not need to modify the default `index.html`,
-   when using the plain Vanilla+Typescript app.
-   Entering any input into the input field of the running app will be
-   written to the file on submit.
+        window.addEventListener("DOMContentLoaded", () => {
+          greetInputEl = document.querySelector("#greet-input");
+          document.querySelector("#greet-form")?.addEventListener("submit", (e) => {
+            e.preventDefault();
+            if (!greetInputEl )
+              return;
 
-   Let's test now in practice:
+            write(greetInputEl.value == "" ? "No input provided": greetInputEl.value);
 
-   ```
-   pnpm run tauri dev
-   ```
+          });
+        });
 
-   After writing into the input and clicking "Submit",
-   we can check via our terminal emulator or by manually opening the
-   file in your home folder.
+        ```
 
-   ```
-   cat $HOME/test.txt
-   ```
+        Replacing the `src/main.ts` with this snippet means we do not need to modify the default `index.html`,
+        when using the plain Vanilla+Typescript app.
+        Entering any input into the input field of the running app will be
+        written to the file on submit.
 
-   You should be presented with your input and finished learning about using permissions from plugins in Tauri applications.
-   🥳
+        Let's test now in practice:
 
-   If you encountered this error:
+        ```
+        pnpm run tauri dev
+        ```
 
-   ```sh
-   [Error] Unhandled Promise Rejection: fs.write_text_file not allowed. Permissions associated with this command: fs:allow-app-write, fs:allow-app-write-recursive, fs:allow-appcache-write, fs:allow-appcache-write-recursive, fs:allow-appconf...
-   (anonymous function) (main.ts:5)
-   ```
+        After writing into the input and clicking "Submit",
+        we can check via our terminal emulator or by manually opening the
+        file in your home folder.
 
-   Then you very likely did not properly follow the [previous instructions](#find-the-right-permissions).
-   </ShowSolution>
+        ```
+        cat $HOME/test.txt
+        ```
+
+        You should be presented with your input and finished learning about using permissions from plugins in Tauri applications.
+        🥳
+
+
+        If you encountered this error:
+
+        ```sh
+        [Error] Unhandled Promise Rejection: fs.write_text_file not allowed. Permissions associated with this command: fs:allow-app-write, fs:allow-app-write-recursive, fs:allow-appcache-write, fs:allow-appcache-write-recursive, fs:allow-appconf...
+        (anonymous function) (main.ts:5)
+        ```
+        Then you very likely did not properly follow the [previous instructions](#find-the-right-permissions).
+        </ShowSolution>
 
  </Steps>
 
@@ -16479,12 +16442,12 @@ This exercise is meant to be read after completing [`Using Plugin Permissions`](
 <Steps>
 1. ### Create Multiple Windows in a Tauri Application
 
-Here we create an app with two windows labelled `first` and `second`.
-There are multiple ways to create windows in your Tauri application.
+   Here we create an app with two windows labelled `first` and `second`.
+   There are multiple ways to create windows in your Tauri application.
 
-#### Create Windows with the Tauri Configuration File
+   #### Create Windows with the Tauri Configuration File
 
-In the Tauri configuration file, usually named `tauri.conf.json`:
+   In the Tauri configuration file, usually named `tauri.conf.json`:
 
     <ShowSolution>
     ```javascript
@@ -16511,7 +16474,7 @@ In the Tauri configuration file, usually named `tauri.conf.json`:
     ```
     </ShowSolution>
 
-#### Create Windows Programmatically
+   #### Create Windows Programmatically
 
     In the Rust code to create a Tauri app:
 
@@ -16538,95 +16501,96 @@ In the Tauri configuration file, usually named `tauri.conf.json`:
 
 2. ### Apply Different Capabilities to Different Windows
 
-   The windows of a Tauri app can use different features or plugins of the Tauri backend.
-   For better security it is recommended to only give the necessary capabilities to each window.
-   We simulate a scenario where the `first` windows uses filesystem and dialog functionalities and `second`
-   only needs dialog functionalities.
+    The windows of a Tauri app can use different features or plugins of the Tauri backend.
+    For better security it is recommended to only give the necessary capabilities to each window.
+    We simulate a scenario where the `first` windows uses filesystem and dialog functionalities and `second`
+    only needs dialog functionalities.
 
-   #### Separate capability files per category
+    #### Separate capability files per category
 
-   It is recommended to separate the capability files per category of actions they enable.
+    It is recommended to separate the capability files per category of actions they enable.
 
-   <ShowSolution>
-   JSON files in the `src-tauri/capabilities` will be taken into account for the capability system.
-   Here we separate capabilities related to the filesystem and dialog window into `filesystem.json`
-   and `dialog.json`.
+    <ShowSolution>
+    JSON files in the `src-tauri/capabilities` will be taken into account for the capability system.
+    Here we separate capabilities related to the filesystem and dialog window into `filesystem.json`
+    and `dialog.json`.
 
-   _filetree of the Tauri project:_
+    *filetree of the Tauri project:*
+    ```
+    /src
+    /src-tauri
+      /capabilities
+        filesystem.json
+        dialog.json
+      tauri.conf.json
+    package.json
+    README.md
+    ```
+    </ShowSolution>
 
-   ```
-   /src
-   /src-tauri
-     /capabilities
-       filesystem.json
-       dialog.json
-     tauri.conf.json
-   package.json
-   README.md
-   ```
+    #### Give filesystem capabilities to the `first` window
 
-   </ShowSolution>
+    We give the `first` window the capability to have read access to the content of the `$HOME` directory.
 
-   #### Give filesystem capabilities to the `first` window
+    <ShowSolution>
+    Use the `windows` field in a capability file with one or multiple window labels.
 
-   We give the `first` window the capability to have read access to the content of the `$HOME` directory.
+    ```json title="filesystem.json"
+    {
+      "identifier": "fs-read-home",
+      "description": "Allow access file access to home directory",
+      "local": true,
+      "windows": ["first"],
+      "permissions": [
+        "fs:allow-home-read",
+      ]
+    }
+    ```
+    </ShowSolution>
 
-   <ShowSolution>
-   Use the `windows` field in a capability file with one or multiple window labels.
+    #### Give dialog capabilities to the `first` and `second` window
 
-   ```json title="filesystem.json"
-   {
-     "identifier": "fs-read-home",
-     "description": "Allow access file access to home directory",
-     "local": true,
-     "windows": ["first"],
-     "permissions": ["fs:allow-home-read"]
-   }
-   ```
+    We give to `first` and `second` windows the capability to create a "Yes/No" dialog
 
-   </ShowSolution>
+    <ShowSolution>
+    Use the `windows` field in a capability file with one or multiple window labels.
 
-   #### Give dialog capabilities to the `first` and `second` window
+    ```json title="dialog.json"
+    {
+      "identifier": "dialog",
+      "description": "Allow to open a dialog",
+      "local": true,
+      "windows": ["first", "second"],
+      "permissions": ["dialog:allow-ask"]
+    }
+    ```
 
-   We give to `first` and `second` windows the capability to create a "Yes/No" dialog
-
-   <ShowSolution>
-   Use the `windows` field in a capability file with one or multiple window labels.
-
-   ```json title="dialog.json"
-   {
-     "identifier": "dialog",
-     "description": "Allow to open a dialog",
-     "local": true,
-     "windows": ["first", "second"],
-     "permissions": ["dialog:allow-ask"]
-   }
-   ```
-
-   </ShowSolution>
+    </ShowSolution>
 
 3. ### Make Capabilities Platform Dependent
 
-   We now want to customize the capabilities to be active only on certain platforms.
-   We make our filesystem capabilities only active on `linux` and `windows`.
+    We now want to customize the capabilities to be active only on certain platforms.
+    We make our filesystem capabilities only active on `linux` and `windows`.
 
-   <ShowSolution>
-   Use the `platforms` field in a capability file to make it platform-specific.
+    <ShowSolution>
+    Use the `platforms` field in a capability file to make it platform-specific.
 
-   ```json title="filesystem.json"
-   {
-     "identifier": "fs-read-home",
-     "description": "Allow access file access to home directory",
-     "local": true,
-     "windows": ["first"],
-     "permissions": ["fs:allow-home-read"],
-     "platforms": ["linux", "windows"]
-   }
-   ```
+    ```json title="filesystem.json"
+    {
+      "identifier": "fs-read-home",
+      "description": "Allow access file access to home directory",
+      "local": true,
+      "windows": ["first"],
+      "permissions": [
+        "fs:allow-home-read",
+      ],
+      "platforms": ["linux", "windows"]
+    }
+    ```
 
-   The currently available platforms are `linux`, `windows`, `macos`, `android`, and `ios`.
-   </ShowSolution>
-
+    The currently available platforms are `linux`, `windows`, `macos`, `android`, and `ios`.
+    </ShowSolution>
+    
 </Steps>
 
 ## Conclusion and Resources
@@ -16654,262 +16618,256 @@ and hand crafted.
 
 1. ### Create a Tauri Plugin
 
-   In our example we will facilitate the Tauri [`cli`](/reference/cli/)
-   to bootstrap a Tauri plugin source code structure.
-   Make sure you have installed all [Prerequisites](/start/prerequisites/)
-   and verify you have the Tauri CLI in the correct version
-   by running `cargo tauri info`.
+    In our example we will facilitate the Tauri [`cli`](/reference/cli/)
+    to bootstrap a Tauri plugin source code structure.
+    Make sure you have installed all [Prerequisites](/start/prerequisites/)
+    and verify you have the Tauri CLI in the correct version
+    by running `cargo tauri info`.
 
-   The output should indicate the `tauri-cli` version is `2.x`.
-   We will proceed in this step-by-step explanation with `pnpm` but you can choose another
-   package manager and replace it in the commands accordingly.
+    The output should indicate the `tauri-cli` version is `2.x`.
+    We will proceed in this step-by-step explanation with `pnpm` but you can choose another
+    package manager and replace it in the commands accordingly.
 
-   Once you have a recent version installed you can go
-   ahead and create the plugin using the Tauri CLI.
+    Once you have a recent version installed you can go
+    ahead and create the plugin using the Tauri CLI.
 
-   <ShowSolution>
-   ```sh
-   mkdir -p tauri-learning
-   cd tauri-learning
-   cargo tauri plugin new test
-   cd tauri-plugin-test
-   pnpm install
-   pnpm build
-   cargo build
-   ```
-   </ShowSolution>
+    <ShowSolution>
+    ```sh
+    mkdir -p tauri-learning
+    cd tauri-learning
+    cargo tauri plugin new test
+    cd tauri-plugin-test
+    pnpm install
+    pnpm build
+    cargo build
+    ```
+    </ShowSolution>
 
 2. ### Create a New Command
 
-   To showcase something practical and simple let us assume
-   our command writes user input to a file in our temporary folder while
-   adding some custom header to the file.
+    To showcase something practical and simple let us assume
+    our command writes user input to a file in our temporary folder while
+    adding some custom header to the file.
 
-   Let's name our command `write_custom_file`, implement it in `src/commands.rs`
-   and add it to our plugin builder to be exposed to the frontend.
+    Let's name our command `write_custom_file`, implement it in `src/commands.rs`
+    and add it to our plugin builder to be exposed to the frontend.
 
-   Tauri's core utils will autogenerate `allow` and `deny` permissions for this
-   command, so we do not need to care about this.
+    Tauri's core utils will autogenerate `allow` and `deny` permissions for this
+    command, so we do not need to care about this.
 
-   <ShowSolution>
+    <ShowSolution>
 
-   The command implementation:
+    The command implementation:
 
-   ```rust title="src/commands.rs" ins={15-22} ins=", Manager"
-   use tauri::{AppHandle, command, Runtime};
+    ```rust title="src/commands.rs" ins={15-22} ins=", Manager"
+    use tauri::{AppHandle, command, Runtime};
 
-   use crate::models::*;
-   use crate::Result;
-   use crate::TestExt;
+    use crate::models::*;
+    use crate::Result;
+    use crate::TestExt;
 
-   #[command]
-   pub(crate) async fn ping<R: Runtime>(
-       app: AppHandle<R>,
-       payload: PingRequest,
-   ) -> Result<PingResponse> {
-       app.test1().ping(payload)
-   }
+    #[command]
+    pub(crate) async fn ping<R: Runtime>(
+        app: AppHandle<R>,
+        payload: PingRequest,
+    ) -> Result<PingResponse> {
+        app.test1().ping(payload)
+    }
 
-   #[command]
-   pub(crate) async fn write_custom_file<R: Runtime>(
-       user_input: String,
-       app: AppHandle<R>,
-   ) -> Result<String> {
-       std::fs::write(app.path().temp_dir().unwrap(), user_input)?;
-       Ok("success".to_string())
-   }
+    #[command]
+    pub(crate) async fn write_custom_file<R: Runtime>(
+        user_input: String,
+        app: AppHandle<R>,
+    ) -> Result<String> {
+        std::fs::write(app.path().temp_dir().unwrap(), user_input)?;
+        Ok("success".to_string())
+    }
+   
+    ```
 
-   ```
+    Auto-Generate inbuilt permissions for your new command:
 
-   Auto-Generate inbuilt permissions for your new command:
+    ```rust title="src/build.rs" ins="\"write_custom_file\""
+    const COMMANDS: &[&str] = &["ping", "write_custom_file"];
+    ```
 
-   ```rust title="src/build.rs" ins=""write_custom_file""
-   const COMMANDS: &[&str] = &["ping", "write_custom_file"];
-   ```
+    These inbuilt permissions will be automatically generated by the Tauri build
+    system and will be visible in the `permissions/autogenerated/commands` folder.
+    By default an `enable-<command>` and `deny-<command>` permission will
+    be created.
 
-   These inbuilt permissions will be automatically generated by the Tauri build
-   system and will be visible in the `permissions/autogenerated/commands` folder.
-   By default an `enable-<command>` and `deny-<command>` permission will
-   be created.
-
-   </ShowSolution>
-
+    </ShowSolution>
 3. ### Expose the New Command
 
-   The previous step was to write the actual command implementation.
-   Next we want to expose it to the frontend so it can be consumed.
+    The previous step was to write the actual command implementation.
+    Next we want to expose it to the frontend so it can be consumed.
 
-   <ShowSolution>
+    <ShowSolution>
+ 
+    Configure the Tauri builder to generate the invoke handler to pass frontend
+    IPC requests to the newly implemented command:
 
-   Configure the Tauri builder to generate the invoke handler to pass frontend
-   IPC requests to the newly implemented command:
+    ```rust title="src/lib.rs"  ins="commands::write_custom_file,"
+    pub fn init<R: Runtime>() -> TauriPlugin<R> {
+    Builder::new("test")
+        .invoke_handler(tauri::generate_handler![
+            commands::ping,
+            commands::write_custom_file,
+        ])
+        .setup(|app, api| {
+            #[cfg(mobile)]
+            let test = mobile::init(app, api)?;
+            #[cfg(desktop)]
+            let test = desktop::init(app, api)?;
+            app.manage(test);
 
-   ```rust title="src/lib.rs"  ins="commands::write_custom_file,"
-   pub fn init<R: Runtime>() -> TauriPlugin<R> {
-   Builder::new("test")
-       .invoke_handler(tauri::generate_handler![
-           commands::ping,
-           commands::write_custom_file,
-       ])
-       .setup(|app, api| {
-           #[cfg(mobile)]
-           let test = mobile::init(app, api)?;
-           #[cfg(desktop)]
-           let test = desktop::init(app, api)?;
-           app.manage(test);
+            // manage state so it is accessible by the commands
+            app.manage(MyState::default());
+            Ok(())
+        })
+        .build()
+    }
+    ```
 
-           // manage state so it is accessible by the commands
-           app.manage(MyState::default());
-           Ok(())
-       })
-       .build()
-   }
-   ```
+    Expose the new command in the frontend module.
 
-   Expose the new command in the frontend module.
+    This step is essential for the example application to successfully
+    import the frontend module. This is for convenience and has
+    no security impact, as the command handler is already generated
+    and the command can be manually invoked from the frontend.
 
-   This step is essential for the example application to successfully
-   import the frontend module. This is for convenience and has
-   no security impact, as the command handler is already generated
-   and the command can be manually invoked from the frontend.
+    ```ts title="guest-js/index.ts" ins={11-13}
+    import { invoke } from '@tauri-apps/api/core'
 
-   ```ts title="guest-js/index.ts" ins={11-13}
-   import { invoke } from "@tauri-apps/api/core";
+    export async function ping(value: string): Promise<string | null> {
+      return await invoke<{value?: string}>('plugin:test|ping', {
+        payload: {
+          value,
+        },
+      }).then((r) => (r.value ? r.value : null));
+    }
 
-   export async function ping(value: string): Promise<string | null> {
-     return await invoke<{ value?: string }>("plugin:test|ping", {
-       payload: {
-         value,
-       },
-     }).then((r) => (r.value ? r.value : null));
-   }
+    export async function writeCustomFile(user_input: string): Promise<string> {
+     return await invoke('plugin:test|write_custom_file',{userInput: user_input});
+    }
+    ```
 
-   export async function writeCustomFile(user_input: string): Promise<string> {
-     return await invoke("plugin:test|write_custom_file", {
-       userInput: user_input,
-     });
-   }
-   ```
+    :::tip
+    The invoke parameter needs to be CamelCase. In this example it is `userInput` instead of `user_input`. 
+    :::
 
-   :::tip
-   The invoke parameter needs to be CamelCase. In this example it is `userInput` instead of `user_input`.
-   :::
+    Make sure your package is built:
 
-   Make sure your package is built:
+    ```
+    pnpm build
+    ```
 
-   ```
-   pnpm build
-   ```
-
-   </ShowSolution>
+    </ShowSolution>
 
 4. ### Define Default Plugin Permissions
 
-   As our plugin should expose the `write_custom_file` command by default
-   we should add this to our `default.toml` permission.
+    As our plugin should expose the `write_custom_file` command by default
+    we should add this to our `default.toml` permission.
 
-   <ShowSolution>
-   Add this to our default permission set to allow the new command
-   we just exposed.
+    <ShowSolution>
+    Add this to our default permission set to allow the new command
+    we just exposed.
 
-   ```toml title="permissions/default.toml" ins=", "allow-write-custom-file""
-   "$schema" = "schemas/schema.json"
-   [default]
-   description = "Default permissions for the plugin"
-   permissions = ["allow-ping", "allow-write-custom-file"]
-   ```
-
-   </ShowSolution>
+    ```toml title="permissions/default.toml" ins=", \"allow-write-custom-file\""
+    "$schema" = "schemas/schema.json"
+    [default]
+    description = "Default permissions for the plugin"
+    permissions = ["allow-ping", "allow-write-custom-file"]
+    ```
+    </ShowSolution>
 
 5. ### Invoke Test Command from Example Application
+    
+    The created plugin directory structure contains an `examples/tauri-app` folder,
+    which has a ready to use Tauri application to test out the plugin.
 
-   The created plugin directory structure contains an `examples/tauri-app` folder,
-   which has a ready to use Tauri application to test out the plugin.
+    Since we added a new command we need to slightly modify the frontend to
+    invoke our new command instead.
 
-   Since we added a new command we need to slightly modify the frontend to
-   invoke our new command instead.
+    <ShowSolution>
+    ```svelte title="src/App.svelte" del={11-13,42-45} ins={14-16,45-49}
+    <script>
+      import Greet from './lib/Greet.svelte'
+      import { ping, writeCustomFile } from 'tauri-plugin-test-api'
 
-   <ShowSolution>
-   ```svelte title="src/App.svelte" del={11-13,42-45} ins={14-16,45-49}
-   <script>
-     import Greet from './lib/Greet.svelte'
-     import { ping, writeCustomFile } from 'tauri-plugin-test-api'
+      let response = ''
 
-   let response = ''
+      function updateResponse(returnValue) {
+        response += `[${new Date().toLocaleTimeString()}]` + (typeof returnValue === 'string' ? returnValue : JSON.stringify(returnValue)) + '<br>'
+      }
 
-   function updateResponse(returnValue) {
-   response += `[${new Date().toLocaleTimeString()}]` + (typeof returnValue === 'string' ? returnValue : JSON.stringify(returnValue)) + '<br>'
-   }
+      function _ping() {
+        ping("Pong!").then(updateResponse).catch(updateResponse)
+      }
+      function _writeCustomFile() {
+        writeCustomFile("HELLO FROM TAURI PLUGIN").then(updateResponse).catch(updateResponse)
+      }
+    </script>
 
-   function \_ping() {
-   ping("Pong!").then(updateResponse).catch(updateResponse)
-   }
-   function \_writeCustomFile() {
-   writeCustomFile("HELLO FROM TAURI PLUGIN").then(updateResponse).catch(updateResponse)
-   }
-   </script>
+    <main class="container">
+      <h1>Welcome to Tauri!</h1>
 
-   <main class="container">
-     <h1>Welcome to Tauri!</h1>
+      <div class="row">
+        <a href="https://vitejs.dev" target="_blank">
+          <img src="/vite.svg" class="logo vite" alt="Vite Logo" />
+        </a>
+        <a href="https://tauri.app" target="_blank">
+          <img src="/tauri.svg" class="logo tauri" alt="Tauri Logo" />
+        </a>
+        <a href="https://svelte.dev" target="_blank">
+          <img src="/svelte.svg" class="logo svelte" alt="Svelte Logo" />
+        </a>
+      </div>
 
-     <div class="row">
-       <a href="https://vitejs.dev" target="_blank">
-         <img src="/vite.svg" class="logo vite" alt="Vite Logo" />
-       </a>
-       <a href="https://tauri.app" target="_blank">
-         <img src="/tauri.svg" class="logo tauri" alt="Tauri Logo" />
-       </a>
-       <a href="https://svelte.dev" target="_blank">
-         <img src="/svelte.svg" class="logo svelte" alt="Svelte Logo" />
-       </a>
-     </div>
+      <p>
+        Click on the Tauri, Vite, and Svelte logos to learn more.
+      </p>
 
-     <p>
-       Click on the Tauri, Vite, and Svelte logos to learn more.
-     </p>
+      <div class="row">
+        <Greet />
+      </div>
 
-     <div class="row">
-       <Greet />
-     </div>
+      <div>
+        <button on:click="{_ping}">Ping</button>
+        <div>{@html response}</div>
+      </div>
+      <div>
+        <button on:click="{_writeCustomFile}">Write</button>
+        <div>{@html response}</div>
+      </div>
 
-     <div>
-       <button on:click="{_ping}">Ping</button>
-       <div>{@html response}</div>
-     </div>
-     <div>
-       <button on:click="{_writeCustomFile}">Write</button>
-       <div>{@html response}</div>
-     </div>
 
-   </main>
+    </main>
 
-   <style>
-     .logo.vite:hover {
-       filter: drop-shadow(0 0 2em #747bff);
-     }
-   
-     .logo.svelte:hover {
-       filter: drop-shadow(0 0 2em #ff3e00);
-     }
-   </style>
+    <style>
+      .logo.vite:hover {
+        filter: drop-shadow(0 0 2em #747bff);
+      }
 
-   ```
+      .logo.svelte:hover {
+        filter: drop-shadow(0 0 2em #ff3e00);
+      }
+    </style>
+    ```
 
-   Running this and pressing the "Write" button you should be greeted with this:
+    Running this and pressing the "Write" button you should be greeted with this:
 
-   ```
+    ```
+    success
+    ```
 
-   success
+    And you should find a `test.txt` file in your temporary folder containing a message
+    from our new implemented plugin command. 
+    🥳
 
-   ```
-
-   And you should find a `test.txt` file in your temporary folder containing a message
-   from our new implemented plugin command.
-   🥳
-
-   </ShowSolution>
-   ```
+    </ShowSolution>
 
  </Steps>
+
 
 # Plugins

@@ -15,9 +15,8 @@
 **URL:** llms-txt#start-the-dev-server
 
 **Contents:**
-
-- Platform-specific Configuration
-- Extending the Configuration
+  - Platform-specific Configuration
+  - Extending the Configuration
 - `Cargo.toml`
 - `package.json`
 
@@ -35,50 +34,50 @@ pubkey = "updater pub key"
 endpoints = ["https://my.app.updater/{{target}}/{{current_version}}"]
 json title=tauri.conf.json
 {
-"productName": "MyApp",
-"bundle": {
-"resources": ["./resources"]
-},
-"plugins": {
-"deep-link": {}
-}
+  "productName": "MyApp",
+  "bundle": {
+    "resources": ["./resources"]
+  },
+  "plugins": {
+    "deep-link": {}
+  }
 }
 json title=tauri.linux.conf.json
 {
-"productName": "my-app",
-"bundle": {
-"resources": ["./linux-assets"]
-},
-"plugins": {
-"cli": {
-"description": "My app",
-"subcommands": {
-"update": {}
-}
-},
-"deep-link": {}
-}
+  "productName": "my-app",
+  "bundle": {
+    "resources": ["./linux-assets"]
+  },
+  "plugins": {
+    "cli": {
+      "description": "My app",
+      "subcommands": {
+        "update": {}
+      }
+    },
+    "deep-link": {}
+  }
 }
 json
 {
-"productName": "my-app",
-"bundle": {
-"resources": ["./linux-assets"]
-},
-"plugins": {
-"cli": {
-"description": "My app",
-"subcommands": {
-"update": {}
-}
-},
-"deep-link": {}
-}
+  "productName": "my-app",
+  "bundle": {
+    "resources": ["./linux-assets"]
+  },
+  "plugins": {
+    "cli": {
+      "description": "My app",
+      "subcommands": {
+        "update": {}
+      }
+    },
+    "deep-link": {}
+  }
 }
 json title=src-tauri/tauri.beta.conf.json
 {
-"productName": "My App Beta",
-"identifier": "com.myorg.myappbeta"
+  "productName": "My App Beta",
+  "identifier": "com.myorg.myappbeta"
 }
 toml title=Cargo.toml
 [package]
@@ -103,25 +102,24 @@ tauri = { version = "2.0.0", features = [ ] }
 tauri-build = { version = "=2.0.0" }
 json title=package.json
 {
-"scripts": {
-"dev": "command to start your app development mode",
-"build": "command to build your app frontend",
-"tauri": "tauri"
-},
-"dependencies": {
-"@tauri-apps/api": "^2.0.0.0",
-"@tauri-apps/cli": "^2.0.0.0"
-}
+  "scripts": {
+    "dev": "command to start your app development mode",
+    "build": "command to build your app frontend",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0.0",
+    "@tauri-apps/cli": "^2.0.0.0"
+  }
 }
 json title=tauri.conf.json
 {
-"build": {
-"beforeDevCommand": "yarn dev",
-"beforeBuildCommand": "yarn build"
+  "build": {
+    "beforeDevCommand": "yarn dev",
+    "beforeBuildCommand": "yarn build"
+  }
 }
-}
-
-````
+```
 
 :::note
 The `"tauri"` script is only needed when using `npm`
@@ -163,22 +161,19 @@ In addition to the default configuration file, Tauri can read a platform-specifi
 The platform-specific configuration file gets merged with the main configuration object following the [JSON Merge Patch (RFC 7396)] specification.
 
 For example, given the following base `tauri.conf.json`:
-````
+```
 
 Example 2 (unknown):
-
 ```unknown
 And the given `tauri.linux.conf.json`:
 ```
 
 Example 3 (unknown):
-
 ```unknown
 The resolved configuration for Linux would be the following object:
 ```
 
 Example 4 (unknown):
-
 ```unknown
 Additionally you can provide a configuration to be merged via the CLI, see the following section for more information.
 

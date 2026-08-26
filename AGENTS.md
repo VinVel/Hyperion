@@ -23,7 +23,6 @@ Primary repo areas:
 - Use `pnpm`, `pnpm run`, `pnpm exec`, and `pnpm tauri ...`.
 - Do not use `bun`, `bunx`, `npm`, `npx`, `yarn`, or `pnpx` unless the user explicitly asks or a specific external tool requires it.
 - Translate stale examples automatically: `bun run build` -> `pnpm run build`, `bun lint` -> `pnpm lint`, `bunx eslint ...` -> `pnpm exec eslint ...`, `bun tauri ...` -> `pnpm tauri ...`.
-- When using `.agents/skills/tauri`, choose the pnpm command variant.
 
 ## Architecture Principles
 
@@ -32,7 +31,6 @@ Primary repo areas:
 Apply that rule as follows:
 
 - Keep Matrix, network, session, account, persistence, and business logic in Rust behind Tauri commands whenever practical.
-- For Tauri-related work, prefer the repo-local Tauri skill at `.agents/skills/tauri/SKILL.md`.
 - For Rust backend work that touches `matrix-sdk`, double-check the implementation against the official Matrix Rust SDK documentation: `https://matrix-org.github.io/matrix-rust-sdk/matrix_sdk/`.
 - Use React and TypeScript primarily for UI composition, presentation state, adaptive layouts, and invoking backend commands.
 - Avoid duplicating Matrix or account logic in the frontend unless there is a clear UI-only reason.
@@ -255,3 +253,29 @@ Working rules:
 - Prefer named constants over inline literals in both TypeScript and Rust when values carry meaning or are likely to be reused.
 
 This file applies equally to any agent working in Hyperion. It does not define specialist personas. It defines the shared quality bar and default behavior expected for all agent-driven work in this repository.
+
+## Skill Guidance
+
+### tauri
+
+Use for Tauri shell work: IPC, commands and events, native APIs, plugins, permissions, security, mobile support, debugging, configuration, packaging, signing, and CI/CD. For this repository, use the repo-local skill at `.agents/skills/tauri/` and prefer pnpm command variants.
+
+### rust-skills
+
+Use for all meaningful Rust work, including Matrix and Tauri backend code. Apply the relevant rules for ownership, errors, async/concurrency, types, serde, performance, testing, observability, and Clippy rather than loading every rule indiscriminately.
+
+### vercel-composition-patterns
+
+Use when designing or refactoring reusable React component APIs, especially components with many boolean props, compound components, context/providers, lifted state, explicit variants, or render-prop alternatives.
+
+### vercel-react-best-practices
+
+Use for React performance work: async waterfalls, bundle size, data fetching, rerenders, effects, large-list rendering, event listeners, and expensive client-side computation. Prefer the client/rendering guidance for this Vite/Tauri app; Next.js server-specific rules apply only if such a surface is introduced.
+
+### vercel-react-view-transitions
+
+Use only for intentional React View Transition API behavior: route or list-to-detail transitions, shared elements, enter/exit animations, list reordering, Suspense reveals, or directional navigation. Follow its audit and CSS-reference workflow, respect reduced motion, and verify local React/browser support before adding dependencies or APIs.
+
+### web-design-guidelines
+
+Use for explicit UI, UX, accessibility, or interface-quality reviews. Fetch the latest guidelines before reviewing and report findings in the requested `file:line` format; it is not required for every UI implementation change.

@@ -9,7 +9,6 @@
 **URL:** llms-txt#debug-in-vs-code
 
 **Contents:**
-
 - All platforms with vscode-lldb extension
   - Prerequisites
   - Configure launch.json
@@ -50,7 +49,6 @@ Here is an example of running a dev server (equivalent of `beforeDevCommand`) an
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 This uses `cargo` directly to build the Rust application and load it in both development and production modes.
 
@@ -58,7 +56,6 @@ Note that it does not use the Tauri CLI, so exclusive CLI features are not execu
 ```
 
 Example 2 (unknown):
-
 ```unknown
 Now you can set breakpoints in `src-tauri/src/main.rs` or any other Rust file and start debugging by pressing `F5`.
 
@@ -74,7 +71,6 @@ Install the [C/C++](https://marketplace.visualstudio.com/items?itemName=ms-vscod
 ```
 
 Example 3 (unknown):
-
 ```unknown
 Note that it does not use the Tauri CLI, so exclusive CLI features are not executed. The `tasks.json` is the same as with `lldb`, except you need to add a config group and target your `preLaunchTask` from `launch.json` to it if you want it to always compile before launching.
 
@@ -88,7 +84,6 @@ Here is an example of running a dev server (equivalent of `beforeDevCommand`) an
 **URL:** llms-txt#inter-process-communication
 
 **Contents:**
-
 - Events
 - Commands
 
@@ -136,7 +131,6 @@ Because this mechanism uses a [JSON-RPC] like protocol under the hood to seriali
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 <figcaption>Events sent between the Core and the Webview.</figcaption>
 </figure>
@@ -157,7 +151,6 @@ Because this mechanism uses a [JSON-RPC] like protocol under the hood to seriali
 **URL:** llms-txt#process-model
 
 **Contents:**
-
 - Why Multiple Processes?
 - The Core Process
 - The WebView Process
@@ -214,7 +207,6 @@ Unlike other similar solutions, the WebView libraries are **not** included in yo
 **URL:** llms-txt#tauri-architecture
 
 **Contents:**
-
 - Introduction
   - What Tauri is Not
 - Core Ecosystem
@@ -355,14 +347,13 @@ Here you may peruse our [Software Bill of Materials](https://app.fossa.com/proje
 **URL:** llms-txt#debug-in-jetbrains-ides
 
 **Contents:**
-
 - Setting up a Cargo project
 - Setting up Run Configurations
   - Tauri App
   - Development Server
 - Launching a Debugging Session
 
-{/_ TODO: Add support to light/dark mode images _/}
+{/* TODO: Add support to light/dark mode images */}
 
 In this guide, we'll be setting up JetBrains RustRover for debugging the [Core Process of your Tauri app](/concept/process-model/#the-core-process). It also mostly applies to IntelliJ and CLion.
 
@@ -389,17 +380,17 @@ You will need to set up two separate Run/Debug configurations:
 - To create a new configuration, click **+** on the toolbar and select **Cargo**.
 
 ![Add Run/Debug Configuration](@assets/develop/Debug/rustrover/add-cargo-config-light.png)
-{/_ ![Add Run/Debug Configuration](@assets/develop/Debug/rustrover/add-cargo-config-dark.png#gh-dark-mode-only) _/}
+{/* ![Add Run/Debug Configuration](@assets/develop/Debug/rustrover/add-cargo-config-dark.png#gh-dark-mode-only) */}
 
 With that created, we need to configure RustRover, so it instructs Cargo to build our app without any default features. This will tell Tauri to use your development server instead of reading assets from the disk. Normally this flag is passed by the Tauri CLI, but since we're completely sidestepping that here, we need to pass the flag manually.
 
 ![Add `--no-default-features` flag](@assets/develop/Debug/rustrover/set-no-default-features-light.png)
-{/_ ![Add `--no-default-features` flag](@assets/develop/Debug/rustrover/set-no-default-features-dark.png#gh-dark-mode-only) _/}
+{/* ![Add `--no-default-features` flag](@assets/develop/Debug/rustrover/set-no-default-features-dark.png#gh-dark-mode-only) */}
 
 Now we can optionally rename the Run/Debug Configuration to something more memorable, in this example we called it "Run Tauri App", but you can name it whatever you want.
 
 ![Rename Configuration](@assets/develop/Debug/rustrover/rename-configuration-light.png)
-{/_ ![Rename Configuration](@assets/develop/Debug/rustrover/rename-configuration-dark.png#gh-dark-mode-only) _/}
+{/* ![Rename Configuration](@assets/develop/Debug/rustrover/rename-configuration-dark.png#gh-dark-mode-only) */}
 
 ### Development Server
 
@@ -410,21 +401,21 @@ To create the corresponding Run configuration, you need to check the actual deve
 For `npm`, `pnpm`, or `yarn`, you could use the **npm** Run Configuration, for example:
 
 ![NPM Configuration](@assets/develop/Debug/rustrover/npm-configuration-light.png)
-{/_ ![NPM Configuration](@assets/develop/Debug/rustrover/npm-configuration-dark.png#gh-dark-mode-only) _/}
+{/* ![NPM Configuration](@assets/develop/Debug/rustrover/npm-configuration-dark.png#gh-dark-mode-only) */}
 
 Make sure you have the correct values in the **Command**, **Scripts**, and **Package Manager** fields.
 
 If your development server is `trunk` for Rust-based WebAssembly frontend frameworks, you could use the generic **Shell Script** Run Configuration:
 
 ![Trunk Serve Configuration](@assets/develop/Debug/rustrover/trunk-configuration-light.png)
-{/_ ![Trunk Serve Configuration](@assets/develop/Debug/rustrover/trunk-configuration-dark.png#gh-dark-mode-only) _/}
+{/* ![Trunk Serve Configuration](@assets/develop/Debug/rustrover/trunk-configuration-dark.png#gh-dark-mode-only) */}
 
 ## Launching a Debugging Session
 
 To launch a debugging session, you first need to run your development server, and then start debugging the Tauri App by clicking the **Debug** button next to the Run Configurations Switcher. RustRover will automatically recognize breakpoints placed in any Rust file in your project and stop on the first one hit.
 
 ![Debug Session](@assets/develop/Debug/rustrover/debug-session-light.png)
-{/_ ![Debug Session](@assets/develop/Debug/rustrover/debug-session-dark.png#gh-dark-mode-only) _/}
+{/* ![Debug Session](@assets/develop/Debug/rustrover/debug-session-dark.png#gh-dark-mode-only) */}
 
 From this point, you can explore the values of your variables, step further into the code, and check what's going at runtime in detail.
 
@@ -433,7 +424,6 @@ From this point, you can explore the values of your variables, step further into
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 Before you proceed, make sure that your project is fully loaded. If the Cargo tool window shows all the modules and targets of the workspace, you're good to go.
 

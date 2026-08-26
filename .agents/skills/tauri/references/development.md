@@ -9,11 +9,10 @@
 **URL:** llms-txt#debug-in-neovim
 
 **Contents:**
-
-- Prerequisites
-- Configuring nvim-dap
-- Starting the dev server
-- Example key bindings
+  - Prerequisites
+  - Configuring nvim-dap
+  - Starting the dev server
+  - Example key bindings
 
 There are many different plugins that can be used to debug Rust code in Neovim. This guide will show you how to set up `nvim-dap` and some additional plugins to debug Tauri application.
 
@@ -47,7 +46,6 @@ Below you can find example key bindings to start and control debugging sessions.
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 This setup will ask you to point to the Tauri App binary you want to debug each time you lanuch the debugger.
 
@@ -55,13 +53,11 @@ Optionally, you can setup `nvim-dap-ui` plugin to toggle debugger view automatic
 ```
 
 Example 2 (unknown):
-
 ```unknown
 Lastly, you can change the default way the breakpoints are displayed in the editor:
 ```
 
 Example 3 (unknown):
-
 ```unknown
 ### Starting the dev server
 
@@ -73,7 +69,6 @@ You can find example task configuration for project using `trunk` below.
 ```
 
 Example 4 (unknown):
-
 ```unknown
 ### Example key bindings
 
@@ -110,7 +105,6 @@ For more information, see the [CrabNebula DevTools](https://docs.crabnebula.dev/
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 And initialize the plugin as soon as possible in your main function:
 ```
@@ -130,7 +124,6 @@ And initialize the plugin as soon as possible in your main function:
 **URL:** llms-txt#debug
 
 **Contents:**
-
 - Development Only Code
   - In Rust
 - Rust Console
@@ -147,7 +140,7 @@ With all the moving pieces in Tauri, you may run into a problem that requires de
 
 One of the most useful tools in your toolkit for debugging is the ability to add debugging statements in your code. However, you generally don't want these to end up in production, which is where the ability to check whether you're running in development mode or not comes in handy.
 
-{/_ TODO: js version _/}
+{/* TODO: js version */}
 
 The first place to look for errors is in the Rust Console. This is in the terminal where you ran, e.g., `tauri dev`. You can use the following code to print something to that console from within a Rust file:
 
@@ -206,7 +199,6 @@ The Core process is powered by Rust so you can use GDB or LLDB to debug it. You 
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 {/* TODO: js version */}
 
@@ -216,19 +208,16 @@ The first place to look for errors is in the Rust Console. This is in the termin
 ```
 
 Example 2 (unknown):
-
 ```unknown
 Sometimes you may have an error in your Rust code, and the Rust compiler can give you lots of information. If, for example, `tauri dev` crashes, you can rerun it like this on Linux and macOS:
 ```
 
 Example 3 (unknown):
-
 ```unknown
 or like this on Windows (PowerShell):
 ```
 
 Example 4 (unknown):
-
 ```unknown
 This command gives you a granular stack trace. Generally speaking, the Rust compiler helps you by
 giving you detailed information about the issue, such as:
@@ -241,7 +230,6 @@ giving you detailed information about the issue, such as:
 **URL:** llms-txt#mobile-plugin-development
 
 **Contents:**
-
 - Initialize Plugin Project
   - Develop an Android Plugin
   - Develop an iOS Plugin
@@ -381,7 +369,7 @@ Those commands can be directly called from JavaScript or Rust:
 </TabItem>
 <TabItem label="Rust">
 
-{/_ TODO: Is this section a duplicate of Lifecycle Events above? _/}
+{/* TODO: Is this section a duplicate of Lifecycle Events above? */}
 
 Plugins can emit events at any point of time using the `trigger` function:
 
@@ -396,7 +384,6 @@ The helper functions can then be called from the NPM package by using the [`addP
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 This implementation simplifies the process of sharing an API that can be used both by commands and Rust code.
 
@@ -423,14 +410,12 @@ The plugin instance on mobile has a getter for the plugin configuration:
 ```
 
 Example 2 (unknown):
-
 ```unknown
 </TabItem>
 <TabItem label="iOS">
 ```
 
 Example 3 (unknown):
-
 ```unknown
 </TabItem>
 </Tabs>
@@ -454,7 +439,6 @@ There are also the additional [lifecycle events for plugins](/develop/plugins/#l
 ```
 
 Example 4 (unknown):
-
 ```unknown
 </TabItem>
 <TabItem label="iOS">
@@ -467,7 +451,6 @@ Example 4 (unknown):
 **URL:** llms-txt#what-is-tauri?
 
 **Contents:**
-
 - Why Tauri?
   - Secure Foundation
   - Smaller App Size
@@ -477,7 +460,7 @@ Tauri is a framework for building tiny, fast binaries for all major desktop and 
 
 Get started building with [`create-tauri-app`](https://github.com/tauri-apps/create-tauri-app) by using one of the below commands. Be sure to follow the [prerequisites guide](/start/prerequisites/) to install all of the dependencies required by Tauri. For a more detailed walk through, see [Create a Project](/start/create-project/#using-create-tauri-app)
 
-import Cta from '../\_fragments/cta.mdx';
+import Cta from '../_fragments/cta.mdx';
 
 After you've created your first app, take a look at [Project Structure](/start/project-structure/) to understand what each file does.
 
@@ -520,7 +503,6 @@ In addition, Tauri maintains a number of plugins to extend what core Tauri expos
 **URL:** llms-txt#prerequisites
 
 **Contents:**
-
 - System Dependencies
   - Linux
   - macOS
@@ -674,7 +656,6 @@ Only if you intend to use a JavaScript frontend framework
 **Examples:**
 
 Example 1 (sh):
-
 ```sh
 sudo apt update
 sudo apt install libwebkit2gtk-4.1-dev \
@@ -689,7 +670,6 @@ sudo apt install libwebkit2gtk-4.1-dev \
 ```
 
 Example 2 (sh):
-
 ```sh
 sudo pacman -Syu
 sudo pacman -S --needed \
@@ -706,7 +686,6 @@ sudo pacman -S --needed \
 ```
 
 Example 3 (sh):
-
 ```sh
 sudo dnf check-update
 sudo dnf install webkit2gtk4.1-devel \
@@ -721,7 +700,6 @@ sudo dnf group install "c-development"
 ```
 
 Example 4 (sh):
-
 ```sh
 sudo emerge --ask \
   net-libs/webkit-gtk:4.1 \
@@ -738,12 +716,11 @@ sudo emerge --ask \
 **URL:** llms-txt#develop
 
 **Contents:**
-
-- Developing Your Desktop Application
-- Developing your Mobile Application
-- Reacting to Source Code Changes
-- Using the Browser DevTools
-- Source Control
+  - Developing Your Desktop Application
+  - Developing your Mobile Application
+  - Reacting to Source Code Changes
+  - Using the Browser DevTools
+  - Source Control
 
 import CommandTabs from '@components/CommandTabs.astro';
 
@@ -890,22 +867,22 @@ Open the Safari on your Mac machine, choose **Safari > Settings** in the menu ba
 If you are running on a physical device you must enable **Web Inspector** in **Settings > Safari > Advanced**.
 
 After following all steps you should see a **Develop** menu in Safari, where you will find the connected devices and applications to inspect.
-Select your device or simulator and click on **localhost** to open the Safari Developer Tools window.
+  Select your device or simulator and click on **localhost** to open the Safari Developer Tools window.
 
 The inspector is enabled by default for Android emulators, but you must enable it for physical devices.
-Connect your Android device to the computer, open the **Settings** app in the Android device, select **About**, scroll to Build Number and tap that 7 times.
-This will enable Developer Mode for your Android device and the **Developer Options** settings.
+  Connect your Android device to the computer, open the **Settings** app in the Android device, select **About**, scroll to Build Number and tap that 7 times.
+  This will enable Developer Mode for your Android device and the **Developer Options** settings.
 
 To enable application debugging on your device you must enter the **Developer Options** settings, toggle on the developer options switch
-and enable **USB Debugging**.
+  and enable **USB Debugging**.
 
 :::note
-Each Android distribution has its own way to enable the Developer Mode, please check your manufacturer's documentation for more information.
-:::
+  Each Android distribution has its own way to enable the Developer Mode, please check your manufacturer's documentation for more information.
+  :::
 
 The Web Inspector for Android is powered by Google Chrome's DevTools and can be accessed by navigating to `chrome://inspect` in the Chrome browser on your computer.
-Your device or emulator should appear in the remote devices list if your Android application is running, and you can open the developer tools
-by clicking **inspect** on the entry matching your device.
+  Your device or emulator should appear in the remote devices list if your Android application is running, and you can open the developer tools
+  by clicking **inspect** on the entry matching your device.
 
 1. Error running build script on Xcode
 
@@ -943,7 +920,6 @@ their `Cargo.lock`. You **SHOULD NOT** commit the `src-tauri/target` folder or a
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 :::note
 
@@ -958,7 +934,6 @@ and the Tauri CLI will start a development server for you:
 ```
 
 Example 2 (unknown):
-
 ```unknown
 Note that in this example the `src` folder must include a `index.html` file along any other assets loaded by your frontend.
 
@@ -1027,7 +1002,6 @@ to use the `TAURI_DEV_HOST` value if it has been provided. Here is an example co
 ```
 
 Example 3 (unknown):
-
 ```unknown
 Check your framework's setup guide for more information.
 
@@ -1148,7 +1122,6 @@ This file works just like a regular Git ignore file, so you can ignore any folde
 **URL:** llms-txt#plugin-development
 
 **Contents:**
-
 - Naming Convention
 - Initialize Plugin Project
 - Mobile Plugin Development
@@ -1160,11 +1133,11 @@ This file works just like a regular Git ignore file, so you can ignore any folde
   - on_event
   - on_drop
 
-{/_ TODO: Add a CLI section _/}
+{/* TODO: Add a CLI section */}
 
 import CommandTabs from '@components/CommandTabs.astro';
 
-{/_ TODO: Link to windowing system, commands for sending messages, and event system _/}
+{/* TODO: Link to windowing system, commands for sending messages, and event system */}
 
 :::tip[Plugin Development]
 
@@ -1176,7 +1149,7 @@ Tauri offers a windowing system with web view functionality, a way to send messa
 
 A Tauri plugin is composed of a Cargo crate and an optional NPM package that provides API bindings for its commands and events. Additionally, a plugin project can include an Android library project and a Swift package for iOS. You can learn more about developing plugins for Android and iOS in the [Mobile Plugin Development guide](/develop/plugins/develop-mobile/).
 
-{/_ TODO: https://github.com/tauri-apps/tauri/issues/7749 _/}
+{/* TODO: https://github.com/tauri-apps/tauri/issues/7749 */}
 
 Tauri plugins have a prefix followed by the plugin name. The plugin name is specified on the plugin configuration under [`tauri.conf.json > plugins`](/reference/config/#pluginconfig).
 
@@ -1287,7 +1260,6 @@ To define the schema, first add the dependency to your Cargo.toml file:
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 . tauri-plugin-[name]/
 ├── src/                - Rust code
@@ -1307,7 +1279,6 @@ Example 1 (unknown):
 ```
 
 Example 2 (json):
-
 ```json
 {
   "build": { ... },
@@ -1321,7 +1292,6 @@ Example 2 (json):
 ```
 
 Example 3 (unknown):
-
 ```unknown
 ## Lifecycle Events
 
@@ -1342,7 +1312,6 @@ There are additional [lifecycle events for mobile plugins](/develop/plugins/deve
 ```
 
 Example 4 (unknown):
-
 ```unknown
 ### on_navigation
 
@@ -1364,68 +1333,66 @@ sdk: org.gnome.Sdk
 
 command: <main_binary_name>
 finish-args:
-
-- --socket=wayland # Permission needed to show the window
-- --socket=fallback-x11 # Permission needed to show the window
-- --device=dri # OpenGL, not necessary for all projects
-- --share=ipc
-- --talk-name=org.kde.StatusNotifierWatcher # Optional: needed only if your app uses the tray icon
-- --filesystem=xdg-run/tray-icon:create # Optional: needed only if your app uses the tray icon - see an alternative way below
-
-# - --env=WEBKIT_DISABLE_COMPOSITING_MODE=1 # Optional: may solve some issues with black webviews on Wayland
+  - --socket=wayland # Permission needed to show the window
+  - --socket=fallback-x11 # Permission needed to show the window
+  - --device=dri # OpenGL, not necessary for all projects
+  - --share=ipc
+  - --talk-name=org.kde.StatusNotifierWatcher # Optional: needed only if your app uses the tray icon
+  - --filesystem=xdg-run/tray-icon:create # Optional: needed only if your app uses the tray icon - see an alternative way below
+  # - --env=WEBKIT_DISABLE_COMPOSITING_MODE=1 # Optional: may solve some issues with black webviews on Wayland
 
 modules:
+  - name: binary
+    buildsystem: simple
 
-- name: binary
-  buildsystem: simple
-
-sources: # A reference to the previously generated flatpak metainfo file - type: file
-path: flatpak.metainfo.xml # If you use GitHub releases, you can target an existing remote file - type: file
-url: https://github.com/your_username/your_repository/releases/download/v1.0.1/yourapp_1.0.1_amd64.deb
-sha256: 08305b5521e2cf0622e084f2b8f7f31f8a989fc7f407a7050fa3649facd61469 # This is required if you are using a remote source
-only-arches: [x86_64] # This source is only used on x86_64 Computers # You can also use a local file for testing # - type: file # path: yourapp_1.0.1_amd64.deb
-build-commands: - set -e
+sources:
+      # A reference to the previously generated flatpak metainfo file
+      - type: file
+        path: flatpak.metainfo.xml
+      # If you use GitHub releases, you can target an existing remote file
+      - type: file
+        url: https://github.com/your_username/your_repository/releases/download/v1.0.1/yourapp_1.0.1_amd64.deb
+        sha256: 08305b5521e2cf0622e084f2b8f7f31f8a989fc7f407a7050fa3649facd61469 # This is required if you are using a remote source
+        only-arches: [x86_64] # This source is only used on x86_64 Computers
+      # You can also use a local file for testing
+      # - type: file
+      #   path: yourapp_1.0.1_amd64.deb
+    build-commands:
+      - set -e
 
 # Extract the deb package
-
       - mkdir deb-extract
       - ar -x *.deb --output deb-extract
       - tar -C deb-extract -xf deb-extract/data.tar.gz
 
 # Copy binary
-
       - 'install -Dm755 deb-extract/usr/bin/<executable_name> /app/bin/<executable_name>'
 
 # If you bundle files with additional resources, you should copy them:
-
       - mkdir -p /app/lib/<product_name>
       - cp -r deb-extract/usr/lib/<product_name>/. /app/lib/<product_name>
       - find /app/lib/<product_name> -type f -exec chmod 644 {} \;
 
 # Copy desktop file + ensure the right icon is set
-
       - sed -i 's/^Icon=.*/Icon=<identifier>/' deb-extract/usr/share/applications/<product_name>.desktop
       - install -Dm644 deb-extract/usr/share/applications/<product_name>.desktop /app/share/applications/<identifier>.desktop
 
 # Copy icons
-
       - install -Dm644 deb-extract/usr/share/icons/hicolor/128x128/apps/<main_binary_name>.png /app/share/icons/hicolor/128x128/apps/<identifier>.png
       - install -Dm644 deb-extract/usr/share/icons/hicolor/32x32/apps/<main_binary_name>.png /app/share/icons/hicolor/32x32/apps/<identifier>.png
       - install -Dm644 deb-extract/usr/share/icons/hicolor/256x256@2/apps/<main_binary_name>.png /app/share/icons/hicolor/256x256@2/apps/<identifier>.png
       - install -Dm644 flatpak.metainfo.xml /app/share/metainfo/<identifier>.metainfo.xml
-
 rust
 TrayIconBuilder::new()
-.icon(app.default_window_icon().unwrap().clone())
-.temp_dir_path(app.path().app_cache_dir().unwrap()) // will save to the cache folder ($XDG_CACHE_HOME) where the app already has permission
-.build()
-.unwrap();
+  .icon(app.default_window_icon().unwrap().clone())
+  .temp_dir_path(app.path().app_cache_dir().unwrap()) // will save to the cache folder ($XDG_CACHE_HOME) where the app already has permission
+  .build()
+  .unwrap();
 shell
 
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 The Gnome 46 runtime includes all dependencies of the standard Tauri app with their correct versions.
 
@@ -1434,7 +1401,6 @@ If you prefer not opening access from your app to $XDG_RUNTIME_DIR (where tray-i
 ```
 
 Example 2 (unknown):
-
 ```unknown
 :::
 
@@ -1448,7 +1414,6 @@ Example 2 (unknown):
 **URL:** llms-txt#we-need-to-add-schemars-to-both-dependencies-and-build-dependencies-because-the-scope.rs-module-is-shared-between-the-app-code-and-build-script
 
 **Contents:**
-
 - Managing State
 
 [dependencies]
@@ -1456,15 +1421,16 @@ schemars = "0.8"
 
 [build-dependencies]
 schemars = "0.8"
-rust title="build.rs" #[path = "src/scope.rs"]
+rust title="build.rs"
+#[path = "src/scope.rs"]
 mod scope;
 
 const COMMANDS: &[&str] = &[];
 
 fn main() {
-tauri_plugin::Builder::new(COMMANDS)
-.global_scope_schema(schemars::schema_for!(scope::Entry))
-.build();
+    tauri_plugin::Builder::new(COMMANDS)
+        .global_scope_schema(schemars::schema_for!(scope::Entry))
+        .build();
 }
 toml title="permissions/websocket.toml"
 "$schema" = "schemas/schema.json"
@@ -1481,10 +1447,9 @@ rust title="src/commands.rs"
 const COMMANDS: &[&str] = &["upload"];
 
 fn main() {
-tauri_plugin::Builder::new(COMMANDS).build();
+    tauri_plugin::Builder::new(COMMANDS).build();
 }
-
-````
+```
 
 See the [Permissions Overview](/security/permissions/) documentation for more information.
 
@@ -1495,10 +1460,9 @@ A plugin can manage state in the same way a Tauri application does. Read the [St
 Example 1 (unknown):
 ```unknown
 In your build script, add the following code:
-````
+```
 
 Example 2 (unknown):
-
 ```unknown
 ##### Permission Sets
 
@@ -1507,7 +1471,6 @@ For instance if a single API uses multiple commands or if there's a logical conn
 ```
 
 Example 3 (unknown):
-
 ```unknown
 ##### Default Permission
 
@@ -1516,7 +1479,6 @@ For instance the `http` plugin is useless without the `request` command allowed:
 ```
 
 Example 4 (unknown):
-
 ```unknown
 #### Autogenerated Permissions
 
@@ -1533,7 +1495,6 @@ The following example generates the `allow-upload` and `deny-upload` permissions
 **URL:** llms-txt#vite
 
 **Contents:**
-
 - Checklist
 - Example configuration
 
@@ -1552,7 +1513,7 @@ This guide is accurate as of Vite 5.4.8.
 Assuming you have the following `dev` and `build` scripts in your `package.json`:
 
 You can configure the Tauri CLI to use your Vite development server and dist folder
-along with the hooks to automatically run the Vite scripts:
+    along with the hooks to automatically run the Vite scripts:
 
 <TabItem label="npm">
 
@@ -1567,58 +1528,54 @@ along with the hooks to automatically run the Vite scripts:
 **Examples:**
 
 Example 1 (json):
-
 ```json
 {
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "tauri": "tauri"
-  }
-}
+      "scripts": {
+        "dev": "vite",
+        "build": "tsc && vite build",
+        "preview": "vite preview",
+        "tauri": "tauri"
+      }
+    }
 ```
 
 Example 2 (json):
-
 ```json
 // tauri.conf.json
-{
-  "build": {
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
-    "devUrl": "http://localhost:5173",
-    "frontendDist": "../dist"
-  }
-}
+    {
+      "build": {
+        "beforeDevCommand": "npm run dev",
+        "beforeBuildCommand": "npm run build",
+        "devUrl": "http://localhost:5173",
+        "frontendDist": "../dist"
+      }
+    }
 ```
 
 Example 3 (json):
-
 ```json
 // tauri.conf.json
-{
-  "build": {
-    "beforeDevCommand": "yarn dev",
-    "beforeBuildCommand": "yarn build",
-    "devUrl": "http://localhost:5173",
-    "frontendDist": "../dist"
-  }
-}
+    {
+      "build": {
+        "beforeDevCommand": "yarn dev",
+        "beforeBuildCommand": "yarn build",
+        "devUrl": "http://localhost:5173",
+        "frontendDist": "../dist"
+      }
+    }
 ```
 
 Example 4 (json):
-
 ```json
 // tauri.conf.json
-{
-  "build": {
-    "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build",
-    "devUrl": "http://localhost:5173",
-    "frontendDist": "../dist"
-  }
-}
+    {
+      "build": {
+        "beforeDevCommand": "pnpm dev",
+        "beforeBuildCommand": "pnpm build",
+        "devUrl": "http://localhost:5173",
+        "frontendDist": "../dist"
+      }
+    }
 ```
 
 ---
@@ -1628,7 +1585,6 @@ Example 4 (json):
 **URL:** llms-txt#macos-code-signing
 
 **Contents:**
-
 - Prerequisites
 - Signing
   - Creating a signing certificate
@@ -1756,21 +1712,18 @@ For details on configuring Tauri's signing identity, see [above](#configuring-ta
 **Examples:**
 
 Example 1 (sh):
-
 ```sh
 security find-identity -v -p codesigning
 ```
 
 Example 2 (sh):
-
 ```sh
 openssl base64 -in /path/to/certificate.p12 -out certificate-base64.txt
 ```
 
 Example 3 (yaml):
-
 ```yaml
-name: "build"
+name: 'build'
 
 on:
   push:
@@ -1783,10 +1736,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - args: "--target aarch64-apple-darwin"
-            arch: "silicon"
-          - args: "--target x86_64-apple-darwin"
-            arch: "intel"
+          - args: '--target aarch64-apple-darwin'
+            arch: 'silicon'
+          - args: '--target x86_64-apple-darwin'
+            arch: 'intel'
     runs-on: macos-latest
     env:
       APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -1823,7 +1776,6 @@ jobs:
 ```
 
 Example 4 (json):
-
 ```json
 "signingIdentity": "-"
 ```

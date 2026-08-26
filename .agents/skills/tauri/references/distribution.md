@@ -9,7 +9,6 @@
 **URL:** llms-txt#windows-code-signing
 
 **Contents:**
-
 - OV Certificates
   - Prerequisites
   - Getting Started
@@ -209,7 +208,6 @@ You need to install [trusted-signing-cli](https://github.com/Levminer/trusted-si
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 3. Save and run `tauri build`
 
@@ -217,7 +215,6 @@ Example 1 (unknown):
 ```
 
 Example 2 (unknown):
-
 ```unknown
 Which shows you have successfully signed the `.exe`.
 
@@ -254,13 +251,11 @@ The secrets we used are as follows
 ```
 
 Example 3 (unknown):
-
 ```unknown
 3. Right above `-name: install app dependencies and build it` you will want to add the following step
 ```
 
 Example 4 (unknown):
-
 ```unknown
 4. Save and push to your repo.
 
@@ -298,7 +293,6 @@ Create a `relic.conf` file in the `src-tauri` folder and configure relic to use 
 **URL:** llms-txt#github
 
 **Contents:**
-
 - Getting Started
 - Configuration
   - How to Trigger
@@ -372,20 +366,18 @@ You can see the GitHub Token being passed to the workflow via this line in the w
 **Examples:**
 
 Example 1 (yaml):
-
 ```yaml
-name: "publish"
+name: 'publish'
 
 on:
   push:
     tags:
-      - "app-v*"
+      - 'app-v*'
 ```
 
 Example 2 (yaml):
-
 ```yaml
-name: "publish"
+name: 'publish'
 
 on:
   workflow_dispatch:
@@ -401,16 +393,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: "macos-latest" # for Arm based macs (M1 and above).
-            args: "--target aarch64-apple-darwin"
-          - platform: "macos-latest" # for Intel based macs.
-            args: "--target x86_64-apple-darwin"
-          - platform: "ubuntu-22.04"
-            args: ""
-          - platform: "ubuntu-22.04-arm" # Only available in public repos.
-            args: ""
-          - platform: "windows-latest"
-            args: ""
+          - platform: 'macos-latest' # for Arm based macs (M1 and above).
+            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-latest' # for Intel based macs.
+            args: '--target x86_64-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            args: ''
+          - platform: 'ubuntu-22.04-arm' # Only available in public repos.
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -426,7 +418,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
-          cache: "yarn" # Set this to npm, yarn or pnpm.
+          cache: 'yarn' # Set this to npm, yarn or pnpm.
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable # Set this to dtolnay/rust-toolchain@nightly
@@ -437,7 +429,7 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: "./src-tauri -> target"
+          workspaces: './src-tauri -> target'
 
       - name: install frontend dependencies
         # If you don't have `beforeBuildCommand` configured you may want to build your frontend here too.
@@ -448,17 +440,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: app-v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
-          releaseName: "App v__VERSION__"
-          releaseBody: "See the assets to download this version and install."
+          releaseName: 'App v__VERSION__'
+          releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
 ```
 
 Example 3 (yaml):
-
 ```yaml
-name: "Publish Linux Arm builds"
+name: 'Publish Linux Arm builds'
 
 on:
   workflow_dispatch:
@@ -551,7 +542,6 @@ jobs:
 ```
 
 Example 4 (yaml):
-
 ```yaml
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -564,7 +554,6 @@ env:
 **URL:** llms-txt#ios-code-signing
 
 **Contents:**
-
 - Prerequisites
 - Automatic Signing
 - Manual Signing
@@ -650,13 +639,11 @@ Now you can build your iOS application and distribute on the App Store!
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 base64 -i <path-to-certificate.p12> | pbcopy
 ```
 
 Example 2 (unknown):
-
 ```unknown
 base64 -i <path-to-profile.mobileprovision> | pbcopy
 ```
@@ -668,7 +655,6 @@ base64 -i <path-to-profile.mobileprovision> | pbcopy
 **URL:** llms-txt#android-code-signing
 
 **Contents:**
-
 - Creating a keystore and upload key
 - Configure the signing key
   - Configure Gradle to use the signing key
@@ -765,19 +751,16 @@ Release builds of your app will now be signed automatically.
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 keytool -genkey -v -keystore ~/upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
 ```
 
 Example 2 (unknown):
-
 ```unknown
 keytool -genkey -v -keystore $env:USERPROFILE\upload-keystore.jks -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 -alias upload
 ```
 
 Example 3 (unknown):
-
 ```unknown
 password=<password defined when keytool was executed>
 keyAlias=upload
@@ -785,7 +768,6 @@ storeFile=<location of the key store file, such as /Users/<user name>/upload-key
 ```
 
 Example 4 (yml):
-
 ```yml
 - name: setup Android signing
   run: |
@@ -803,7 +785,6 @@ Example 4 (yml):
 **URL:** llms-txt#distribute
 
 **Contents:**
-
 - Building
   - Bundling
 
@@ -835,7 +816,7 @@ By default the `build` command automatically bundles your application for the co
 If you need further customization on how the platform bundles are generated, you can split the build and bundle steps:
 
 <CommandTabs
-npm="npm run tauri build -- --no-bundle
+  npm="npm run tauri build -- --no-bundle
 
 ---
 
@@ -844,7 +825,6 @@ npm="npm run tauri build -- --no-bundle
 **URL:** llms-txt#linux-code-signing
 
 **Contents:**
-
 - Signing for AppImages
   - Prerequisites
   - Signing
@@ -898,26 +878,22 @@ If the signature is valid, the output will be:
 **Examples:**
 
 Example 1 (shell):
-
 ```shell
 gpg2 --full-gen-key
 ```
 
 Example 2 (shell):
-
 ```shell
 ./src-tauri/target/release/bundle/appimage/$APPNAME_$VERSION_amd64.AppImage --appimage-signature
 ```
 
 Example 3 (shell):
-
 ```shell
 chmod +x validate-$PLATFORM.AppImage
 ./validate-$PLATFORM.AppImage $TAURI_OUTPUT.AppImage
 ```
 
 Example 4 (unknown):
-
 ```unknown
 Validation result: validation successful
 Signatures found with key fingerprints: $KEY_ID
@@ -934,7 +910,6 @@ Validation successful
 **URL:** llms-txt#publishing-to-the-arch-user-repository
 
 **Contents:**
-
 - Setup
   - Writing a PKGBUILD file
   - Generating `.SRCINFO`
@@ -970,17 +945,16 @@ If all goes well, your repository should now appear on the AUR website.
 
 ### Extracting From A Debian Package
 
-````ini title="PKGBUILD"
+```ini title="PKGBUILD"
 
 **Examples:**
 
 Example 1 (sh):
 ```sh
 git clone https://aur.archlinux.org/your-repo-name
-````
+```
 
 Example 2 (unknown):
-
 ```unknown
 - At the top of the file, define your package name and assign it the variable `pkgname`.
 - Set your `pkgver` variable. Typically it is best to use this variable in the source variable to increase maintainability.
@@ -997,7 +971,6 @@ In order to push your repo to the aur you must generate an `.SRCINFO` file. This
 ```
 
 Example 3 (unknown):
-
 ```unknown
 ### Testing
 
@@ -1009,7 +982,6 @@ Finally, after the testing phase is over, you can publish the application to AUR
 ```
 
 Example 4 (unknown):
-
 ```unknown
 If all goes well, your repository should now appear on the AUR website.
 
@@ -1025,7 +997,6 @@ If all goes well, your repository should now appear on the AUR website.
 **URL:** llms-txt#google-play
 
 **Contents:**
-
 - Requirements
 - Changing App Icon
 - Setting up
@@ -1153,7 +1124,6 @@ but it is a work in progress.
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 ### Build APKs
 

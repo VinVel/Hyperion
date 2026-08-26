@@ -9,7 +9,6 @@
 **URL:** llms-txt#state-management
 
 **Contents:**
-
 - Mutability
   - When to use an async mutex
   - Do you need `Arc`?
@@ -82,7 +81,6 @@ However, make sure to use the type alias as it is, and not wrap it in a [`Mutex`
 **Examples:**
 
 Example 1 (rust):
-
 ```rust
 use tauri::{Builder, Manager};
 
@@ -104,13 +102,11 @@ fn main() {
 ```
 
 Example 2 (rust):
-
 ```rust
 let data = app.state::<AppData>();
 ```
 
 Example 3 (rust):
-
 ```rust
 use std::sync::Mutex;
 
@@ -133,7 +129,6 @@ fn main() {
 ```
 
 Example 4 (rust):
-
 ```rust
 let state = app.state::<Mutex<AppState>>();
 
@@ -151,7 +146,6 @@ state.counter += 1;
 **URL:** llms-txt#upgrade-from-tauri-2.0-beta
 
 **Contents:**
-
 - Automated Migration
 - Breaking Changes
   - Tauri Core Plugins
@@ -212,7 +206,6 @@ The `internal-ip` NPM package is no longer required, you can directly use the TA
 **Examples:**
 
 Example 1 (json):
-
 ```json
 ...
 "permissions": [
@@ -229,7 +222,6 @@ Example 1 (json):
 ```
 
 Example 2 (json):
-
 ```json
 ...
 "permissions": [
@@ -246,7 +238,6 @@ Example 2 (json):
 ```
 
 Example 3 (json):
-
 ```json
 ...
 "permissions": [
@@ -256,11 +247,10 @@ Example 3 (json):
 ```
 
 Example 4 (js):
-
 ```js
-import { defineConfig } from "vite";
-import { svelte } from "@sveltejs/vite-plugin-svelte";
-import { internalIpV4Sync } from "internal-ip";
+import { defineConfig } from 'vite';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { internalIpV4Sync } from 'internal-ip';
 
 const mobile = !!/android|ios/.exec(process.env.TAURI_ENV_PLATFORM);
 
@@ -268,12 +258,12 @@ export default defineConfig({
   plugins: [svelte()],
   clearScreen: false,
   server: {
-    host: mobile ? "0.0.0.0" : false,
+    host: mobile ? '0.0.0.0' : false,
     port: 1420,
     strictPort: true,
     hmr: mobile
       ? {
-          protocol: "ws",
+          protocol: 'ws',
           host: internalIpV4Sync(),
           port: 1421,
         }
@@ -289,7 +279,6 @@ export default defineConfig({
 **URL:** llms-txt#snapcraft
 
 **Contents:**
-
 - Prerequisites
 - Configuration
 
@@ -297,10 +286,10 @@ import { Tabs, TabItem, Card } from '@astrojs/starlight/components';
 
 **1. Install `snap`**
 
-{/_ prettier-ignore _/}
+{/* prettier-ignore */}
 <Tabs syncKey="distro">
-<TabItem label="Debian">
-
+  <TabItem label="Debian">
+    
   </TabItem>
   <TabItem label="Arch">
     
@@ -318,7 +307,7 @@ Reboot your system afterwards.
 3. Create a snapcraft.yaml file in your projects root.
 4. Adjust the names in the snapcraft.yaml file.
 
-````yaml
+```yaml
 name: appname
 base: core22
 version: '0.1.0'
@@ -352,10 +341,9 @@ apps:
 Example 1 (shell):
 ```shell
 sudo apt install snapd
-````
+```
 
 Example 2 (shell):
-
 ```shell
 sudo pacman -S --needed git base-devel
     git clone https://aur.archlinux.org/snapd.git
@@ -367,7 +355,6 @@ sudo pacman -S --needed git base-devel
 ```
 
 Example 3 (shell):
-
 ```shell
 sudo dnf install snapd
     # Enable classic snap support
@@ -375,7 +362,6 @@ sudo dnf install snapd
 ```
 
 Example 4 (shell):
-
 ```shell
 sudo snap install core22
 ```
@@ -387,7 +373,6 @@ sudo snap install core22
 **URL:** llms-txt#rpm
 
 **Contents:**
-
 - Limitations
 - Configuring the RPM package
   - Add post, pre-install/remove script to the package
@@ -463,7 +448,7 @@ To use these options, add the following to your `tauri.conf.json` :
 
 To add a license to the package, add the following to the `src-tauri/cargo.toml` or in the `src-tauri/tauri.conf.json` file:
 
-````toml title="src-tauri/cargo.toml"
+```toml title="src-tauri/cargo.toml"
 [package]
 name = "tauri-app"
 version = "0.0.0"
@@ -477,10 +462,9 @@ license = "MIT" # add the license here
 Example 1 (bash):
 ```bash
 mkdir src-tauri/scripts
-````
+```
 
 Example 2 (bash):
-
 ```bash
 touch src-tauri/scripts/postinstall.sh \
 touch src-tauri/scripts/preinstall.sh \
@@ -489,14 +473,12 @@ touch src-tauri/scripts/postremove.sh
 ```
 
 Example 3 (bash):
-
 ```bash
 ls src-tauri/scripts/
 postinstall.sh  postremove.sh  preinstall.sh  preremove.sh
 ```
 
 Example 4 (unknown):
-
 ```unknown
 
 ```
@@ -551,53 +533,49 @@ In this case the event listener is immediately unregistered after its first trig
 **Examples:**
 
 Example 1 (ts):
-
 ```ts
-import { listen } from "@tauri-apps/api/event";
+import { listen } from '@tauri-apps/api/event';
 
-type DownloadStarted = {
-  url: string;
-  downloadId: number;
-  contentLength: number;
-};
+  type DownloadStarted = {
+    url: string;
+    downloadId: number;
+    contentLength: number;
+  };
 
-listen<DownloadStarted>("download-started", (event) => {
-  console.log(
-    `downloading ${event.payload.contentLength} bytes from ${event.payload.url}`,
-  );
-});
+  listen<DownloadStarted>('download-started', (event) => {
+    console.log(
+      `downloading ${event.payload.contentLength} bytes from ${event.payload.url}`
+    );
+  });
 ```
 
 Example 2 (ts):
-
 ```ts
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
-const appWebview = getCurrentWebviewWindow();
-appWebview.listen<string>("logged-in", (event) => {
-  localStorage.setItem("session-token", event.payload);
-});
+  const appWebview = getCurrentWebviewWindow();
+  appWebview.listen<string>('logged-in', (event) => {
+    localStorage.setItem('session-token', event.payload);
+  });
 ```
 
 Example 3 (js):
-
 ```js
-import { listen } from "@tauri-apps/api/event";
+import { listen } from '@tauri-apps/api/event';
 
-const unlisten = await listen("download-started", (event) => {});
+const unlisten = await listen('download-started', (event) => {});
 unlisten();
 ```
 
 Example 4 (js):
-
 ```js
-import { once } from "@tauri-apps/api/event";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { once } from '@tauri-apps/api/event';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
-once("ready", (event) => {});
+once('ready', (event) => {});
 
 const appWebview = getCurrentWebviewWindow();
-appWebview.once("ready", () => {});
+appWebview.once('ready', () => {});
 ```
 
 ---
@@ -607,7 +585,6 @@ appWebview.once("ready", () => {});
 **URL:** llms-txt#selenium
 
 **Contents:**
-
 - Create a Directory for the Tests
 - Initializing a Selenium Project
 - Testing
@@ -687,7 +664,6 @@ application at all!
 **Examples:**
 
 Example 1 (json):
-
 ```json
 {
   "name": "selenium",
@@ -706,26 +682,25 @@ Example 1 (json):
 ```
 
 Example 2 (javascript):
-
 ```javascript
-import os from "os";
-import path from "path";
-import { expect } from "chai";
-import { spawn, spawnSync } from "child_process";
-import { Builder, By, Capabilities } from "selenium-webdriver";
-import { fileURLToPath } from "url";
+import os from 'os';
+import path from 'path';
+import { expect } from 'chai';
+import { spawn, spawnSync } from 'child_process';
+import { Builder, By, Capabilities } from 'selenium-webdriver';
+import { fileURLToPath } from 'url';
 
-const __dirname = fileURLToPath(new URL(".", import.meta.url));
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 // create the path to the expected application binary
 const application = path.resolve(
   __dirname,
-  "..",
-  "..",
-  "src-tauri",
-  "target",
-  "debug",
-  "tauri-app",
+  '..',
+  '..',
+  'src-tauri',
+  'target',
+  'debug',
+  'tauri-app'
 );
 
 // keep track of the webdriver instance we create
@@ -740,37 +715,37 @@ before(async function () {
   this.timeout(120000);
 
   // ensure the app has been built
-  spawnSync("yarn", ["tauri", "build", "--debug", "--no-bundle"], {
-    cwd: path.resolve(__dirname, "../.."),
-    stdio: "inherit",
+  spawnSync('yarn', ['tauri', 'build', '--debug', '--no-bundle'], {
+    cwd: path.resolve(__dirname, '../..'),
+    stdio: 'inherit',
     shell: true,
   });
 
   // start tauri-driver
   tauriDriver = spawn(
-    path.resolve(os.homedir(), ".cargo", "bin", "tauri-driver"),
+    path.resolve(os.homedir(), '.cargo', 'bin', 'tauri-driver'),
     [],
-    { stdio: [null, process.stdout, process.stderr] },
+    { stdio: [null, process.stdout, process.stderr] }
   );
-  tauriDriver.on("error", (error) => {
-    console.error("tauri-driver error:", error);
+  tauriDriver.on('error', (error) => {
+    console.error('tauri-driver error:', error);
     process.exit(1);
   });
-  tauriDriver.on("exit", (code) => {
+  tauriDriver.on('exit', (code) => {
     if (!exit) {
-      console.error("tauri-driver exited with code:", code);
+      console.error('tauri-driver exited with code:', code);
       process.exit(1);
     }
   });
 
   const capabilities = new Capabilities();
-  capabilities.set("tauri:options", { application });
-  capabilities.setBrowserName("wry");
+  capabilities.set('tauri:options', { application });
+  capabilities.setBrowserName('wry');
 
   // start the webdriver client
   driver = await new Builder()
     .withCapabilities(capabilities)
-    .usingServer("http://127.0.0.1:4444/")
+    .usingServer('http://127.0.0.1:4444/')
     .build();
 });
 
@@ -779,25 +754,25 @@ after(async function () {
   await closeTauriDriver();
 });
 
-describe("Hello Tauri", () => {
-  it("should be cordial", async () => {
-    const text = await driver.findElement(By.css("body > h1")).getText();
+describe('Hello Tauri', () => {
+  it('should be cordial', async () => {
+    const text = await driver.findElement(By.css('body > h1')).getText();
     expect(text).to.match(/^[hH]ello/);
   });
 
-  it("should be excited", async () => {
-    const text = await driver.findElement(By.css("body > h1")).getText();
+  it('should be excited', async () => {
+    const text = await driver.findElement(By.css('body > h1')).getText();
     expect(text).to.match(/!$/);
   });
 
-  it("should be easy on the eyes", async () => {
+  it('should be easy on the eyes', async () => {
     // selenium returns color css values as rgb(r, g, b)
     const text = await driver
-      .findElement(By.css("body"))
-      .getCssValue("background-color");
+      .findElement(By.css('body'))
+      .getCssValue('background-color');
 
     const rgb = text.match(/^rgb\((?<r>\d+), (?<g>\d+), (?<b>\d+)\)$/).groups;
-    expect(rgb).to.have.all.keys("r", "g", "b");
+    expect(rgb).to.have.all.keys('r', 'g', 'b');
 
     const luma = 0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b;
     expect(luma).to.be.lessThan(100);
@@ -821,11 +796,11 @@ function onShutdown(fn) {
     }
   };
 
-  process.on("exit", cleanup);
-  process.on("SIGINT", cleanup);
-  process.on("SIGTERM", cleanup);
-  process.on("SIGHUP", cleanup);
-  process.on("SIGBREAK", cleanup);
+  process.on('exit', cleanup);
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
+  process.on('SIGHUP', cleanup);
+  process.on('SIGBREAK', cleanup);
 }
 
 onShutdown(() => {
@@ -834,7 +809,6 @@ onShutdown(() => {
 ```
 
 Example 3 (text):
-
 ```text
 ➜  selenium git:(main) ✗ yarn test
 yarn run v1.22.11
@@ -867,7 +841,6 @@ cargo tauri bundle --bundles app,dmg
 **URL:** llms-txt#flathub
 
 **Contents:**
-
 - Prerequisites
 
 import { Tabs, TabItem, Card } from '@astrojs/starlight/components';
@@ -905,25 +878,21 @@ To build Flatpaks locally you need the `flatpak` and `flatpak-builder` tools. Fo
 **Examples:**
 
 Example 1 (sh):
-
 ```sh
 sudo apt install flatpak flatpak-builder
 ```
 
 Example 2 (sh):
-
 ```sh
 sudo pacman -S --needed flatpak flatpak-builder
 ```
 
 Example 3 (sh):
-
 ```sh
 sudo dnf install flatpak flatpak-builder
 ```
 
 Example 4 (sh):
-
 ```sh
 sudo emerge --ask \
 sys-apps/flatpak \
@@ -937,7 +906,6 @@ dev-util/flatpak-builder
 **URL:** llms-txt#update-it
 
 **Contents:**
-
 - Adding additional libraries
 - Submitting to flathub
 
@@ -948,8 +916,7 @@ shell
 cd flathub
 shell
 git checkout -b your_app_name
-
-````
+```
 
 **_5. Add your apps manifest to the branch. Commit your changes, and then push them._**
 
@@ -978,16 +945,14 @@ Therefore, it is recommended to build the library your program depends on from s
 **_1. Fork The [Flathub Repository](https://github.com/flathub/flathub/fork)_**
 
 **_2. Clone the Fork_**
-````
+```
 
 Example 2 (unknown):
-
 ```unknown
 **_3. Enter the repository_**
 ```
 
 Example 3 (unknown):
-
 ```unknown
 **_4. Create a new branch_**
 ```
@@ -999,7 +964,6 @@ Example 3 (unknown):
 **URL:** llms-txt#webdriver
 
 **Contents:**
-
 - System Dependencies
   - Linux
   - Windows
@@ -1070,13 +1034,11 @@ The above examples also comes with a CI script to test with GitHub Actions, but 
 **Examples:**
 
 Example 1 (shell):
-
 ```shell
 cargo install tauri-driver --locked
 ```
 
 Example 2 (powershell):
-
 ```powershell
 cargo install --git https://github.com/chippers/msedgedriver-tool
 & "$HOME/.cargo/bin/msedgedriver-tool.exe"
@@ -1089,7 +1051,6 @@ cargo install --git https://github.com/chippers/msedgedriver-tool
 **URL:** llms-txt#calling-rust-from-the-frontend
 
 **Contents:**
-
 - Commands
   - Basic Example
   - Passing Arguments
@@ -1101,7 +1062,7 @@ cargo install --git https://github.com/chippers/msedgedriver-tool
   - Accessing an AppHandle in Commands
   - Accessing Managed State
 
-import { Content as FrontendListen } from './\_sections/frontend-listen.mdx';
+import { Content as FrontendListen } from './_sections/frontend-listen.mdx';
 
 This document includes guides on how to communicate with your Rust code from your application frontend.
 To see how to communicate with your frontend from your Rust code, see [Calling the Frontend from Rust].
@@ -1308,7 +1269,6 @@ To learn how to listen to events and emit events from your Rust code, see the [R
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 :::note
 Command names must be unique.
@@ -1320,7 +1280,6 @@ You will see an error like this if you mark it as a public function:
 ```
 
 Example 2 (unknown):
-
 ```unknown
 :::
 
@@ -1328,13 +1287,11 @@ You will have to provide a list of your commands to the builder function like so
 ```
 
 Example 3 (unknown):
-
 ```unknown
 Now, you can invoke the command from your JavaScript code:
 ```
 
 Example 4 (unknown):
-
 ```unknown
 #### Defining Commands in a Separate Module
 
@@ -1351,7 +1308,6 @@ As an example let's define a command in the `src-tauri/src/commands.rs` file:
 **URL:** llms-txt#debian
 
 **Contents:**
-
 - Limitations
 - Custom Files
 - Cross-Compiling for ARM-based Devices
@@ -1408,11 +1364,10 @@ Then, to prevent issues with the main packages, you have to add the correct main
 8. #### Install OpenSSL or use a vendored version
 
 This is not always required so you may want to proceed first and check if you see errors like `Failed to find OpenSSL development headers`.
-
-- Either install the development headers system-wide:
-  - For ARMv7: `sudo apt install libssl-dev:armhf`
-  - For ARMv8 (ARM64): `sudo apt install libssl-dev:arm64`
-- Or enable the vendor feature for the OpenSSL Rust crate which will affect all other Rust dependencies using the same minor version. You can do so by adding this to the dependencies section in your `Cargo.toml` file:
+   - Either install the development headers system-wide:
+     - For ARMv7: `sudo apt install libssl-dev:armhf`
+     - For ARMv8 (ARM64): `sudo apt install libssl-dev:arm64`
+   - Or enable the vendor feature for the OpenSSL Rust crate which will affect all other Rust dependencies using the same minor version. You can do so by adding this to the dependencies section in your `Cargo.toml` file:
 
 9. #### Set the `PKG_CONFIG_SYSROOT_DIR` to the appropriate directory based on your chosen architecture
    - For ARMv7: `export PKG_CONFIG_SYSROOT_DIR=/usr/arm-linux-gnueabihf/`
@@ -1427,7 +1382,6 @@ Choose the appropriate set of instructions based on whether you want to cross-co
 **Examples:**
 
 Example 1 (json):
-
 ```json
 {
   "bundle": {
@@ -1444,7 +1398,6 @@ Example 1 (json):
 ```
 
 Example 2 (toml):
-
 ```toml
 [target.armv7-unknown-linux-gnueabihf]
    linker = "arm-linux-gnueabihf-gcc"
@@ -1454,7 +1407,6 @@ Example 2 (toml):
 ```
 
 Example 3 (unknown):
-
 ```unknown
 deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted
    deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted
@@ -1469,7 +1421,6 @@ deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricte
 ```
 
 Example 4 (unknown):
-
 ```unknown
 # See http://help.ubuntu.com/community/UpgradeNotes for how to upgrade to
    # newer versions of the distribution.
@@ -1532,7 +1483,6 @@ Example 4 (unknown):
 **URL:** llms-txt#create-a-project
 
 **Contents:**
-
 - Using `create-tauri-app`
 - Manual Setup (Tauri CLI)
 - Next Steps
@@ -1545,7 +1495,7 @@ One thing that makes Tauri so flexible is its ability to work with virtually any
 
 `create-tauri-app` currently includes templates for vanilla (HTML, CSS and JavaScript without a framework), [Vue.js](https://vuejs.org), [Svelte](https://svelte.dev), [React](https://reactjs.org/), [SolidJS](https://www.solidjs.com/), [Angular](https://angular.io/), [Preact](https://preactjs.com/), [Yew](https://yew.rs/), [Leptos](https://github.com/leptos-rs/leptos), and [Sycamore](https://sycamore-rs.netlify.app/). You can also find or add your own community templates and frameworks in the [Awesome Tauri repo](https://github.com/tauri-apps/awesome-tauri).
 
-{/_ TODO: redirect to integrate to existing front-end project specific docs _/}
+{/* TODO: redirect to integrate to existing front-end project specific docs */}
 Alternatively, you can [add Tauri to an existing project](#manual-setup-tauri-cli) to quickly turn your existing codebase into a Tauri app.
 
 ## Using `create-tauri-app`
@@ -1566,7 +1516,9 @@ We recommend starting with the vanilla template (HTML, CSS, and JavaScript witho
 #### Scaffold a new project
 
 1. Choose a name and a bundle identifier (unique-id for your app):
+   
 2. Select a flavor for your frontend. First the language:
+   
 3. Select a package manager (if there are multiple available):
 
 Options for **TypeScript / JavaScript**:
@@ -1581,7 +1533,7 @@ Options for **.NET**:
 
 Once completed, the utility reports that the template has been created and displays how to run it using the configured package manager. If it detects missing dependencies on your system, it prints a list of packages and prompts how to install them.
 
-{/_ TODO: Can CTA offer to install the deps? _/}
+{/* TODO: Can CTA offer to install the deps? */}
 
 #### Start the development server
 
@@ -1694,14 +1646,12 @@ This command will compile the Rust code and open a window with your web content.
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 ? Project name (tauri-app) ›
    ? Identifier (com.tauri-app.app) ›
 ```
 
 Example 2 (unknown):
-
 ```unknown
 ? Choose which language to use for your frontend ›
    Rust  (cargo)
@@ -1710,7 +1660,6 @@ Example 2 (unknown):
 ```
 
 Example 3 (unknown):
-
 ```unknown
 ? Choose your package manager ›
    pnpm
@@ -1720,7 +1669,6 @@ Example 3 (unknown):
 ```
 
 Example 4 (unknown):
-
 ```unknown
 ? Choose your UI template ›
    Vanilla
@@ -1736,7 +1684,6 @@ Example 4 (unknown):
 **URL:** llms-txt#leptos
 
 **Contents:**
-
 - Checklist
 - Example Configuration
 
@@ -1758,24 +1705,22 @@ Leptos is a Rust based web framework. You can read more about Leptos on their [o
 **Examples:**
 
 Example 1 (json):
-
 ```json
 // src-tauri/tauri.conf.json
-{
-  "build": {
-    "beforeDevCommand": "trunk serve",
-    "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "trunk build",
-    "frontendDist": "../dist"
-  },
-  "app": {
-    "withGlobalTauri": true
-  }
-}
+   {
+     "build": {
+       "beforeDevCommand": "trunk serve",
+       "devUrl": "http://localhost:1420",
+       "beforeBuildCommand": "trunk build",
+       "frontendDist": "../dist"
+     },
+     "app": {
+       "withGlobalTauri": true
+     }
+   }
 ```
 
 Example 2 (toml):
-
 ```toml
 // Trunk.toml
    [build]
@@ -1797,7 +1742,6 @@ Example 2 (toml):
 **URL:** llms-txt#appimage
 
 **Contents:**
-
 - Limitations
 - Multimedia support via GStreamer
 - Custom Files
@@ -1819,7 +1763,7 @@ If your app plays audio/video you need to enable `tauri.conf.json > bundle > lin
 
 GStreamer plugins in the `ugly` package are licensed in a way that may make it hard to distribute them as part of your app.
 
-{/_ TODO: Add some reference links for gst setup/plugins _/}
+{/* TODO: Add some reference links for gst setup/plugins */}
 
 To include custom files in the AppImage that you do not want to include via Tauri's [`resources` feature](/develop/resources/), you can provide a list of files or folders in `tauri.conf.json > bundle > linux > appimage > files`. The configuration object maps the path in the AppImage to the path to the file on your filesystem, relative to the `tauri.conf.json` file. Here's an example configuration:
 
@@ -1839,39 +1783,51 @@ Check out our [GitHub Action guide](/distribute/pipelines/github/#arm-runner-com
 
 ---
 
-## name: org.net*mydomain_MyApp.SingleInstance # Remember to change net_mydomain_MyApp to your app ID with "*" instead of "." and "-"
+## name: org.net_mydomain_MyApp.SingleInstance # Remember to change net_mydomain_MyApp to your app ID with "_" instead of "." and "-"
 
-**URL:** llms-txt#name:-org.net*mydomain_myapp.singleinstance-#-remember-to-change-net_mydomain_myapp-to-your-app-id-with-"*"-instead-of-"."-and-"-"
+**URL:** llms-txt#name:-org.net_mydomain_myapp.singleinstance-#-remember-to-change-net_mydomain_myapp-to-your-app-id-with-"_"-instead-of-"."-and-"-"
 
 **Contents:**
-
-- Explanation
+  - Explanation
 - Building
 - Testing
 - Releasing Manually
 - Building automatically
 
 package-repositories:
-
-- type: apt
-  components: [main]
-  suites: [noble]
-  key-id: 78E1918602959B9C59103100F1831DDAFC42E99D
-  url: http://ppa.launchpad.net/snappy-dev/snapcraft-daily/ubuntu
+  - type: apt
+    components: [main]
+    suites: [noble]
+    key-id: 78E1918602959B9C59103100F1831DDAFC42E99D
+    url: http://ppa.launchpad.net/snappy-dev/snapcraft-daily/ubuntu
 
 parts:
-build-app:
-plugin: dump
-build-snaps: - node/20/stable - rustup/latest/stable
-build-packages: - libwebkit2gtk-4.1-dev - build-essential - curl - wget - file - libxdo-dev - libssl-dev - libayatana-appindicator3-dev - librsvg2-dev - dpkg
-stage-packages: - libwebkit2gtk-4.1-0 - libayatana-appindicator3-1
-source: .
-override-build: |
-set -eu
-npm install
-npm run tauri build -- --bundles deb
-dpkg -x src-tauri/target/release/bundle/deb/\*.deb $SNAPCRAFT_PART_INSTALL/
-sed -i -e "s|Icon=appname|Icon=/usr/share/icons/hicolor/32x32/apps/appname.png|g" $SNAPCRAFT_PART_INSTALL/usr/share/applications/appname.desktop
+  build-app:
+    plugin: dump
+    build-snaps:
+      - node/20/stable
+      - rustup/latest/stable
+    build-packages:
+      - libwebkit2gtk-4.1-dev
+      - build-essential
+      - curl
+      - wget
+      - file
+      - libxdo-dev
+      - libssl-dev
+      - libayatana-appindicator3-dev
+      - librsvg2-dev
+      - dpkg
+    stage-packages:
+      - libwebkit2gtk-4.1-0
+      - libayatana-appindicator3-1
+    source: .
+    override-build: |
+      set -eu
+      npm install
+      npm run tauri build -- --bundles deb
+      dpkg -x src-tauri/target/release/bundle/deb/*.deb $SNAPCRAFT_PART_INSTALL/
+      sed -i -e "s|Icon=appname|Icon=/usr/share/icons/hicolor/32x32/apps/appname.png|g" $SNAPCRAFT_PART_INSTALL/usr/share/applications/appname.desktop
 sh
 sudo snapcraft
 shell
@@ -1879,8 +1835,7 @@ snap run your-app
 shell
 snapcraft login # Login with your UbuntuOne credentials
 snapcraft upload --release=stable mysnap_latest_amd64.snap
-
-````
+```
 
 ## Building automatically
 
@@ -1904,10 +1859,9 @@ Example 1 (unknown):
 - The `override-build` section runs a series of commands after the sources were pulled.
 
 ## Building
-````
+```
 
 Example 2 (unknown):
-
 ```unknown
 ## Testing
 
@@ -1915,7 +1869,6 @@ Example 2 (unknown):
 ```
 
 Example 3 (unknown):
-
 ```unknown
 ## Releasing Manually
 ```
@@ -1927,7 +1880,6 @@ Example 3 (unknown):
 **URL:** llms-txt#crabnebula-cloud
 
 **Contents:**
-
 - Distributing with CrabNebula Cloud
 
 ## Distributing with CrabNebula Cloud
@@ -1974,28 +1926,27 @@ source=("git+${url}.git")
 sha256sums=('SKIP')
 
 pkgver() {
-cd <project>
-( set -o pipefail
-git describe --long --abbrev=7 2>/dev/null | sed 's/\([^-]\*-g\)/r\1/;s/-/./g' ||
-printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
-)
+	cd <project>
+	( set -o pipefail
+	  git describe --long --abbrev=7 2>/dev/null | sed 's/\([^-]*-g\)/r\1/;s/-/./g' ||
+	  printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
+	)
 }
 
 prepare() {
-cd <project>
-pnpm install
+	cd <project>
+	pnpm install
 }
 
 build() {
-cd <project>
-pnpm tauri build -b deb
+	cd <project>
+	pnpm tauri build -b deb
 }
 
 package() {
-cp -a <project>/src-tauri/target/release/bundle/deb/<project>_${pkgver}__/data/_ "${pkgdir}"
+	cp -a <project>/src-tauri/target/release/bundle/deb/<project>_${pkgver}_*/data/* "${pkgdir}"
 }
-
-````
+```
 
 [`async_runtime::spawn`]: https://docs.rs/tauri/2.0.0/tauri/async_runtime/fn.spawn.html
 [`serde::serialize`]: https://docs.serde.rs/serde/trait.Serialize.html
@@ -2130,10 +2081,9 @@ menu.setAsAppMenu().then(async (res) => {
     await statusItem.setText('Status: Ready');
   }
 });
-````
+```
 
 Example 2 (rust):
-
 ```rust
 use tauri::menu::MenuBuilder;
 
@@ -2165,24 +2115,23 @@ fn main() {
 ```
 
 Example 3 (javascript):
-
 ```javascript
-import { Menu } from "@tauri-apps/api/menu";
+import { Menu } from '@tauri-apps/api/menu';
 
 const menu = await Menu.new({
   items: [
     {
-      id: "Open",
-      text: "open",
+      id: 'Open',
+      text: 'open',
       action: () => {
-        console.log("open pressed");
+        console.log('open pressed');
       },
     },
     {
-      id: "Close",
-      text: "close",
+      id: 'Close',
+      text: 'close',
       action: () => {
-        console.log("close pressed");
+        console.log('close pressed');
       },
     },
   ],
@@ -2192,7 +2141,6 @@ await menu.setAsAppMenu();
 ```
 
 Example 4 (rust):
-
 ```rust
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use tauri::menu::{MenuBuilder};
@@ -2236,13 +2184,12 @@ fn main() {
 **URL:** llms-txt#app-icons
 
 **Contents:**
-
 - Command Usage
 - Creating icons manually
   - Android
   - iOS
 
-{/_ TODO: More platform specific explanations like macOS requiring padding in the icon (waiting for https://github.com/tauri-apps/tauri/pull/11037) _/}
+{/* TODO: More platform specific explanations like macOS requiring padding in the icon (waiting for https://github.com/tauri-apps/tauri/pull/11037) */}
 
 import CommandTabs from '@components/CommandTabs.astro';
 
@@ -2318,7 +2265,6 @@ The file names are in the format of `AppIcon-{size}x{size}@{scaling}{extra}.png`
 **Examples:**
 
 Example 1 (console):
-
 ```console
 > pnpm tauri icon --help
 
@@ -2339,7 +2285,6 @@ Options:
 ```
 
 Example 2 (json):
-
 ```json
 {
   "bundle": {
@@ -2361,7 +2306,6 @@ Example 2 (json):
 **URL:** llms-txt#continuous-integration
 
 **Contents:**
-
 - GitHub Actions
 
 It is possible to run [WebDriver] tests with [`tauri-driver`] on your CI. The following example uses the [WebdriverIO] example we [previously built together] and
@@ -2375,7 +2319,7 @@ The following GitHub Actions assumes:
 1. The Tauri application is in the `src-tauri` folder.
 2. The [WebDriverIO] test runner is in the `e2e-tests` directory and runs when `yarn test` is used in that directory.
 
-````yaml title=".github/workflows/webdriver.yml"
+```yaml title=".github/workflows/webdriver.yml"
 
 ---
 
@@ -2468,20 +2412,18 @@ Example 1 (html):
     <script src="index.js"></script>
   </body>
 </html>
-````
+```
 
 Example 2 (javascript):
-
 ```javascript
 window.__TAURI_ISOLATION_HOOK__ = (payload) => {
   // let's not verify or modify anything, just print the content from the hook
-  console.log("hook", payload);
+  console.log('hook', payload);
   return payload;
 };
 ```
 
 Example 3 (json):
-
 ```json
 {
   "build": {
@@ -2507,7 +2449,6 @@ Example 3 (json):
 **URL:** llms-txt#embedding-additional-files
 
 **Contents:**
-
 - Configuration
 - Resolve resource file paths
   - Path syntax
@@ -2626,14 +2567,12 @@ To use it with the [`opener` plugin]:
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 </TabItem>
 <TabItem label="Explanation">
 ```
 
 Example 2 (unknown):
-
 ```unknown
 </TabItem>
 </Tabs>
@@ -2648,14 +2587,12 @@ To fine control where the files will get copied to, use a map instead:
 ```
 
 Example 3 (unknown):
-
 ```unknown
 </TabItem>
 <TabItem label="Explanation">
 ```
 
 Example 4 (unknown):
-
 ```unknown
 </TabItem>
 </Tabs>
@@ -2694,7 +2631,6 @@ then call [`PathResolver::resolve`]:
 **URL:** llms-txt#macos-application-bundle
 
 **Contents:**
-
 - File structure
 - Native configuration
   - Info.plist localization
@@ -2798,7 +2734,6 @@ and the `docs/index.md` file is copied to `<product-name>.app/Contents/SharedSup
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 ├── <productName>.app
 │   ├── Contents
@@ -2816,7 +2751,6 @@ Example 1 (unknown):
 ```
 
 Example 2 (unknown):
-
 ```unknown
 This `Info.plist` file is merged with the values generated by the Tauri CLI. Be careful when overwriting default values such as application version as they might conflict with other configuration values
 and introduce unexpected behavior.
@@ -2831,7 +2765,6 @@ To bundle these files automatically you can leverage Tauri's [resources] feature
 ```
 
 Example 3 (unknown):
-
 ```unknown
 While the `infoplist` directory name can be chosen freely, as long as you update it in the resources config below, the `lproj` directories must follow the `<lang-code>.lproj` naming and the string catalogue files must be named `InfoPlist.strings` (capital i and p). For most cases the language code should be a two letter code following [BCP 47].
 
@@ -2839,7 +2772,6 @@ For the `Info.plist` example shown above, the `de.lproj > InfoPlist.strings` fil
 ```
 
 Example 4 (unknown):
-
 ```unknown
 Lastly, make Tauri pick up these files by using the resources feature mentioned above:
 ```
@@ -2851,8 +2783,7 @@ Lastly, make Tauri pick up these files by using the resources feature mentioned 
 **URL:** llms-txt#src-tauri/cargo.toml
 
 **Contents:**
-
-- References
+  - References
 - Remove Unused Commands
 
 [profile.dev]
@@ -2869,12 +2800,11 @@ trim-paths = "all" # Removes potentially privileged information from your binari
 rustflags = ["-Cdebuginfo=0", "-Zthreads=8"] # Better compile performance.
 json title=tauri.conf.json
 {
-"build": {
-"removeUnusedCommands": true
+  "build": {
+    "removeUnusedCommands": true
+  }
 }
-}
-
-````
+```
 
 to remove commands that're never allowed in your capability files (ACL), so you don't have to pay for what you don't use
 
@@ -2930,7 +2860,7 @@ This is not a complete reference over all available options, merely the ones tha
 ## Remove Unused Commands
 
 In Pull Request [`feat: add a new option to remove unused commands`](https://github.com/tauri-apps/tauri/pull/12890), we added in a new option in the tauri config file
-````
+```
 
 ---
 
@@ -2947,10 +2877,9 @@ flatpak-builder --force-clean --user --disable-cache --repo flatpak-repo flatpak
 **URL:** llms-txt#future-work
 
 **Contents:**
-
-- Binary Analysis
-- WebView Hardening
-- Fuzzing
+  - Binary Analysis
+  - WebView Hardening
+  - Fuzzing
 
 This section describes topics we started or would like to tackle
 in the future to make Tauri apps even more secure.
@@ -3024,7 +2953,6 @@ The goal is to make fuzzing accessible and efficient for Tauri application devel
 **URL:** llms-txt#upgrade-from-tauri-1.0
 
 **Contents:**
-
 - Preparing for Mobile
 - Automated Migration
 - Summary of Changes
@@ -3228,7 +3156,6 @@ The Rust `App::get_cli_matches` JavaScript `@tauri-apps/api/cli` APIs have been 
 **Examples:**
 
 Example 1 (toml):
-
 ```toml
 // src-tauri/Cargo.toml
 [lib]
@@ -3237,7 +3164,6 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 ```
 
 Example 2 (rust):
-
 ```rust
 // src-tauri/src/lib.rs
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -3247,7 +3173,6 @@ pub fn run() {
 ```
 
 Example 3 (rust):
-
 ```rust
 // src-tauri/src/main.rs
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -3258,7 +3183,6 @@ fn main() {
 ```
 
 Example 4 (diff):
-
 ```diff
 - import { invoke } from "@tauri-apps/api/tauri"
 + import { invoke } from "@tauri-apps/api/core"
@@ -3277,7 +3201,6 @@ Example 4 (diff):
 **URL:** llms-txt#command-scopes
 
 **Contents:**
-
 - Examples
 
 A scope is a granular way to define (dis)allowed behavior of a Tauri command.
@@ -3324,13 +3247,11 @@ needs to consider reasonable combinations of scope depending on their use cases.
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 
 ```
 
 Example 2 (unknown):
-
 ```unknown
 The above scopes can be used to allow access to the `APPLOCALDATA` folder, while
 preventing access to the `EBWebView` subfolder on windows, which contains sensitive webview data.
@@ -3342,13 +3263,11 @@ First the deny scopes are merged into `deny-default`:
 ```
 
 Example 3 (unknown):
-
 ```unknown
 Afterwards deny and allow scopes are merged:
 ```
 
 Example 4 (unknown):
-
 ```unknown
 These scopes can be either used for all commands, by extending the global scope of the plugin,
 or for only selected commands when they are used in combination with a enabled command inside a permission.
@@ -3358,12 +3277,11 @@ Reasonable read only file access to files in the `APPLOCALDATA` could look like 
 
 ---
 
-## ... rest of the file
+## ...  rest of the file
 
 **URL:** llms-txt#...--rest-of-the-file
 
 **Contents:**
-
 - Building the RPM package
 - Signing the RPM package
   - Verify the signature
@@ -3377,10 +3295,10 @@ Reasonable read only file access to files in the `APPLOCALDATA` could look like 
 
 json title="src-tauri/tauri.conf.json"
 {
-"bundle": {
-"licenseFile": "../LICENSE", // put the path to the license file here
-"license": "MIT" // add the license here
-}
+  "bundle": {
+    "licenseFile": "../LICENSE", // put the path to the license file here
+    "license": "MIT" // add the license here
+  }
 }
 bash
 gpg --gen-key
@@ -3393,20 +3311,20 @@ gpg --export -a 'Tauri-App' > RPM-GPG-KEY-Tauri-App
 bash
 sudo rpm --import RPM-GPG-KEY-Tauri-App
 bash title="~/.rpmmacros"
-%\_signature gpg
-%\_gpg_path /home/johndoe/.gnupg
-%\_gpg_name Tauri-App
-%\_gpgbin /usr/bin/gpg2
-%**gpg_sign_cmd %{**gpg} \
- gpg --force-v3-sigs --digest-algo=sha1 --batch --no-verbose --no-armor \
- --passphrase-fd 3 --no-secmem-warning -u "%{\_gpg_name}" \
- -sbo %{**signature_filename} %{**plaintext_filename}
+%_signature gpg
+%_gpg_path /home/johndoe/.gnupg
+%_gpg_name Tauri-App
+%_gpgbin /usr/bin/gpg2
+%__gpg_sign_cmd %{__gpg} \
+    gpg --force-v3-sigs --digest-algo=sha1 --batch --no-verbose --no-armor \
+    --passphrase-fd 3 --no-secmem-warning -u "%{_gpg_name}" \
+    -sbo %{__signature_filename} %{__plaintext_filename}
 bash
-rpm -v --checksig tauri-app-0.0.0-1.x86_64.rpm
+rpm  -v --checksig tauri-app-0.0.0-1.x86_64.rpm
 bash
 rpm -qip package_name.rpm
 bash
-rpm -qp --queryformat '[%{NAME} %{VERSION} %{RELEASE} %{ARCH} %{SIZE}\n]' package_name.rpm
+rpm  -qp --queryformat '[%{NAME} %{VERSION} %{RELEASE} %{ARCH} %{SIZE}\n]' package_name.rpm
 bash
 rpm -qlp package_name.rpm
 bash
@@ -3420,117 +3338,86 @@ rpm -ivvh package_name.rpm
 bash
 rpm -Uvvh package_name.rpm
 toml
-[target.armv7-unknown-linux-gnueabihf]
-linker = "arm-linux-gnueabihf-gcc"
+   [target.armv7-unknown-linux-gnueabihf]
+   linker = "arm-linux-gnueabihf-gcc"
 
 [target.aarch64-unknown-linux-gnu]
-linker = "aarch64-linux-gnu-gcc"
-
-deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted
-deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted
-deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy universe
-deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates universe
-deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy multiverse
-deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates multiverse
-deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main restricted universe multiverse
-deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted
-deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security universe
-deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security multiverse
-
-# See http://help.ubuntu.com/community/UpgradeNotes for how to upgrade to
-
-# newer versions of the distribution.
-
-deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy main restricted
-
-# deb-src http://archive.ubuntu.com/ubuntu/ jammy main restricted
+   linker = "aarch64-linux-gnu-gcc"
+   
+   deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted
+   deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted
+   deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy universe
+   deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates universe
+   deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy multiverse
+   deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates multiverse
+   deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main restricted universe multiverse
+   deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted
+   deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security universe
+   deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security multiverse
+   
+   # See http://help.ubuntu.com/community/UpgradeNotes for how to upgrade to
+   # newer versions of the distribution.
+   deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy main restricted
+   # deb-src http://archive.ubuntu.com/ubuntu/ jammy main restricted
 
 ## Major bug fix updates produced after the final release of the
-
-## distribution.
-
-deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy-updates main restricted
-
-# deb-src http://archive.ubuntu.com/ubuntu/ jammy-updates main restricted
+   ## distribution.
+   deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy-updates main restricted
+   # deb-src http://archive.ubuntu.com/ubuntu/ jammy-updates main restricted
 
 ## N.B. software from this repository is ENTIRELY UNSUPPORTED by the Ubuntu
-
-## team. Also, please note that software in universe WILL NOT receive any
-
-## review or updates from the Ubuntu security team.
-
-deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy universe
-
-# deb-src http://archive.ubuntu.com/ubuntu/ jammy universe
-
-deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy-updates universe
-
-# deb-src http://archive.ubuntu.com/ubuntu/ jammy-updates universe
+   ## team. Also, please note that software in universe WILL NOT receive any
+   ## review or updates from the Ubuntu security team.
+   deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy universe
+   # deb-src http://archive.ubuntu.com/ubuntu/ jammy universe
+   deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy-updates universe
+   # deb-src http://archive.ubuntu.com/ubuntu/ jammy-updates universe
 
 ## N.B. software from this repository is ENTIRELY UNSUPPORTED by the Ubuntu
-
-## team, and may not be under a free licence. Please satisfy yourself as to
-
-## your rights to use the software. Also, please note that software in
-
-## multiverse WILL NOT receive any review or updates from the Ubuntu
-
-## security team.
-
-deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy multiverse
-
-# deb-src http://archive.ubuntu.com/ubuntu/ jammy multiverse
-
-deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy-updates multiverse
+   ## team, and may not be under a free licence. Please satisfy yourself as to
+   ## your rights to use the software. Also, please note that software in
+   ## multiverse WILL NOT receive any review or updates from the Ubuntu
+   ## security team.
+   deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy multiverse
+   # deb-src http://archive.ubuntu.com/ubuntu/ jammy multiverse
+   deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy-updates multiverse
 
 ## N.B. software from this repository may not have been tested as
-
-## extensively as that contained in the main release, although it includes
-
-## newer versions of some applications which may provide useful features.
-
-## Also, please note that software in backports WILL NOT receive any review
-
-## or updates from the Ubuntu security team.
-
-deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy-backports main restricted universe multiverse
-
-# deb-src http://archive.ubuntu.com/ubuntu/ jammy-backports main restricted universe multiverse
+   ## extensively as that contained in the main release, although it includes
+   ## newer versions of some applications which may provide useful features.
+   ## Also, please note that software in backports WILL NOT receive any review
+   ## or updates from the Ubuntu security team.
+   deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy-backports main restricted universe multiverse
+   # deb-src http://archive.ubuntu.com/ubuntu/ jammy-backports main restricted universe multiverse
 
 deb [arch=amd64] http://security.ubuntu.com/ubuntu/ jammy-security main restricted
-
-# deb-src http://security.ubuntu.com/ubuntu/ jammy-security main restricted
-
-deb [arch=amd64] http://security.ubuntu.com/ubuntu/ jammy-security universe
-
-# deb-src http://security.ubuntu.com/ubuntu/ jammy-security universe
-
-deb [arch=amd64] http://security.ubuntu.com/ubuntu/ jammy-security multiverse
-
-# deb-src http://security.ubuntu.com/ubuntu/ jammy-security multiverse
+   # deb-src http://security.ubuntu.com/ubuntu/ jammy-security main restricted
+   deb [arch=amd64] http://security.ubuntu.com/ubuntu/ jammy-security universe
+   # deb-src http://security.ubuntu.com/ubuntu/ jammy-security universe
+   deb [arch=amd64] http://security.ubuntu.com/ubuntu/ jammy-security multiverse
+   # deb-src http://security.ubuntu.com/ubuntu/ jammy-security multiverse
 
 deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted
-deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted
-deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy universe
-deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates universe
-deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy multiverse
-deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates multiverse
-deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main restricted universe multiverse
-deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted
-deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security universe
-deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security multiverse
-toml
-openssl-sys = {version = "0.9", features = ["vendored"]}
-
-````
+   deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted
+   deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy universe
+   deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates universe
+   deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy multiverse
+   deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates multiverse
+   deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main restricted universe multiverse
+   deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted
+   deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security universe
+   deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security multiverse
+   toml
+   openssl-sys = {version = "0.9", features = ["vendored"]}
+   ```
 
 9. #### Set the `PKG_CONFIG_SYSROOT_DIR` to the appropriate directory based on your chosen architecture
-- For ARMv7: `export PKG_CONFIG_SYSROOT_DIR=/usr/arm-linux-gnueabihf/`
-- For ARMv8 (ARM64): `export PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu/`
+   - For ARMv7: `export PKG_CONFIG_SYSROOT_DIR=/usr/arm-linux-gnueabihf/`
+   - For ARMv8 (ARM64): `export PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu/`
 
 10. #### Build the app for your desired ARM version
- - For ARMv7: cargo tauri build --target armv7-unknown-linux-gnueabihf
- - For ARMv8 (ARM64): cargo tauri build --target aarch64-unknown-linux-gnu
+    - For ARMv7: cargo tauri build --target armv7-unknown-linux-gnueabihf
+    - For ARMv8 (ARM64): cargo tauri build --target aarch64-unknown-linux-gnu
 
 Choose the appropriate set of instructions based on whether you want to cross-compile your Tauri application for ARMv7 or ARMv8 (ARM64). Please note that the specific steps may vary depending on your Linux distribution and setup.
 
@@ -3539,10 +3426,9 @@ Choose the appropriate set of instructions based on whether you want to cross-co
 Example 1 (unknown):
 ```unknown
 And for `src-tauri/tauri.conf.json`
-````
+```
 
 Example 2 (unknown):
-
 ```unknown
 ## Building the RPM package
 
@@ -3570,7 +3456,6 @@ To generate a GPG key you can use the following command:
 ```
 
 Example 3 (unknown):
-
 ```unknown
 Follow the instruction to generate the key.
 
@@ -3579,7 +3464,6 @@ You can do this by adding the following to your .bashrc or .zshrc file or just e
 ```
 
 Example 4 (unknown):
-
 ```unknown
 If you have a passphrase for the key, you can add it to the environment variable:
 ```
@@ -3591,14 +3475,12 @@ If you have a passphrase for the key, you can add it to the environment variable
 **URL:** llms-txt#the-name-of-our-workflow
 
 jobs:
-
-# a single job named test
-
-test: # the display name of the test job
-name: WebDriverIO Test Runner
+  # a single job named test
+  test:
+    # the display name of the test job
+    name: WebDriverIO Test Runner
 
 # run on the matrix platform
-
     runs-on: ${{ matrix.platform }}
     strategy:
       # do not fail other matrix runs if one fails
@@ -3608,13 +3490,11 @@ name: WebDriverIO Test Runner
         platform: [ubuntu-latest, windows-latest]
 
 # the steps our job runs **in order**
-
     steps:
       # checkout the code on the workflow runner
       - uses: actions/checkout@v4
 
 # install system dependencies that Tauri needs to compile on Linux.
-
       # note the extra dependencies for `tauri-driver` to run which are: `webkit2gtk-driver` and `xvfb`
       - name: Tauri dependencies
         if: matrix.platform == 'ubuntu-latest'
@@ -3627,7 +3507,6 @@ name: WebDriverIO Test Runner
           xvfb
 
 # install a matching Microsoft Edge Driver version using msedgedriver-tool
-
       - name: install msdgedriver (Windows)
         if: matrix.platform == 'windows-latest'
         run: |
@@ -3636,24 +3515,20 @@ name: WebDriverIO Test Runner
           $PWD.Path >> $env:GITHUB_PATH
 
 # install latest stable Rust release
-
       - name: Setup rust-toolchain stable
         uses: dtolnay/rust-toolchain@stable
 
 # setup caching for the Rust target folder
-
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
 
 # we run our Rust tests before the webdriver tests to avoid testing a broken application
-
       - name: Cargo test
         run: cargo test
 
 # install the latest stable node version at the time of writing
-
       - name: Node 24
         uses: actions/setup-node@v4
         with:
@@ -3661,24 +3536,20 @@ name: WebDriverIO Test Runner
           cache: 'yarn'
 
 # install the application Node.js dependencies with Yarn
-
       - name: Yarn install
         run: yarn install --frozen-lockfile
 
 # install the e2e-tests Node.js dependencies with Yarn
-
       - name: Yarn install
         run: yarn install --frozen-lockfile
         working-directory: e2e-tests
 
 # install the latest version of `tauri-driver`.
-
       # note: the tauri-driver version is independent of any other Tauri versions
       - name: Install tauri-driver
         run: cargo install tauri-driver --locked
 
 # run the WebdriverIO test suite on Linux.
-
       # we run it through `xvfb-run` (the dependency we installed earlier) to have a fake
       # display server which allows our application to run headless without any changes to the code
       - name: WebdriverIO (Linux)
@@ -3687,14 +3558,12 @@ name: WebDriverIO Test Runner
         working-directory: e2e-tests
 
 # run the WebdriverIO test suite on Windows.
-
       # in this case we can run the tests directly.
       - name: WebdriverIO (Windows)
         if: matrix.platform == 'windows-latest'
         run: yarn test
         working-directory: e2e-tests
-
-````
+```
 
 [previously built together]: /develop/tests/webdriver/example/webdriverio/
 [webdriver]: https://www.w3.org/TR/webdriver/
@@ -3740,7 +3609,7 @@ Example 1 (json):
     }
   }
 }
-````
+```
 
 ---
 
@@ -3749,7 +3618,6 @@ Example 1 (json):
 **URL:** llms-txt#splashscreen
 
 **Contents:**
-
 - Prerequisites
 - Steps
 - Discuss
@@ -3788,7 +3656,7 @@ Before you start developing any project it's important to build and run the init
 1. ##### Register new windows in `tauri.conf.json`
 
 The easiest way of adding new windows is by adding them directly to `tauri.conf.json`. You can also create them dynamically at startup,
-but for the sake of simplicity lets just register them instead. Make sure you have a window with the label `main` that's being created as a hidden window and a window with the label `splashscreen` that's created as being shown directly. You can leave all other options as their defaults, or tweak them based on preference.
+   but for the sake of simplicity lets just register them instead. Make sure you have a window with the label `main` that's being created as a hidden window and a window with the label `splashscreen` that's created as being shown directly. You can leave all other options as their defaults, or tweak them based on preference.
 
 <ShowSolution>
     
@@ -3797,8 +3665,8 @@ but for the sake of simplicity lets just register them instead. Make sure you ha
 1. ##### Create a new page to host your splashscreen
 
 Before you begin you'll need to have some content to show. How you develop new pages depend on your chosen framework,
-most have the concept of a "router" that handles page navigation which should work just like normal in Tauri, in which case
-you just create a new splashscreen page. Or as we're going to be doing here, create a new `splashscreen.html` file to host the contents.
+   most have the concept of a "router" that handles page navigation which should work just like normal in Tauri, in which case
+   you just create a new splashscreen page. Or as we're going to be doing here, create a new `splashscreen.html` file to host the contents.
 
 What's important here is that you can navigate to a `/splashscreen` URL and be shown the contents you want for your splashscreen. Try running the app again after this step!
 
@@ -3812,7 +3680,7 @@ What's important here is that you can navigate to a `/splashscreen` URL and be s
 Since splashscreens are generally intended to be used for the sake of hiding heavy setup related tasks, lets fake giving the app something heavy to do, some in the frontend and some in the backend.
 
 To fake heavy setup in the frontend we're going to be using a simple `setTimeout` function.
-
+    
     The easiest way to fake heavy operations in the backend is by using the Tokio crate, which is the Rust crate that Tauri uses in the backend to provide an asynchronous runtime. While Tauri provides the runtime there are various utilities that Tauri doesn't re-export from it, so we'll need to add the crate to our project in order to access them. This is a perfectly normal practice within the Rust ecosystem.
 
 Don't use `std::thread::sleep` in async functions, they run cooperatively in a concurrent environment not in parallel, meaning that if you sleep the thread instead of the Tokio task you'll be locking all tasks scheduled to run on that thread from being executed, causing your app to freeze.
@@ -3830,13 +3698,12 @@ user there's still setup tasks happening in the background.
 
 However, with that said, it can be a stylistic choice that you want to have a splashscreen,
 or you might have some very particular requirement that makes it impossible to start the
-app until some tasks are performed. It's definitely not _wrong_ to have a splashscreen, it
+app until some tasks are performed. It's definitely not *wrong* to have a splashscreen, it
 just tends to not be necessary and can make users feel like the app isn't very well optimized.
 
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 <Image src={step_1} alt="Successful run of the created template app."/>
     </ShowSolution>
@@ -3850,7 +3717,6 @@ Example 1 (unknown):
 ```
 
 Example 2 (unknown):
-
 ```unknown
 </ShowSolution>
 
@@ -3866,7 +3732,6 @@ Example 2 (unknown):
 ```
 
 Example 3 (unknown):
-
 ```unknown
 <Image src={step_3} alt="The splashscreen we just created."/>
     </ShowSolution>
@@ -3876,7 +3741,7 @@ Example 3 (unknown):
     Since splashscreens are generally intended to be used for the sake of hiding heavy setup related tasks, lets fake giving the app something heavy to do, some in the frontend and some in the backend.
 
     To fake heavy setup in the frontend we're going to be using a simple `setTimeout` function.
-
+    
     The easiest way to fake heavy operations in the backend is by using the Tokio crate, which is the Rust crate that Tauri uses in the backend to provide an asynchronous runtime. While Tauri provides the runtime there are various utilities that Tauri doesn't re-export from it, so we'll need to add the crate to our project in order to access them. This is a perfectly normal practice within the Rust ecosystem.
 
     Don't use `std::thread::sleep` in async functions, they run cooperatively in a concurrent environment not in parallel, meaning that if you sleep the thread instead of the Tokio task you'll be locking all tasks scheduled to run on that thread from being executed, causing your app to freeze.
@@ -3885,7 +3750,6 @@ Example 3 (unknown):
 ```
 
 Example 4 (unknown):
-
 ```unknown
 
 ```
@@ -3897,7 +3761,6 @@ Example 4 (unknown):
 **URL:** llms-txt#application-lifecycle-threats
 
 **Contents:**
-
 - Upstream Threats
   - Keep Your Applications Up-To-Date
   - Evaluate Your Dependencies
@@ -4128,7 +3991,6 @@ the request and the Tauri command is never invoked.
 **URL:** llms-txt#windows-installer
 
 **Contents:**
-
 - Building
   - Build Windows apps on Linux and macOS
   - Building for 32-bit or ARM
@@ -4487,14 +4349,12 @@ to verify the current Webview2 version and run the Webview2 bootstrapper if it d
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 But on many other distributions you have to compile NSIS yourself or download Stubs and Plugins manually that weren't included in the distro's binary package.
 Fedora for example only provides the binary but not the Stubs and Plugins:
 ```
 
 Example 2 (unknown):
-
 ```unknown
 </TabItem>
 
@@ -4503,7 +4363,6 @@ On macOS you will need [Homebrew] to install NSIS:
 ```
 
 Example 3 (unknown):
-
 ```unknown
 </TabItem>
 </Tabs>
@@ -4519,7 +4378,6 @@ we will also need the `llvm-rc` binary which is part of the LLVM project.
 ```
 
 Example 4 (unknown):
-
 ```unknown
 On Linux you also need to install the `clang` package if you added dependencies that compile C/C++ dependencies as part of their build scripts.
 Default Tauri apps should not require this.
@@ -4574,7 +4432,6 @@ For more information, see the [CrabNebula Cloud documentation].
 **URL:** llms-txt#system-tray
 
 **Contents:**
-
 - Configuration
 - Usage
   - Create a Tray Icon
@@ -4622,7 +4479,7 @@ To prevent the menu from popping up on left click, call the [`menu_on_left_click
 or set the [`menuOnLeftClick`] JavaScript option to `false`.
 :::
 
-{/_ TODO: link to the menu plugin documentation page _/}
+{/* TODO: link to the menu plugin documentation page */}
 
 <Tabs syncKey="lang">
 <TabItem label="JavaScript">
@@ -4679,7 +4536,6 @@ For detailed information about creating menus, including menu items, submenus, a
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 ## Usage
 
@@ -4693,7 +4549,6 @@ Use the [`TrayIcon.new`] static function to create a new tray icon:
 ```
 
 Example 2 (unknown):
-
 ```unknown
 See [`TrayIconOptions`] for more information on the customization options.
 
@@ -4703,7 +4558,6 @@ See [`TrayIconOptions`] for more information on the customization options.
 ```
 
 Example 3 (unknown):
-
 ```unknown
 See [`TrayIconBuilder`] for more information on customization options.
 
@@ -4719,7 +4573,6 @@ When creating the tray you can use the application icon as the tray icon:
 ```
 
 Example 4 (unknown):
-
 ```unknown
 </TabItem>
 
@@ -4752,7 +4605,6 @@ platform has the required libraries installed to compile against.
 **URL:** llms-txt#embedding-external-binaries
 
 **Contents:**
-
 - Running it from Rust
 - Running it from JavaScript
 - Passing arguments
@@ -4831,7 +4683,6 @@ Then, to call the sidecar command, simply pass in **all** the arguments as an ar
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 :::note
 
@@ -4847,19 +4698,16 @@ You can find your **current** platform's `-$TARGET_TRIPLE` suffix by looking at 
 ```
 
 Example 2 (unknown):
-
 ```unknown
 If the `grep` and `cut` commands are available, as they should on most Unix systems, you can extract the target triple directly with the following command:
 ```
 
 Example 3 (unknown):
-
 ```unknown
 On Windows you can use PowerShell instead:
 ```
 
 Example 4 (unknown):
-
 ```unknown
 Here's a Node.js script to append the target triple to a binary:
 ```
@@ -4871,14 +4719,13 @@ Here's a Node.js script to append the target triple to a binary:
 **URL:** llms-txt#10.2.3
 
 **Contents:**
-
 - Configure for Mobile Targets
   - Android
   - iOS
 - Troubleshooting
 
 sh
-export JAVA*HOME=/opt/android-studio/jbr
+export JAVA_HOME=/opt/android-studio/jbr
 sh
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 ps
@@ -4894,7 +4741,7 @@ ps
 $VERSION = Get-ChildItem -Name "$env:LocalAppData\Android\Sdk\ndk" | Select-Object -Last 1
 [System.Environment]::SetEnvironmentVariable("NDK_HOME", "$env:LocalAppData\Android\Sdk\ndk\$VERSION", "User")
 ps
-[System.Environment]::GetEnvironmentVariables("User").GetEnumerator() | % { Set-Item -Path "Env:\$($*.key)" -Value $_.value }
+[System.Environment]::GetEnvironmentVariables("User").GetEnumerator() | % { Set-Item -Path "Env:\$($_.key)" -Value $_.value }
 sh
 rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
 sh
@@ -4903,8 +4750,7 @@ sh
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 sh
 brew install cocoapods
-
-````
+```
 
 Next: [Create a project](/start/create-project/).
 
@@ -4940,24 +4786,21 @@ If you'd like to target your app for Android or iOS then there are a few additio
 
 <Tabs syncKey="prereqs">
 <TabItem label="Linux">
-````
+```
 
 Example 2 (unknown):
-
 ```unknown
 </TabItem>
 <TabItem label="macOS">
 ```
 
 Example 3 (unknown):
-
 ```unknown
 </TabItem>
 <TabItem label="Windows">
 ```
 
 Example 4 (unknown):
-
 ```unknown
 </TabItem>
 </Tabs>
@@ -4984,7 +4827,6 @@ Selecting "Show Package Details" in the SDK Manager enables the installation of 
 **URL:** llms-txt#dmg
 
 **Contents:**
-
 - Window background
 - Window size and position
 - Icon position
@@ -5054,7 +4896,6 @@ See [tauri-apps/tauri#1731] for more information.
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 For instance your DMG background image can include an arrow to indicate to the user that it must drag the app icon to the Applications folder.
 
@@ -5064,13 +4905,11 @@ The default window size is 660x400. If you need a different size to fit your cus
 ```
 
 Example 2 (unknown):
-
 ```unknown
 Additionally you can set the initial window position via [`tauri.conf.json > bundle > macOS > dmg > windowPosition`]:
 ```
 
 Example 3 (unknown):
-
 ```unknown
 ## Icon position
 
@@ -5085,52 +4924,50 @@ with the [appPosition] and [applicationFolderPosition] configuration values resp
 **URL:** llms-txt#contributor:
 
 **Contents:**
-
-- Building from source
+  - Building from source
 
 pkgname=<pkgname>
 pkgver=1.0.0
 pkgrel=1
 pkgdesc="Description of your app"
-arch=('x86*64' 'aarch64')
+arch=('x86_64' 'aarch64')
 url="https://github.com/<user>/<project>"
 license=('MIT')
 depends=('cairo' 'desktop-file-utils' 'gdk-pixbuf2' 'glib2' 'gtk3' 'hicolor-icon-theme' 'libsoup' 'pango' 'webkit2gtk-4.1')
 options=('!strip' '!debug')
 install=${pkgname}.install
-source_x86_64=("${url}/releases/download/v${pkgver}/appname*${pkgver}_amd64.deb")
-source_aarch64=("${url}/releases/download/v${pkgver}/appname_${pkgver}\_arm64.deb")
+source_x86_64=("${url}/releases/download/v${pkgver}/appname_${pkgver}_amd64.deb")
+source_aarch64=("${url}/releases/download/v${pkgver}/appname_${pkgver}_arm64.deb")
 sha256sums_x86_64=('ca85f11732765bed78f93f55397b4b4cbb76685088553dad612c5062e3ec651f')
 sha256sums_aarch64=('ed2dc3169d34d91188fb55d39867713856dd02a2360ffe0661cb2e19bd701c3c')
-package() { # Extract package data
-tar -xvf data.tar.gz -C "${pkgdir}"
+package() {
+	# Extract package data
+	tar -xvf data.tar.gz -C "${pkgdir}"
 
 }
 ini title="my-tauri-app.install"
 post_install() {
-gtk-update-icon-cache -q -t -f usr/share/icons/hicolor
-update-desktop-database -q
+	gtk-update-icon-cache -q -t -f usr/share/icons/hicolor
+	update-desktop-database -q
 }
 
 post_upgrade() {
-post_install
+	post_install
 }
 
 post_remove() {
-gtk-update-icon-cache -q -t -f usr/share/icons/hicolor
-update-desktop-database -q
+	gtk-update-icon-cache -q -t -f usr/share/icons/hicolor
+	update-desktop-database -q
 }
 
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 
 ```
 
 Example 2 (unknown):
-
 ```unknown
 ### Building from source
 ```
@@ -5165,28 +5002,27 @@ import { LinkCard, CardGrid } from '@astrojs/starlight/components';
 **URL:** llms-txt#cargo.toml
 
 **Contents:**
-
-- Migrate to Tray Icon Module
-- Migrate to Updater Plugin
-- Migrate Path to Tauri Manager
-- Migrate to new Window API
-- Migrate Embedded Additional Files (Resources)
-- Migrate Embedded External Binaries (Sidecar)
-- Migrate Permissions
+  - Migrate to Tray Icon Module
+  - Migrate to Updater Plugin
+  - Migrate Path to Tauri Manager
+  - Migrate to new Window API
+  - Migrate Embedded Additional Files (Resources)
+  - Migrate Embedded External Binaries (Sidecar)
+  - Migrate Permissions
 
 [dependencies]
 tauri-plugin-shell = "2"
 rust
 fn main() {
-tauri::Builder::default()
-.plugin(tauri_plugin_shell::init())
+    tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
 }
 json
 // package.json
 {
-"dependencies": {
-"@tauri-apps/plugin-shell": "^2.0.0"
-}
+  "dependencies": {
+    "@tauri-apps/plugin-shell": "^2.0.0"
+  }
 }
 javascript
 import { Command, open } from '@tauri-apps/plugin-shell';
@@ -5197,120 +5033,120 @@ rust
 use tauri_plugin_shell::ShellExt;
 
 fn main() {
-tauri::Builder::default()
-.plugin(tauri_plugin_shell::init())
-.setup(|app| {
-app.shell().open("https://github.com/tauri-apps/tauri", None)?;
-Ok(())
-})
+    tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            app.shell().open("https://github.com/tauri-apps/tauri", None)?;
+            Ok(())
+        })
 }
 rust
 use tauri_plugin_shell::ShellExt;
 
 fn main() {
-tauri::Builder::default()
-.plugin(tauri_plugin_shell::init())
-.setup(|app| {
-let status = tauri::async_runtime::block_on(async move { app.shell().command("which").args(["ls"]).status().await.unwrap() });
-println!("`which` finished with status: {:?}", status.code());
-Ok(())
-})
+    tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            let status = tauri::async_runtime::block_on(async move { app.shell().command("which").args(["ls"]).status().await.unwrap() });
+            println!("`which` finished with status: {:?}", status.code());
+            Ok(())
+        })
 }
 rust
 use tauri_plugin_shell::ShellExt;
 
 fn main() {
-tauri::Builder::default()
-.plugin(tauri_plugin_shell::init())
-.setup(|app| {
-let output = tauri::async_runtime::block_on(async move { app.shell().command("echo").args(["TAURI"]).output().await.unwrap() });
-assert!(output.status.success());
-assert_eq!(String::from_utf8(output.stdout).unwrap(), "TAURI");
-Ok(())
-})
+    tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            let output = tauri::async_runtime::block_on(async move { app.shell().command("echo").args(["TAURI"]).output().await.unwrap() });
+            assert!(output.status.success());
+            assert_eq!(String::from_utf8(output.stdout).unwrap(), "TAURI");
+            Ok(())
+        })
 }
 rust
 use tauri_plugin_shell::{ShellExt, process::CommandEvent};
 
 fn main() {
-tauri::Builder::default()
-.plugin(tauri_plugin_shell::init())
-.setup(|app| {
-let handle = app.handle().clone();
-tauri::async_runtime::spawn(async move {
-let (mut rx, mut child) = handle.shell().command("cargo")
-.args(["tauri", "dev"])
-.spawn()
-.expect("Failed to spawn cargo");
+    tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let (mut rx, mut child) = handle.shell().command("cargo")
+                    .args(["tauri", "dev"])
+                    .spawn()
+                    .expect("Failed to spawn cargo");
 
 let mut i = 0;
-while let Some(event) = rx.recv().await {
-if let CommandEvent::Stdout(line) = event {
-println!("got: {}", String::from_utf8(line).unwrap());
-i += 1;
-if i == 4 {
-child.write("message from Rust\n".as_bytes()).unwrap();
-i = 0;
-}
-}
-}
-});
-Ok(())
-})
+                while let Some(event) = rx.recv().await {
+                    if let CommandEvent::Stdout(line) = event {
+                        println!("got: {}", String::from_utf8(line).unwrap());
+                       i += 1;
+                       if i == 4 {
+                           child.write("message from Rust\n".as_bytes()).unwrap();
+                           i = 0;
+                       }
+                   }
+                }
+            });
+            Ok(())
+        })
 }
 rust
 let tray = tauri::tray::TrayIconBuilder::with_id("my-tray").build(app)?;
 rust
 use tauri::{
-menu::{MenuBuilder, MenuItemBuilder},
-tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    menu::{MenuBuilder, MenuItemBuilder},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 
 tauri::Builder::default()
-.setup(|app| {
-let toggle = MenuItemBuilder::with*id("toggle", "Toggle").build(app)?;
-let menu = MenuBuilder::new(app).items(&[&toggle]).build()?;
-let tray = TrayIconBuilder::new()
-.menu(&menu)
-.on_menu_event(move |app, event| match event.id().as_ref() {
-"toggle" => {
-println!("toggle clicked");
-}
-* => (),
-})
-.on*tray_icon_event(|tray, event| {
-if let TrayIconEvent::Click {
-button: MouseButton::Left,
-button_state: MouseButtonState::Up,
-..
-} = event
-{
-let app = tray.app_handle();
-if let Some(webview_window) = app.get_webview_window("main") {
-let * = webview*window.unminimize();
-let * = webview*window.show();
-let * = webview_window.set_focus();
-}
-}
-})
-.build(app)?;
+    .setup(|app| {
+        let toggle = MenuItemBuilder::with_id("toggle", "Toggle").build(app)?;
+        let menu = MenuBuilder::new(app).items(&[&toggle]).build()?;
+        let tray = TrayIconBuilder::new()
+            .menu(&menu)
+            .on_menu_event(move |app, event| match event.id().as_ref() {
+                "toggle" => {
+                    println!("toggle clicked");
+                }
+                _ => (),
+            })
+            .on_tray_icon_event(|tray, event| {
+                if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                } = event
+                {
+                    let app = tray.app_handle();
+                    if let Some(webview_window) = app.get_webview_window("main") {
+                       let _ = webview_window.unminimize();
+                       let _ = webview_window.show();
+                       let _ = webview_window.set_focus();
+                    }
+                }
+            })
+            .build(app)?;
 
 Ok(())
-})
+    })
 toml
 [dependencies]
 tauri-plugin-updater = "2"
 rust
 fn main() {
-tauri::Builder::default()
-.plugin(tauri_plugin_updater::Builder::new().build())
+    tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
 }
 json
 // package.json
 {
-"dependencies": {
-"@tauri-apps/plugin-updater": "^2.0.0"
-}
+  "dependencies": {
+    "@tauri-apps/plugin-updater": "^2.0.0"
+  }
 }
 javascript
 import { check } from '@tauri-apps/plugin-updater';
@@ -5318,41 +5154,42 @@ import { relaunch } from '@tauri-apps/plugin-process';
 
 const update = await check();
 if (update?.available) {
-console.log(`Update to ${update.version} available! Date: ${update.date}`);
-console.log(`Release notes: ${update.body}`);
-await update.downloadAndInstall();
-// requires the `process` plugin
-await relaunch();
+  console.log(`Update to ${update.version} available! Date: ${update.date}`);
+  console.log(`Release notes: ${update.body}`);
+  await update.downloadAndInstall();
+  // requires the `process` plugin
+  await relaunch();
 }
 rust
 use tauri_plugin_updater::UpdaterExt;
 
 fn main() {
-tauri::Builder::default()
-.plugin(tauri_plugin_updater::Builder::new().build())
-.setup(|app| {
-let handle = app.handle();
-tauri::async_runtime::spawn(async move {
-let response = handle.updater().check().await;
-});
-Ok(())
-})
+    tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .setup(|app| {
+            let handle = app.handle();
+            tauri::async_runtime::spawn(async move {
+                let response = handle.updater().check().await;
+            });
+            Ok(())
+        })
 }
 rust
 fn main() {
-let mut updater = tauri_plugin_updater::Builder::new(); #[cfg(target_os = "macos")]
-{
-updater = updater.target("darwin-universal");
-}
-tauri::Builder::default()
-.plugin(updater.build())
+    let mut updater = tauri_plugin_updater::Builder::new();
+    #[cfg(target_os = "macos")]
+    {
+        updater = updater.target("darwin-universal");
+    }
+    tauri::Builder::default()
+        .plugin(updater.build())
 }
 rust
 use tauri::{path::BaseDirectory, Manager};
 
 tauri::Builder::default()
-.setup(|app| {
-let home_dir_path = app.path().home_dir().expect("failed to get home dir");
+    .setup(|app| {
+        let home_dir_path = app.path().home_dir().expect("failed to get home dir");
 
 let path = app.path().resolve("path/to/something", BaseDirectory::Config)?;
 
@@ -5398,7 +5235,6 @@ To learn more about permissions and capabilities, see [the security documentatio
 **Examples:**
 
 Example 1 (unknown):
-
 ```unknown
 2. Use in JavaScript or Rust project:
 
@@ -5407,19 +5243,16 @@ Example 1 (unknown):
 ```
 
 Example 2 (unknown):
-
 ```unknown
 
 ```
 
 Example 3 (unknown):
-
 ```unknown
 
 ```
 
 Example 4 (unknown):
-
 ```unknown
 </TabItem>
 <TabItem label="Rust">
@@ -5448,7 +5281,6 @@ flatpak run <your flatpak id> # or via your desktop environment
 **URL:** llms-txt#webdriverio
 
 **Contents:**
-
 - Create a Directory for the Tests
 - Initializing a WebdriverIO Project
 - Config
@@ -5534,7 +5366,6 @@ of configuration and a single command to run it! Even better, we didn't have to 
 **Examples:**
 
 Example 1 (json):
-
 ```json
 {
   "name": "webdriverio",
@@ -5556,36 +5387,35 @@ Example 1 (json):
 ```
 
 Example 2 (javascript):
-
 ```javascript
-import os from "os";
-import path from "path";
-import { spawn, spawnSync } from "child_process";
-import { fileURLToPath } from "url";
+import os from 'os';
+import path from 'path';
+import { spawn, spawnSync } from 'child_process';
+import { fileURLToPath } from 'url';
 
-const __dirname = fileURLToPath(new URL(".", import.meta.url));
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 // keep track of the `tauri-driver` child process
 let tauriDriver;
 let exit = false;
 
 export const config = {
-  host: "127.0.0.1",
+  host: '127.0.0.1',
   port: 4444,
-  specs: ["./develop/tests/specs/**/*.js"],
+  specs: ['./develop/tests/specs/**/*.js'],
   maxInstances: 1,
   capabilities: [
     {
       maxInstances: 1,
-      "tauri:options": {
-        application: "../src-tauri/target/debug/tauri-app",
+      'tauri:options': {
+        application: '../src-tauri/target/debug/tauri-app',
       },
     },
   ],
-  reporters: ["spec"],
-  framework: "mocha",
+  reporters: ['spec'],
+  framework: 'mocha',
   mochaOpts: {
-    ui: "bdd",
+    ui: 'bdd',
     timeout: 60000,
   },
 
@@ -5593,31 +5423,31 @@ export const config = {
   onPrepare: () => {
     // Remove the extra `--` if you're not using npm!
     spawnSync(
-      "npm",
-      ["run", "tauri", "build", "--", "--debug", "--no-bundle"],
+      'npm',
+      ['run', 'tauri', 'build', '--', '--debug', '--no-bundle'],
       {
-        cwd: path.resolve(__dirname, ".."),
-        stdio: "inherit",
+        cwd: path.resolve(__dirname, '..'),
+        stdio: 'inherit',
         shell: true,
-      },
+      }
     );
   },
 
   // ensure we are running `tauri-driver` before the session starts so that we can proxy the webdriver requests
   beforeSession: () => {
     tauriDriver = spawn(
-      path.resolve(os.homedir(), ".cargo", "bin", "tauri-driver"),
+      path.resolve(os.homedir(), '.cargo', 'bin', 'tauri-driver'),
       [],
-      { stdio: [null, process.stdout, process.stderr] },
+      { stdio: [null, process.stdout, process.stderr] }
     );
 
-    tauriDriver.on("error", (error) => {
-      console.error("tauri-driver error:", error);
+    tauriDriver.on('error', (error) => {
+      console.error('tauri-driver error:', error);
       process.exit(1);
     });
-    tauriDriver.on("exit", (code) => {
+    tauriDriver.on('exit', (code) => {
       if (!exit) {
-        console.error("tauri-driver exited with code:", code);
+        console.error('tauri-driver exited with code:', code);
         process.exit(1);
       }
     });
@@ -5644,11 +5474,11 @@ function onShutdown(fn) {
     }
   };
 
-  process.on("exit", cleanup);
-  process.on("SIGINT", cleanup);
-  process.on("SIGTERM", cleanup);
-  process.on("SIGHUP", cleanup);
-  process.on("SIGBREAK", cleanup);
+  process.on('exit', cleanup);
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
+  process.on('SIGHUP', cleanup);
+  process.on('SIGBREAK', cleanup);
 }
 
 // ensure tauri-driver is closed when our test process exits
@@ -5658,11 +5488,10 @@ onShutdown(() => {
 ```
 
 Example 3 (javascript):
-
 ```javascript
 // calculates the luma from a hex color `#abcdef`
 function luma(hex) {
-  if (hex.startsWith("#")) {
+  if (hex.startsWith('#')) {
     hex = hex.substring(1);
   }
 
@@ -5673,29 +5502,28 @@ function luma(hex) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-describe("Hello Tauri", () => {
-  it("should be cordial", async () => {
-    const header = await $("body > h1");
+describe('Hello Tauri', () => {
+  it('should be cordial', async () => {
+    const header = await $('body > h1');
     const text = await header.getText();
     expect(text).toMatch(/^[hH]ello/);
   });
 
-  it("should be excited", async () => {
-    const header = await $("body > h1");
+  it('should be excited', async () => {
+    const header = await $('body > h1');
     const text = await header.getText();
     expect(text).toMatch(/!$/);
   });
 
-  it("should be easy on the eyes", async () => {
-    const body = await $("body");
-    const backgroundColor = await body.getCSSProperty("background-color");
+  it('should be easy on the eyes', async () => {
+    const body = await $('body');
+    const backgroundColor = await body.getCSSProperty('background-color');
     expect(luma(backgroundColor.parsed.hex)).toBeLessThan(100);
   });
 });
 ```
 
 Example 4 (text):
-
 ```text
 ➜  webdriverio git:(main) ✗ yarn test
 yarn run v1.22.11

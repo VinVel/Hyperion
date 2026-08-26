@@ -53,9 +53,22 @@ When choosing where new behavior belongs:
 ### Shell backend structure note:
 
 - `ShellManager` is the Tauri-managed shell facade and shared lifecycle root. Keep it small: it should own long-lived shell services, coordinate account/sync teardown, and expose command-facing methods, but it should not accumulate feature-specific Matrix workflows or caches directly.
-- Put shell feature behavior in focused service modules under `src-tauri/src/shell/service/`. Current examples include room workflows in `room_commands.rs`, timeline/search/discovery service state in `runtime.rs`, cache state in `cache_state.rs`, timeline command orchestration in `timeline_commands.rs`, discovery workflows in `discovery/commands.rs`, and search workflows in `global_search.rs` plus `search/`.
+- Put shell feature behavior in focused service modules under `src-tauri/src/shell/service/`. Current examples include room workflows in `room/commands.rs`, timeline command orchestration in `room/timeline/commands.rs`, timeline/discovery service state in `runtime.rs`, cache state in `caching/cache_state.rs`, discovery workflows in `discovery/commands.rs`, and search workflows in `global_search.rs` plus `search/`.
 - Sync service layering is split by responsibility under `src-tauri/src/shell/service/sync/`. `ShellSyncCoordinator` is the high-level shell sync/timeline coordinator, while `ShellSyncManager` in `src-tauri/src/shell/service/sync/matrix_sdk.rs` is the low-level Matrix SDK sync-service adapter. Keep these layers separate: the coordinator may depend on the SDK adapter, `ShellTimelineService`, and shell event emitters, but do not merge adapter behavior into the coordinator or route shell callers directly to SDK sync internals.
 - `src-tauri/src/shell/service/sync_coordinator.rs` is a compatibility re-export/shim for the split sync coordinator module. Do not add new coordinator behavior there.
+
+### Matrix sync and timeline invariants:
+
+- `matrix_sdk_ui::Timeline` together with the encrypted Matrix SDK EventCache is the sole authority for visible timeline events, local echoes, send states, edits, reactions, redactions, and visible pagination.
+- Do not add a Hyperion-owned persisted timeline-event cache, local-/remote-echo reconciliation, body/time-window matching, a parallel send-state machine, or custom event deduplication. The former `timeline-view.sqlite3` cache is legacy cleanup only and must not be revived or migrated.
+- SDK EventCache and `/messages` reads may support bounded background warmup, unread recovery, or search indexing, but must not become a second visible-timeline authority.
+- Preserve the current Tauri timeline DTO and event payloads; project them from the SDK timeline rather than persisting a separate projection.
+- Sync-state classification must match typed Matrix SDK/Ruma errors. Never infer `offline` or `unsupported` from formatted error text. Keep the raw SDK error only as diagnostic detail.
+- Per active account there is exactly one focused room. Only an explicit UI room open or switch may change it; search, warmup, pagination, event-context loading, sending, and background refreshes must not.
+- Prioritize the focused room with `RoomListService::subscribe_to_rooms`. On `SyncService` start or restart, subscribe the current focus again.
+- Typing is scoped to the focused room: hold one listener for it, clear the prior room on focus change, discard stale updates, and reject outbound typing for a non-focused room.
+- On account switch, logout, and service stop, clear focus and abort its typing task.
+
 - When adding a new shell capability, first decide whether it fits an existing service. Extend that service and have `ShellManager` delegate to it instead of adding broad new fields or large workflow methods directly to `ShellManager`.
 - Tauri command and facade methods are responsible for resolving the active account. For Matrix-facing work that requires a logged-in account, call `AccountManager::require_active_account(&app)` at the command/facade boundary and pass the resulting `ActiveAccount` into lower shell, settings, search, discovery, timeline, and Matrix helper methods. For commands that intentionally support a signed-out state, use `AccountManager::optional_active_account(&app)` at the same boundary and handle `None` there.
 - Treat `ActiveAccount` as the proof that account loading and active-account selection already happened. Do not repeat `ensure_loaded(app)` plus `active_account_client_loaded()` inside Matrix workflow methods, and do not pass `AccountManager` into helpers just to rediscover the same active account.

@@ -23,7 +23,7 @@ Primary repo areas:
 - Use `pnpm`, `pnpm run`, `pnpm exec`, and `pnpm tauri ...`.
 - Do not use `bun`, `bunx`, `npm`, `npx`, `yarn`, or `pnpx` unless the user explicitly asks or a specific external tool requires it.
 - Translate stale examples automatically: `bun run build` -> `pnpm run build`, `bun lint` -> `pnpm lint`, `bunx eslint ...` -> `pnpm exec eslint ...`, `bun tauri ...` -> `pnpm tauri ...`.
-- When using `.codex/skills/tauri`, choose the pnpm command variant.
+- When using `.agents/skills/tauri`, choose the pnpm command variant.
 
 ## Architecture Principles
 
@@ -32,7 +32,7 @@ Primary repo areas:
 Apply that rule as follows:
 
 - Keep Matrix, network, session, account, persistence, and business logic in Rust behind Tauri commands whenever practical.
-- For Tauri-related work, prefer the repo-local Tauri skill at `.codex/skills/tauri/SKILL.md`.
+- For Tauri-related work, prefer the repo-local Tauri skill at `.agents/skills/tauri/SKILL.md`.
 - For Rust backend work that touches `matrix-sdk`, double-check the implementation against the official Matrix Rust SDK documentation: `https://matrix-org.github.io/matrix-rust-sdk/matrix_sdk/`.
 - Use React and TypeScript primarily for UI composition, presentation state, adaptive layouts, and invoking backend commands.
 - Avoid duplicating Matrix or account logic in the frontend unless there is a clear UI-only reason.
@@ -200,13 +200,15 @@ Verification rules:
 - If Clippy suggests a concrete automatic fix command such as `cargo clippy --fix ...`, prefer running that command before manually patching the issue, then inspect the resulting diff for correctness.
 - Before applying automatic fixes for experimental, noisy, or readability-sensitive lints, evaluate whether the lint should instead be allowed narrowly on the affected function or item.
 - Allow Clippy warnings only on a function-by-function or item-by-item basis when the lint is experimental, contradicts the intended local style, or would make the code less clear if followed mechanically.
-- When using a suppression, make sure to give the reason in the reason field, e.g. 
+- When using a suppression, make sure to give the reason in the reason field, e.g.
+
 ```rust
 #[allow(
     clippy::lint_name,
     reason = r#"REASON"#
 )]
 ```
+
 - If platform-specific verification is not practical, say so explicitly.
 - If a change affects frontend-backend integration, do not report only one side.
 - Treat `src/components/storybook/static/` as generated Storybook output; keep it ignored by `src/components/.gitignore` and do not hand-edit or commit it.
@@ -221,19 +223,17 @@ Testing expectations:
 
 ## Documentation Placement
 
-Prefer agent-facing and operational notes in `.codex/` when the information is mainly useful for local workflow, future agent context, or non-repo operational guidance.
-
-- When running under Codex, prefer `.codex/` over the `.agents` compatibility alias so agent files can be accessed without unnecessary privilege escalation.
+Prefer agent-facing and operational notes in `.agents/` when the information is mainly useful for local workflow, future agent context, or non-repo operational guidance.
 
 Current local-doc behavior:
 
-- Most of `.codex/` is currently ignored through `.gitignore`.
-- That makes `.codex/` suitable for local operational documentation that should not be committed by default.
+- Most of `.agents/` is currently ignored through `.gitignore`.
+- That makes `.agents/` suitable for local operational documentation that should not be committed by default.
 
 Tracked documentation rules:
 
 - Update tracked docs such as `README.md` when setup steps, commands, platform requirements, or user-visible behavior materially change.
-- Keep local agent notes in `.codex/` when they are not meant to become shared project documentation.
+- Keep local agent notes in `.agents/` when they are not meant to become shared project documentation.
 
 ## Collaboration And Handoff
 

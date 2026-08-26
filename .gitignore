@@ -28,8 +28,6 @@ dist-ssr
 /target/
 
 # Agentic stuff
-/.codex/*
 /.agents/*
-!/.codex/skills
 !/.agents/skills
 .trees/

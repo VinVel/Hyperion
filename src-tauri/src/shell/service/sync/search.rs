@@ -19,11 +19,7 @@ use crate::shell::service::room::timeline::{
     TimelineSearchUpdates, fetch_room_timeline_search_updates,
 };
 
-use super::{
-    coordinator::ShellSyncCoordinator,
-    diagnostics::emit_timeline_room_diagnostic,
-    interests::{RoomFocusMode, RoomInterestKind, SEARCH_BACKFILL_OWNER},
-};
+use super::{coordinator::ShellSyncCoordinator, diagnostics::emit_timeline_room_diagnostic};
 
 impl ShellSyncCoordinator {
     pub(in crate::shell::service) async fn fetch_search_backfill_updates(
@@ -34,14 +30,6 @@ impl ShellSyncCoordinator {
         from: Option<&str>,
     ) -> Result<TimelineSearchUpdates, String> {
         emit_timeline_room_diagnostic("timeline.search_backfill.load", account_key, room);
-        self.observe_room(
-            account_key,
-            room.room_id().as_str(),
-            RoomInterestKind::SearchBackfill,
-            SEARCH_BACKFILL_OWNER,
-            "search backfill history page",
-            RoomFocusMode::Observed,
-        );
         fetch_room_timeline_search_updates(room, limit, from).await
     }
 }

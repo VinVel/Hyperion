@@ -18,20 +18,8 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use super::{
-    cached_room_thread_summaries, cached_room_timeline, cached_room_timeline_item,
-    cached_space_summaries, merge_cached_room_timeline_refresh, prepend_cached_room_timeline_items,
-    remember_room_thread_summaries, remember_room_timeline_item_count, remember_space_summaries,
-    remembered_room_timeline_item_count,
-};
-use crate::shell::{
-    service::{
-        paging::visible_count_after_live_page,
-        search::{matches_query, normalize_query},
-    },
-    types::{
-        ListRoomThreadsRequest, ListSpacesRequest, RoomSummary, RoomThreadSummary, SpaceSummary,
-    },
+use crate::shell::types::{
+    ListRoomThreadsRequest, ListSpacesRequest, RoomSummary, RoomThreadSummary, SpaceSummary,
 };
 
 #[derive(Clone, Default)]
@@ -155,72 +143,19 @@ impl ShellCacheState {
     }
 
     pub(in crate::shell::service) fn cached_room_threads(
-        account_key: &str,
-        store_dir: &std::path::Path,
-        request: &ListRoomThreadsRequest,
+        _account_key: &str,
+        _store_dir: &std::path::Path,
+        _request: &ListRoomThreadsRequest,
     ) -> Option<Vec<RoomThreadSummary>> {
-        let cached_rooms = match cached_room_thread_summaries(account_key, store_dir) {
-            Ok(cached_rooms) => cached_rooms,
-            Err(error) => {
-                crate::utils::tracing::report_recoverable_error(
-                    "shell.cache",
-                    "read_room_list",
-                    "shell.cache_read_failed",
-                    "cache",
-                    &error,
-                );
-                return None;
-            }
-        };
-        if cached_rooms.is_empty() {
-            return None;
-        }
-
-        let query = normalize_query(request.search_query.as_deref());
-        Some(
-            cached_rooms
-                .into_iter()
-                .filter(|summary| {
-                    matches_query(
-                        query.as_deref(),
-                        &[&summary.title, &summary.preview, &summary.participant_label],
-                    )
-                })
-                .collect(),
-        )
+        None
     }
 
     pub(in crate::shell::service) fn cached_room_summary(
-        account_key: &str,
-        store_dir: &std::path::Path,
-        room_id: &str,
+        _account_key: &str,
+        _store_dir: &std::path::Path,
+        _room_id: &str,
     ) -> Option<RoomSummary> {
-        let cached_rooms = match cached_room_thread_summaries(account_key, store_dir) {
-            Ok(cached_rooms) => cached_rooms,
-            Err(error) => {
-                crate::utils::tracing::report_recoverable_error(
-                    "shell.cache",
-                    "read_room_summary",
-                    "shell.cache_read_failed",
-                    "cache",
-                    &error,
-                );
-                return None;
-            }
-        };
-        let room = cached_rooms
-            .into_iter()
-            .find(|room| room.room_id == room_id)?;
-
-        Some(RoomSummary {
-            room_id: room.room_id,
-            title: room.title,
-            participant_label: room.participant_label,
-            homeserver_label: room.homeserver_label,
-            topic: None,
-            is_direct: room.is_direct,
-            can_send_messages: true,
-        })
+        None
     }
 
     pub(in crate::shell::service) fn remember_room_threads(
@@ -228,103 +163,39 @@ impl ShellCacheState {
         store_dir: &std::path::Path,
         summaries: &[RoomThreadSummary],
     ) {
-        if let Err(error) = remember_room_thread_summaries(account_key, store_dir, summaries) {
-            crate::utils::tracing::report_recoverable_error(
-                "shell.cache",
-                "write_room_list",
-                "shell.cache_write_failed",
-                "cache",
-                &error,
-            );
-        }
+        let _ = (account_key, store_dir, summaries);
     }
 
     pub(in crate::shell::service) fn cached_spaces(
         store_dir: &std::path::Path,
         request: &ListSpacesRequest,
     ) -> Option<Vec<SpaceSummary>> {
-        let cached_spaces = match cached_space_summaries(store_dir) {
-            Ok(cached_spaces) => cached_spaces,
-            Err(error) => {
-                crate::utils::tracing::report_recoverable_error(
-                    "shell.cache",
-                    "read_spaces",
-                    "shell.cache_read_failed",
-                    "cache",
-                    &error,
-                );
-                return None;
-            }
-        };
-        if cached_spaces.is_empty() {
-            return None;
-        }
-
-        let query = normalize_query(request.search_query.as_deref());
-        Some(
-            cached_spaces
-                .into_iter()
-                .filter(|summary| {
-                    matches_query(query.as_deref(), &[&summary.name, &summary.description])
-                })
-                .collect(),
-        )
+        let _ = (store_dir, request);
+        None
     }
 
     pub(in crate::shell::service) fn remember_spaces(
         store_dir: &std::path::Path,
         summaries: &[SpaceSummary],
     ) {
-        if let Err(error) = remember_space_summaries(store_dir, summaries) {
-            crate::utils::tracing::report_recoverable_error(
-                "shell.cache",
-                "write_spaces",
-                "shell.cache_write_failed",
-                "cache",
-                &error,
-            );
-        }
+        let _ = (store_dir, summaries);
     }
 
     pub(in crate::shell::service) fn cached_room_timeline(
-        account_key: &str,
-        store_dir: &std::path::Path,
-        room_id: &str,
+        _account_key: &str,
+        _store_dir: &std::path::Path,
+        _room_id: &str,
     ) -> Option<(Vec<crate::shell::types::RoomTimelineItem>, Option<String>)> {
-        match cached_room_timeline(account_key, store_dir, room_id) {
-            Ok(timeline) => timeline,
-            Err(error) => {
-                crate::utils::tracing::report_recoverable_error(
-                    "shell.cache",
-                    "read_room_timeline",
-                    "shell.cache_read_failed",
-                    "cache",
-                    &error,
-                );
-                None
-            }
-        }
+        None
     }
 
     pub(in crate::shell::service) fn cached_room_timeline_item(
-        account_key: &str,
-        store_dir: &std::path::Path,
-        room_id: &str,
-        event_id: &str,
+        _account_key: &str,
+        _store_dir: &std::path::Path,
+        _room_id: &str,
+        _event_id: &str,
     ) -> Option<crate::shell::types::RoomTimelineItem> {
-        match cached_room_timeline_item(account_key, store_dir, room_id, event_id) {
-            Ok(item) => item,
-            Err(error) => {
-                crate::utils::tracing::report_recoverable_error(
-                    "shell.cache",
-                    "read_room_timeline_item",
-                    "shell.cache_read_failed",
-                    "cache",
-                    &error,
-                );
-                None
-            }
-        }
+        None
     }
 
     pub(in crate::shell) fn merge_refreshed_timeline(
@@ -335,22 +206,14 @@ impl ShellCacheState {
         next_before: Option<&str>,
         redacted_event_ids: &[String],
     ) {
-        if let Err(error) = merge_cached_room_timeline_refresh(
+        let _ = (
             account_key,
             store_dir,
             room_id,
             items,
             next_before,
             redacted_event_ids,
-        ) {
-            crate::utils::tracing::report_recoverable_error(
-                "shell.cache",
-                "merge_refreshed_timeline",
-                "shell.cache_write_failed",
-                "cache",
-                &error,
-            );
-        }
+        );
     }
 
     pub(in crate::shell::service) fn prepend_cached_timeline_items(
@@ -360,17 +223,7 @@ impl ShellCacheState {
         items: &[crate::shell::types::RoomTimelineItem],
         next_before: Option<&str>,
     ) {
-        if let Err(error) =
-            prepend_cached_room_timeline_items(account_key, store_dir, room_id, items, next_before)
-        {
-            crate::utils::tracing::report_recoverable_error(
-                "shell.cache",
-                "prepend_timeline_items",
-                "shell.cache_write_failed",
-                "cache",
-                &error,
-            );
-        }
+        let _ = (account_key, store_dir, room_id, items, next_before);
     }
 
     pub(in crate::shell::service) fn remembered_timeline_item_count(
@@ -378,19 +231,8 @@ impl ShellCacheState {
         store_dir: &std::path::Path,
         room_id: &str,
     ) -> Option<usize> {
-        match remembered_room_timeline_item_count(account_key, store_dir, room_id) {
-            Ok(count) => count,
-            Err(error) => {
-                crate::utils::tracing::report_recoverable_error(
-                    "shell.cache",
-                    "read_timeline_view_state",
-                    "shell.cache_read_failed",
-                    "cache",
-                    &error,
-                );
-                None
-            }
-        }
+        let _ = (account_key, store_dir, room_id);
+        None
     }
 
     pub(in crate::shell::service) fn remember_timeline_item_count_after_pagination(
@@ -401,23 +243,14 @@ impl ShellCacheState {
         page_limit: u16,
         returned_item_count: usize,
     ) {
-        let Some(visible_item_count) =
-            visible_count_after_live_page(before, page_limit, returned_item_count)
-        else {
-            return;
-        };
-
-        if let Err(error) =
-            remember_room_timeline_item_count(account_key, store_dir, room_id, visible_item_count)
-        {
-            crate::utils::tracing::report_recoverable_error(
-                "shell.cache",
-                "write_timeline_view_state",
-                "shell.cache_write_failed",
-                "cache",
-                &error,
-            );
-        }
+        let _ = (
+            account_key,
+            store_dir,
+            room_id,
+            before,
+            page_limit,
+            returned_item_count,
+        );
     }
 
     fn room_cache_key(account_key: &str, room_id: &str) -> String {

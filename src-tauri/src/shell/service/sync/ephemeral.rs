@@ -19,10 +19,7 @@ use matrix_sdk::Room;
 use tauri::async_runtime::JoinHandle;
 
 use super::{
-    coordinator::ShellSyncCoordinator,
-    diagnostics::emit_sync_diagnostic,
-    emit_shell_typing_updated,
-    interests::{EPHEMERAL_TYPING_OWNER, RoomFocusMode, RoomInterestKind},
+    coordinator::ShellSyncCoordinator, diagnostics::emit_sync_diagnostic, emit_shell_typing_updated,
 };
 
 #[derive(Default)]
@@ -122,20 +119,6 @@ impl ShellSyncCoordinator {
         room_state.last_notice_is_typing = Some(is_typing);
         drop(store);
         previous_notice
-    }
-    pub(super) fn release_ephemeral_typing_for_room(
-        &self,
-        account_key: &str,
-        room_id: &str,
-        reason: &str,
-    ) {
-        self.release_room_interest(
-            account_key,
-            room_id,
-            RoomInterestKind::EphemeralTyping,
-            EPHEMERAL_TYPING_OWNER,
-        );
-        self.clear_typing_room_state(account_key, room_id, reason);
     }
     pub(super) fn clear_typing_room_state(&self, account_key: &str, room_id: &str, reason: &str) {
         let removed_room = {
@@ -245,15 +228,10 @@ impl ShellSyncCoordinator {
         account_key: &str,
         room: &Room,
     ) {
-        self.observe_room(
-            account_key,
-            room.room_id().as_str(),
-            RoomInterestKind::EphemeralTyping,
-            EPHEMERAL_TYPING_OWNER,
-            "typing subscription",
-            RoomFocusMode::Observed,
-        );
         let room_id = room.room_id().to_string();
+        if self.focused_room_id(account_key).as_deref() != Some(room_id.as_str()) {
+            return;
+        }
         let already_subscribed =
             self.reserve_typing_subscription(Some(app.clone()), account_key, &room_id);
         emit_sync_diagnostic(
@@ -304,6 +282,11 @@ impl ShellSyncCoordinator {
         room: &Room,
         is_typing: bool,
     ) -> Result<(), String> {
+        if self.focused_room_id(account_key).as_deref() != Some(room.room_id().as_str()) {
+            return Err(String::from(
+                "Typing updates are only allowed for the focused room",
+            ));
+        }
         let previous_notice =
             self.record_typing_notice(account_key, room.room_id().as_str(), is_typing);
         emit_sync_diagnostic(

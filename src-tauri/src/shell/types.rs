@@ -361,22 +361,8 @@ impl RoomTimelineItem {
         self.matrix.timestamp_unix_ms
     }
 
-    pub fn is_edited(&self) -> bool {
-        self.matrix.content.is_edited
-    }
-
     pub fn is_own_message(&self) -> bool {
         self.matrix.is_own_message
-    }
-
-    #[cfg(test)]
-    pub fn set_body(&mut self, body: String) {
-        self.matrix.content.body = body;
-    }
-
-    #[cfg(test)]
-    pub fn set_edited(&mut self, is_edited: bool) {
-        self.matrix.content.is_edited = is_edited;
     }
 
     pub fn set_group_position(&mut self, group_position: RoomTimelineGroupPosition) {

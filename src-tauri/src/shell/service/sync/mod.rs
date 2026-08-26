@@ -27,7 +27,6 @@ mod timeline;
 mod tests;
 
 pub(in crate::shell::service) use coordinator::ShellSyncCoordinator;
-pub(in crate::shell::service) use interests::{RoomFocusMode, RoomInterestKind};
 pub(in crate::shell) use matrix_sdk::{
     ShellSyncManager, emit_shell_room_updated, emit_shell_timeline_updated,
     emit_shell_typing_updated,

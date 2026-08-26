@@ -104,19 +104,6 @@ pub(super) async fn load_paginated_room_timeline(
     Err(String::from("Unsupported timeline pagination token"))
 }
 
-pub(super) fn visible_count_after_live_page(
-    before: Option<&str>,
-    page_size: u16,
-    returned_item_count: usize,
-) -> Option<usize> {
-    let page_index = before.and_then(parse_timeline_page_token)?;
-    Some(
-        page_index
-            .saturating_mul(usize::from(page_size))
-            .saturating_add(returned_item_count),
-    )
-}
-
 pub(super) fn timeline_page_token(page_index: usize) -> String {
     format!("{TIMELINE_UI_PAGE_TOKEN_PREFIX}{page_index}")
 }
@@ -152,26 +139,12 @@ fn next_live_page_index(returned_item_count: usize, page_size: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::{next_live_page_index, timeline_page_token, visible_count_after_live_page};
+    use super::next_live_page_index;
 
     #[test]
     fn next_live_page_index_tracks_returned_local_window() {
         assert_eq!(next_live_page_index(30, 30), 1);
         assert_eq!(next_live_page_index(80, 30), 3);
         assert_eq!(next_live_page_index(200, 30), 7);
-    }
-
-    #[test]
-    fn visible_count_after_live_page_ignores_focused_or_missing_tokens() {
-        let before = timeline_page_token(7);
-        assert_eq!(
-            visible_count_after_live_page(Some(&before), 30, 30),
-            Some(240)
-        );
-        assert_eq!(visible_count_after_live_page(None, 30, 30), None);
-        assert_eq!(
-            visible_count_after_live_page(Some("timeline-ui-event:abc:1"), 30, 30),
-            None
-        );
     }
 }

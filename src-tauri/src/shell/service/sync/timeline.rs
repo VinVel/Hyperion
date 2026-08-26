@@ -28,10 +28,6 @@ use crate::shell::{
 use super::{
     coordinator::ShellSyncCoordinator,
     diagnostics::{emit_sync_diagnostic, emit_timeline_room_diagnostic},
-    interests::{
-        BACKGROUND_WARMUP_OWNER, FOCUSED_CONTEXT_OWNER, RoomFocusMode, RoomInterestKind,
-        TIMELINE_LATEST_OWNER,
-    },
 };
 
 impl ShellSyncCoordinator {
@@ -60,14 +56,6 @@ impl ShellSyncCoordinator {
         emit_sync_diagnostic(
             "timeline.warmup.schedule",
             &[("account_key", account_key), ("room_id", &room_id)],
-        );
-        self.observe_room(
-            account_key,
-            &room_id,
-            RoomInterestKind::BackgroundWarmup,
-            BACKGROUND_WARMUP_OWNER,
-            "recent room timeline warmup",
-            RoomFocusMode::Observed,
         );
         self.timeline_service.schedule_room_timeline_warmup(
             client,
@@ -103,14 +91,6 @@ impl ShellSyncCoordinator {
         context_limit: u16,
     ) -> Result<Vec<RoomTimelineItem>, String> {
         emit_timeline_room_diagnostic("timeline.focused.items", account_key, room);
-        self.observe_room(
-            account_key,
-            room.room_id().as_str(),
-            RoomInterestKind::FocusedEventContext,
-            FOCUSED_CONTEXT_OWNER,
-            "focused timeline event context",
-            RoomFocusMode::Focused,
-        );
         self.timeline_service
             .registry()
             .focused_timeline_items(account_key, room, event_id, context_limit)
@@ -124,14 +104,6 @@ impl ShellSyncCoordinator {
         page_size: u16,
     ) -> Result<(Vec<RoomTimelineItem>, Option<String>), String> {
         emit_timeline_room_diagnostic("timeline.live.load", account_key, room);
-        self.observe_room(
-            account_key,
-            room.room_id().as_str(),
-            RoomInterestKind::TimelineLatest,
-            TIMELINE_LATEST_OWNER,
-            "latest live timeline window",
-            RoomFocusMode::Observed,
-        );
         paging::load_live_room_timeline(self, account_key, room, visible_limit, page_size).await
     }
     pub(in crate::shell::service) async fn load_paginated_room_timeline(

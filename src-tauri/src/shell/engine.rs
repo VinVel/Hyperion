@@ -31,10 +31,7 @@ use tauri::async_runtime::JoinHandle;
 use tauri::async_runtime::Mutex as AsyncMutex;
 
 use super::{
-    service::{
-        ShellCacheState, emit_shell_room_updated, emit_shell_timeline_updated,
-        timeline_reconciliation::reconcile_authoritative_timeline_items,
-    },
+    service::{emit_shell_room_updated, emit_shell_timeline_updated},
     types::{
         RoomTimelineItem, RoomTimelineReaction, RoomTimelineReceipt, RoomTimelineReplyPreview,
         RoomTimelineReplyPreviewState, RoomTimelineSendState,
@@ -118,11 +115,7 @@ impl ShellTimelineRegistry {
             .into_iter()
             .rev()
             .collect::<Vec<RoomTimelineItem>>();
-        Ok(reconcile_authoritative_timeline_items(
-            shell_items,
-            room.room_id().as_str(),
-            &[],
-        ))
+        Ok(shell_items)
     }
 
     pub async fn live_redacted_event_ids(
@@ -150,7 +143,7 @@ impl ShellTimelineRegistry {
         &self,
         app: tauri::AppHandle,
         account_key: &str,
-        store_dir: &Path,
+        _store_dir: &Path,
         room: &Room,
     ) -> Result<(), String> {
         let cache_key = Self::cache_key(account_key, room.room_id().as_str());
@@ -165,7 +158,6 @@ impl ShellTimelineRegistry {
         let (timeline_initial_items, mut timeline_stream) = timeline.subscribe().await;
         drop(timeline_initial_items);
         let account_key = account_key.to_owned();
-        let store_dir = store_dir.to_path_buf();
         let room_id = room.room_id().to_string();
         let update_handles = self.live_timeline_update_handles.clone();
         let cache_key_for_task = cache_key.clone();
@@ -178,14 +170,6 @@ impl ShellTimelineRegistry {
                 let items = timeline.items().await;
                 let shell_items = timeline_items_to_shell_items(items.iter(), &room_id);
                 let redacted_event_ids = redacted_event_ids_from_timeline_items(items.iter());
-                ShellCacheState::merge_refreshed_timeline(
-                    &account_key,
-                    &store_dir,
-                    &room_id,
-                    &shell_items,
-                    None,
-                    &redacted_event_ids,
-                );
                 emit_shell_timeline_updated(
                     &app,
                     &account_key,
@@ -281,11 +265,6 @@ impl ShellTimelineRegistry {
             .iter()
             .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
             .collect::<Vec<_>>();
-        let loaded_shell_items = reconcile_authoritative_timeline_items(
-            loaded_shell_items,
-            room.room_id().as_str(),
-            &[],
-        );
 
         if let Some(loaded_page) =
             loaded_timeline_page(&loaded_shell_items, page_index, usize::from(limit))
@@ -313,10 +292,7 @@ impl ShellTimelineRegistry {
             .filter(|item| !seen_item_ids.contains(item.event_id()))
             .collect::<Vec<RoomTimelineItem>>();
 
-        Ok((
-            reconcile_authoritative_timeline_items(new_items, room.room_id().as_str(), &[]),
-            hit_start,
-        ))
+        Ok((new_items, hit_start))
     }
 
     pub async fn focused_timeline(
@@ -371,11 +347,7 @@ impl ShellTimelineRegistry {
             .iter()
             .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
             .collect::<Vec<RoomTimelineItem>>();
-        Ok(reconcile_authoritative_timeline_items(
-            shell_items,
-            room.room_id().as_str(),
-            &[],
-        ))
+        Ok(shell_items)
     }
 
     pub async fn focused_redacted_event_ids(
@@ -410,11 +382,6 @@ impl ShellTimelineRegistry {
             .iter()
             .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
             .collect::<Vec<_>>();
-        let loaded_shell_items = reconcile_authoritative_timeline_items(
-            loaded_shell_items,
-            room.room_id().as_str(),
-            &[],
-        );
 
         if let Some(loaded_page) =
             loaded_timeline_page(&loaded_shell_items, page_index, usize::from(limit))
@@ -442,10 +409,7 @@ impl ShellTimelineRegistry {
             .filter(|item| !seen_item_ids.contains(item.event_id()))
             .collect::<Vec<RoomTimelineItem>>();
 
-        Ok((
-            reconcile_authoritative_timeline_items(new_items, room.room_id().as_str(), &[]),
-            hit_start,
-        ))
+        Ok((new_items, hit_start))
     }
 
     pub async fn mark_live_timeline_as_read(
@@ -620,13 +584,12 @@ fn loaded_timeline_page(
 
 fn timeline_items_to_shell_items<'item>(
     items: impl IntoIterator<Item = &'item Arc<TimelineItem>>,
-    room_id: &str,
+    _room_id: &str,
 ) -> Vec<RoomTimelineItem> {
-    let shell_items = items
+    items
         .into_iter()
         .filter_map(|item| timeline_item_to_shell_item(item.as_ref()))
-        .collect::<Vec<RoomTimelineItem>>();
-    reconcile_authoritative_timeline_items(shell_items, room_id, &[])
+        .collect::<Vec<RoomTimelineItem>>()
 }
 
 fn timeline_item_id_from_string(value: &str) -> Result<TimelineEventItemId, String> {
@@ -852,46 +815,6 @@ mod tests {
         assert_eq!(second_older_page.last().unwrap().event_id(), "$19");
 
         assert!(loaded_timeline_page(&loaded_items, 3, 30).is_none());
-    }
-
-    #[test]
-    fn canonicalize_timeline_items_replaces_local_echo_with_confirmed_event() {
-        let mut local_echo = test_timeline_item(String::from("local-txn"));
-        local_echo.matrix.is_own_message = true;
-        local_echo.matrix.transaction_id = Some(String::from("local-txn"));
-        local_echo.matrix.send_state = RoomTimelineSendState::Sending;
-
-        let mut confirmed_event = test_timeline_item(String::from("$confirmed"));
-        confirmed_event.matrix.is_own_message = true;
-        confirmed_event.matrix.transaction_id = Some(String::from("local-txn"));
-        confirmed_event.matrix.send_state = RoomTimelineSendState::Sent;
-
-        let items = reconcile_authoritative_timeline_items(
-            vec![local_echo, confirmed_event],
-            "!room:example.org",
-            &[],
-        );
-
-        assert_eq!(items.len(), 1);
-        assert_eq!(items[0].event_id(), "$confirmed");
-    }
-
-    #[test]
-    fn canonicalize_timeline_items_keeps_unmatched_failed_local_echo() {
-        let mut local_echo = test_timeline_item(String::from("local-txn"));
-        local_echo.matrix.is_own_message = true;
-        local_echo.matrix.transaction_id = Some(String::from("local-txn"));
-        local_echo.matrix.send_state = RoomTimelineSendState::Failed;
-
-        let confirmed_event = test_timeline_item(String::from("$other"));
-
-        let items = reconcile_authoritative_timeline_items(
-            vec![local_echo, confirmed_event],
-            "!room:example.org",
-            &[],
-        );
-
-        assert_eq!(items.len(), 2);
     }
 
     fn test_timeline_item(event_id: String) -> RoomTimelineItem {

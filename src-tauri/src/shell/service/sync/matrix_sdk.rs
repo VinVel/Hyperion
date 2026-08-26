@@ -19,9 +19,16 @@ use std::{
 };
 
 use futures_util::{StreamExt, pin_mut};
-use matrix_sdk::{Client, SessionChange, ruma::RoomId, sync::RoomUpdates};
+use matrix_sdk::{
+    Client, Error as MatrixError, HttpError, RefreshTokenError, SessionChange,
+    ruma::{RoomId, api::error::ErrorKind},
+    sync::RoomUpdates,
+};
 use matrix_sdk_ui::room_list_service::{RoomListItem, RoomListService, filters};
-use matrix_sdk_ui::sync_service::{State as SyncServiceState, SyncService};
+use matrix_sdk_ui::{
+    encryption_sync_service, room_list_service,
+    sync_service::{Error as SyncServiceError, State as SyncServiceState, SyncService},
+};
 use serde::Serialize;
 use tauri::{Emitter, async_runtime::JoinHandle};
 
@@ -474,7 +481,7 @@ async fn build_shell_sync_service(
         Ok(sync_service) => Ok(sync_service),
         Err(error) => {
             let detail = error.to_string();
-            let state = shell_sync_error_status(&detail);
+            let state = shell_sync_error_status(&error);
             emit_shell_sync_status(app, &account.account_key, state, Some(detail.clone()));
             Err(format!("Failed to build shell sync service: {detail}"))
         }
@@ -489,38 +496,59 @@ fn shell_sync_status_parts(state: &SyncServiceState) -> (&'static str, Option<St
         SyncServiceState::Terminated => ("terminated", None),
         SyncServiceState::Error(error) => {
             let detail = error.to_string();
-            let status = shell_sync_error_status(&detail);
+            let status = shell_sync_error_status(error);
 
             (status, Some(detail))
         }
     }
 }
 
-fn shell_sync_error_status(detail: &str) -> &'static str {
-    if is_unsupported_sync_error(detail) {
+fn shell_sync_error_status(error: &SyncServiceError) -> &'static str {
+    let matrix_error = match error {
+        SyncServiceError::RoomList(room_list_service::Error::SlidingSync(error))
+        | SyncServiceError::EncryptionSync(
+            encryption_sync_service::Error::SlidingSync(error)
+            | encryption_sync_service::Error::ClientError(error)
+            | encryption_sync_service::Error::LockError(error),
+        ) => Some(error),
+        SyncServiceError::RoomList(_) | SyncServiceError::Supervisor => None,
+    };
+
+    let Some(matrix_error) = matrix_error else {
+        return "error";
+    };
+    if matches!(
+        matrix_error.client_api_error_kind(),
+        Some(ErrorKind::Unrecognized)
+    ) {
         return "unsupported";
     }
-    if is_network_unavailable_error(detail) {
-        return "offline";
+    if matrix_error_is_offline(matrix_error) {
+        "offline"
+    } else {
+        "error"
     }
-
-    "error"
 }
 
-fn is_unsupported_sync_error(error: &str) -> bool {
-    error.contains("M_UNRECOGNIZED")
-        || (error.contains("404") && error.to_ascii_lowercase().contains("sliding"))
+fn matrix_error_is_offline(error: &MatrixError) -> bool {
+    matches!(error, MatrixError::Timeout)
+        || matches!(error, MatrixError::Http(http_error) if http_error_is_offline(http_error))
 }
 
-fn is_network_unavailable_error(error: &str) -> bool {
-    let error = error.to_ascii_lowercase();
-    error.contains("offline")
-        || error.contains("network")
-        || error.contains("dns")
-        || error.contains("timed out")
-        || error.contains("timeout")
-        || error.contains("connection")
-        || error.contains("unavailable")
+fn http_error_is_offline(error: &HttpError) -> bool {
+    match error {
+        HttpError::Reqwest(_) => true,
+        HttpError::Cached(error) => http_error_is_offline(error),
+        HttpError::RefreshToken(RefreshTokenError::MatrixAuth(error)) => {
+            http_error_is_offline(error)
+        }
+        HttpError::RefreshToken(
+            RefreshTokenError::RefreshTokenRequired | RefreshTokenError::OAuth(_),
+        ) => false,
+        HttpError::Api(_) | HttpError::IntoHttp(_) => false,
+        #[cfg(target_os = "android")]
+        HttpError::VerifierBuilder(_) => false,
+    }
 }
 
 fn emit_shell_sync_status(

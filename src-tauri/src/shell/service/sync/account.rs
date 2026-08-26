@@ -13,7 +13,10 @@
  * Project home: hyperion.velcore.net
  */
 
-use crate::account::{AccountClientSnapshot, AccountManager};
+use crate::{
+    account::{AccountClientSnapshot, AccountManager},
+    shell::service::caching::remove_legacy_timeline_view_cache,
+};
 
 use super::{coordinator::ShellSyncCoordinator, diagnostics::emit_sync_diagnostic};
 
@@ -28,7 +31,8 @@ impl ShellSyncCoordinator {
             "sync.account.ensure",
             &[("account_key", &account.account_key)],
         );
-        self.clear_inactive_account_interests(&account.account_key);
+        remove_legacy_timeline_view_cache(&account.store_dir);
+        self.clear_inactive_account_focus(&account.account_key);
         self.clear_inactive_account_typing_state(&account.account_key);
         self.sync_manager
             .ensure_started_for_account(app, account_manager, account)
@@ -36,13 +40,13 @@ impl ShellSyncCoordinator {
     }
     pub(in crate::shell::service) async fn stop_account(&self, account_key: &str) {
         emit_sync_diagnostic("sync.account.stop", &[("account_key", account_key)]);
-        self.clear_account_interests(account_key);
+        self.clear_account_focus(account_key);
         self.clear_account_typing_state(account_key, "account_stop");
         self.sync_manager.stop_account(account_key).await;
     }
     pub(in crate::shell::service) async fn stop_all_accounts(&self) {
         emit_sync_diagnostic("sync.account.stop_all", &[]);
-        self.clear_all_account_interests();
+        self.clear_all_account_focus();
         self.clear_all_typing_state("all_accounts_stop");
         self.sync_manager.stop_all_accounts().await;
     }

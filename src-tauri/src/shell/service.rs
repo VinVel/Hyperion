@@ -27,14 +27,13 @@ mod runtime;
 mod search;
 pub(super) mod sync;
 mod sync_coordinator;
-pub(super) mod timeline_reconciliation;
 
 pub(super) use self::caching::ShellCacheState;
 pub(super) use self::sync::{emit_shell_room_updated, emit_shell_timeline_updated};
 
 use self::{
     runtime::{ShellDiscoveryService, ShellSearchService},
-    sync_coordinator::{RoomFocusMode, RoomInterestKind, ShellSyncCoordinator},
+    sync_coordinator::ShellSyncCoordinator,
 };
 
 // The default room-open page should feel immediate, but still show enough
@@ -127,14 +126,7 @@ impl ShellManager {
     }
 
     fn mark_room_focused(&self, account_key: &str, room_id: &str) {
-        self.sync_coordinator.observe_room(
-            account_key,
-            room_id,
-            RoomInterestKind::ActiveRoomOpen,
-            "shell.active_room",
-            "visible room selection",
-            RoomFocusMode::Focused,
-        );
+        self.sync_coordinator.set_focused_room(account_key, room_id);
     }
 
     fn ensure_sync_in_background(&self, app: &tauri::AppHandle, account_manager: &AccountManager) {

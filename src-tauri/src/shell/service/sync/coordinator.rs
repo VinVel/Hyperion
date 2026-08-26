@@ -19,13 +19,13 @@ use matrix_sdk_ui::room_list_service::RoomListService;
 
 use crate::shell::service::runtime::ShellTimelineService;
 
-use super::{ShellSyncManager, ephemeral::TypingEphemeralStore, interests::RoomInterestStore};
+use super::{ShellSyncManager, ephemeral::TypingEphemeralStore, interests::FocusedRoomStore};
 
 #[derive(Clone, Default)]
 pub(in crate::shell::service) struct ShellSyncCoordinator {
     pub(super) sync_manager: ShellSyncManager,
     pub(super) timeline_service: ShellTimelineService,
-    pub(super) room_interests: Arc<RwLock<RoomInterestStore>>,
+    pub(super) focused_rooms: Arc<RwLock<FocusedRoomStore>>,
     pub(super) typing_ephemeral_state: Arc<RwLock<TypingEphemeralStore>>,
 }
 
@@ -34,7 +34,7 @@ impl ShellSyncCoordinator {
         Self {
             sync_manager: ShellSyncManager::new(),
             timeline_service: ShellTimelineService::new(),
-            room_interests: Arc::new(RwLock::new(RoomInterestStore::default())),
+            focused_rooms: Arc::new(RwLock::new(FocusedRoomStore::default())),
             typing_ephemeral_state: Arc::new(RwLock::new(TypingEphemeralStore::default())),
         }
     }

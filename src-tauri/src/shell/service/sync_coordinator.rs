@@ -13,4 +13,4 @@
  * Project home: hyperion.velcore.net
  */
 
-pub(super) use super::sync::{RoomFocusMode, RoomInterestKind, ShellSyncCoordinator};
+pub(super) use super::sync::ShellSyncCoordinator;

@@ -51,7 +51,13 @@ export type BackendRoomTimelineItem = {
     timestamp_unix_ms: number;
     is_own_message: boolean;
     content: {
-      kind: "text" | "unable_to_decrypt" | "unsupported";
+      kind:
+        | "text"
+        | "pending_decryption"
+        | "unable_to_decrypt"
+        | "redacted"
+        | "non_text"
+        | "unsupported";
       body: string;
       formatted_body?: string | null;
       is_edited: boolean;
@@ -63,6 +69,7 @@ export type BackendRoomTimelineItem = {
     reactions: BackendRoomTimelineReaction[];
     receipts: BackendRoomTimelineReceipt[];
     thread?: BackendRoomTimelineThreadRelation | null;
+    thread_reply_to?: BackendRoomTimelineThreadReplyRelation | null;
     attachments: BackendRoomTimelineAttachment[];
   };
   presentation: {
@@ -97,6 +104,10 @@ type BackendRoomTimelineThreadRelation = {
   root_event_id: string;
   latest_event_id?: string | null;
   reply_count: number;
+};
+
+type BackendRoomTimelineThreadReplyRelation = {
+  root_event_id: string;
 };
 
 type BackendRoomTimelineAttachment = {
@@ -178,7 +189,13 @@ export type RoomTimelineItem = {
   senderAvatarUrl: string;
   body: string;
   formattedBody: string;
-  contentKind: "text" | "unableToDecrypt" | "unsupported";
+  contentKind:
+    | "text"
+    | "pendingDecryption"
+    | "unableToDecrypt"
+    | "redacted"
+    | "nonText"
+    | "unsupported";
   timestampUnixMs: number;
   timeLabel: string;
   isEdited: boolean;
@@ -409,6 +426,14 @@ function mapTimelineContentKind(
 ): RoomTimelineItem["contentKind"] {
   if (kind === "unable_to_decrypt") {
     return "unableToDecrypt";
+  }
+
+  if (kind === "pending_decryption") {
+    return "pendingDecryption";
+  }
+
+  if (kind === "non_text") {
+    return "nonText";
   }
 
   return kind;

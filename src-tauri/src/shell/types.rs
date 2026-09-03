@@ -105,6 +105,7 @@ pub struct RoomTimelineMatrixData {
     pub reactions: Vec<RoomTimelineReaction>,
     pub receipts: Vec<RoomTimelineReceipt>,
     pub thread: Option<RoomTimelineThreadRelation>,
+    pub thread_reply_to: Option<RoomTimelineThreadReplyRelation>,
     pub attachments: Vec<RoomTimelineAttachment>,
 }
 
@@ -119,13 +120,12 @@ pub struct RoomTimelineEventContent {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
-#[allow(
-    dead_code,
-    reason = "Reservation of non-text event kinds before their mappers are populated."
-)]
 pub enum RoomTimelineEventContentKind {
     Text,
+    PendingDecryption,
     UnableToDecrypt,
+    Redacted,
+    NonText,
     Unsupported,
 }
 
@@ -176,6 +176,11 @@ pub struct RoomTimelineThreadRelation {
     pub root_event_id: String,
     pub latest_event_id: Option<String>,
     pub reply_count: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RoomTimelineThreadReplyRelation {
+    pub root_event_id: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -296,6 +301,7 @@ impl RoomTimelineItem {
                 reactions: Vec::new(),
                 receipts: Vec::new(),
                 thread: None,
+                thread_reply_to: None,
                 attachments: Vec::new(),
             },
             presentation: RoomTimelinePresentationData {

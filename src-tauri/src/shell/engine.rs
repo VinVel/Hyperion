@@ -20,7 +20,10 @@ use matrix_sdk::room::edit::EditedContent;
 use matrix_sdk::ruma::{
     EventId, OwnedEventId,
     api::client::receipt::create_receipt::v3::ReceiptType,
-    events::{AnyMessageLikeEventContent, room::message::RoomMessageEventContentWithoutRelation},
+    events::{
+        AnyMessageLikeEventContent,
+        room::message::{MessageType, RoomMessageEventContentWithoutRelation},
+    },
 };
 use matrix_sdk::{Room, sleep::sleep};
 use matrix_sdk_ui::timeline::{
@@ -33,8 +36,10 @@ use tauri::async_runtime::Mutex as AsyncMutex;
 use super::{
     service::{emit_shell_room_updated, emit_shell_timeline_updated},
     types::{
-        RoomTimelineItem, RoomTimelineReaction, RoomTimelineReceipt, RoomTimelineReplyPreview,
-        RoomTimelineReplyPreviewState, RoomTimelineSendState,
+        RoomTimelineDecryptionState, RoomTimelineEventContentKind, RoomTimelineItem,
+        RoomTimelineItemCapabilities, RoomTimelineReaction, RoomTimelineReceipt,
+        RoomTimelineReplyPreview, RoomTimelineReplyPreviewState, RoomTimelineSendState,
+        RoomTimelineThreadRelation, RoomTimelineThreadReplyRelation,
     },
 };
 
@@ -610,7 +615,12 @@ fn timeline_item_to_shell_item(
     };
 
     let content = event.content();
-    let (body, is_edited) = timeline_event_body(content)?;
+    let mut projection = project_timeline_content(timeline_content_projection(content, None));
+    if projection.kind == RoomTimelineEventContentKind::Text
+        && let Some(message) = content.as_message()
+    {
+        message.body().clone_into(&mut projection.body);
+    }
     let event_id = event
         .event_id()
         .map_or_else(|| event.identifier().to_string(), ToString::to_string);
@@ -619,22 +629,220 @@ fn timeline_item_to_shell_item(
         event_id,
         event.sender().to_string(),
         sender_display_name(event.sender_profile()),
-        body,
+        projection.body,
         u64::from(event.timestamp().0),
-        is_edited,
+        projection.is_edited,
         event.is_own(),
     );
+    shell_item.matrix.content.kind = projection.kind;
+    shell_item.matrix.content.is_redacted = projection.is_redacted;
+    shell_item.matrix.decryption_state = projection.decryption_state;
+    shell_item.presentation.capabilities = projection.capabilities;
     shell_item.matrix.transaction_id = event.transaction_id().map(ToString::to_string);
     shell_item.matrix.send_state = timeline_send_state(event.send_state());
-    shell_item.matrix.content.is_redacted = event.content().is_redacted();
+    shell_item.presentation.avatar_url = sender_avatar_url(event.sender_profile());
     shell_item.matrix.reactions = timeline_reactions(event);
     shell_item.matrix.receipts = timeline_receipts(event);
+    shell_item.matrix.thread = timeline_thread_summary(content, shell_item.event_id());
+    shell_item.matrix.thread_reply_to = timeline_thread_reply_relation(content);
     shell_item.presentation.reply_preview = timeline_reply_preview(event);
     shell_item.presentation.compact_receipts =
         shell_item.matrix.receipts.iter().take(3).cloned().collect();
-    shell_item.presentation.capabilities.can_edit = event.is_editable();
-    shell_item.presentation.capabilities.can_reply = event.can_be_replied_to();
+    if projection.capabilities_allow_actions {
+        shell_item.presentation.capabilities.can_edit = event.is_editable();
+        shell_item.presentation.capabilities.can_reply = event.can_be_replied_to();
+    }
     Some(shell_item)
+}
+
+#[derive(Clone, Copy)]
+enum TimelineContentProjection {
+    Text { is_edited: bool },
+    PendingDecryption,
+    UnableToDecrypt,
+    Redacted,
+    NonText,
+    Unsupported,
+}
+
+struct ProjectedTimelineContent {
+    kind: RoomTimelineEventContentKind,
+    body: String,
+    is_edited: bool,
+    is_redacted: bool,
+    decryption_state: RoomTimelineDecryptionState,
+    capabilities: RoomTimelineItemCapabilities,
+    capabilities_allow_actions: bool,
+}
+
+fn timeline_content_projection(
+    content: &matrix_sdk_ui::timeline::TimelineItemContent,
+    reported_decryption_state: Option<RoomTimelineDecryptionState>,
+) -> TimelineContentProjection {
+    if matches!(
+        reported_decryption_state,
+        Some(RoomTimelineDecryptionState::Pending)
+    ) {
+        return TimelineContentProjection::PendingDecryption;
+    }
+    if content.is_redacted() {
+        return TimelineContentProjection::Redacted;
+    }
+    if content.is_unable_to_decrypt() {
+        return TimelineContentProjection::UnableToDecrypt;
+    }
+
+    let Some(message) = content.as_message() else {
+        return TimelineContentProjection::Unsupported;
+    };
+
+    match message.msgtype() {
+        MessageType::Text(_) | MessageType::Notice(_) | MessageType::Emote(_) => {
+            TimelineContentProjection::Text {
+                is_edited: message.is_edited(),
+            }
+        }
+        MessageType::Audio(_)
+        | MessageType::File(_)
+        | MessageType::Image(_)
+        | MessageType::Video(_)
+        | MessageType::Location(_)
+        | MessageType::ServerNotice(_)
+        | MessageType::VerificationRequest(_)
+        | MessageType::Gallery(_)
+        | MessageType::_Custom(_) => TimelineContentProjection::NonText,
+        _ => TimelineContentProjection::Unsupported,
+    }
+}
+
+fn project_timeline_content(projection: TimelineContentProjection) -> ProjectedTimelineContent {
+    let safe_capabilities = RoomTimelineItemCapabilities {
+        can_edit: false,
+        can_redact: false,
+        can_reply: false,
+        can_react: false,
+    };
+    match projection {
+        TimelineContentProjection::Text { is_edited } => ProjectedTimelineContent {
+            kind: RoomTimelineEventContentKind::Text,
+            body: String::new(),
+            is_edited,
+            is_redacted: false,
+            decryption_state: RoomTimelineDecryptionState::Unencrypted,
+            capabilities: safe_capabilities,
+            capabilities_allow_actions: true,
+        },
+        TimelineContentProjection::PendingDecryption => ProjectedTimelineContent {
+            kind: RoomTimelineEventContentKind::PendingDecryption,
+            body: String::from("Message is waiting to be decrypted"),
+            is_edited: false,
+            is_redacted: false,
+            decryption_state: RoomTimelineDecryptionState::Pending,
+            capabilities: safe_capabilities,
+            capabilities_allow_actions: false,
+        },
+        TimelineContentProjection::UnableToDecrypt => ProjectedTimelineContent {
+            kind: RoomTimelineEventContentKind::UnableToDecrypt,
+            body: String::from("Unable to decrypt this message"),
+            is_edited: false,
+            is_redacted: false,
+            decryption_state: RoomTimelineDecryptionState::UnableToDecrypt,
+            capabilities: safe_capabilities,
+            capabilities_allow_actions: false,
+        },
+        TimelineContentProjection::Redacted => ProjectedTimelineContent {
+            kind: RoomTimelineEventContentKind::Redacted,
+            body: String::from("Message removed"),
+            is_edited: false,
+            is_redacted: true,
+            decryption_state: RoomTimelineDecryptionState::Unencrypted,
+            capabilities: safe_capabilities,
+            capabilities_allow_actions: false,
+        },
+        TimelineContentProjection::NonText => ProjectedTimelineContent {
+            kind: RoomTimelineEventContentKind::NonText,
+            body: String::from("Message type is not supported yet"),
+            is_edited: false,
+            is_redacted: false,
+            decryption_state: RoomTimelineDecryptionState::Unencrypted,
+            capabilities: safe_capabilities,
+            capabilities_allow_actions: false,
+        },
+        TimelineContentProjection::Unsupported => ProjectedTimelineContent {
+            kind: RoomTimelineEventContentKind::Unsupported,
+            body: String::from("Unsupported message type"),
+            is_edited: false,
+            is_redacted: false,
+            decryption_state: RoomTimelineDecryptionState::Unencrypted,
+            capabilities: safe_capabilities,
+            capabilities_allow_actions: false,
+        },
+    }
+}
+
+fn timeline_thread_summary(
+    content: &matrix_sdk_ui::timeline::TimelineItemContent,
+    event_id: &str,
+) -> Option<RoomTimelineThreadRelation> {
+    let summary = content.thread_summary()?;
+    let latest_event_id = match summary.latest_event {
+        TimelineDetails::Ready(event) => Some(event.identifier.to_string()),
+        TimelineDetails::Unavailable | TimelineDetails::Pending | TimelineDetails::Error(_) => None,
+    };
+
+    Some(RoomTimelineThreadRelation {
+        root_event_id: event_id.to_owned(),
+        latest_event_id,
+        reply_count: u64::from(summary.num_replies),
+    })
+}
+
+fn timeline_thread_reply_relation(
+    content: &matrix_sdk_ui::timeline::TimelineItemContent,
+) -> Option<RoomTimelineThreadReplyRelation> {
+    content
+        .thread_root()
+        .map(|root_event_id| RoomTimelineThreadReplyRelation {
+            root_event_id: root_event_id.to_string(),
+        })
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TimelineRelationKind {
+    None,
+    OrdinaryReply,
+    ThreadReply,
+}
+
+impl TimelineRelationKind {
+    const fn is_thread_reply(self) -> bool {
+        matches!(self, Self::ThreadReply)
+    }
+}
+
+fn relation_kind(
+    thread_root_event_id: Option<&str>,
+    reply_event_id: Option<&str>,
+) -> TimelineRelationKind {
+    if thread_root_event_id.is_some() {
+        TimelineRelationKind::ThreadReply
+    } else if reply_event_id.is_some() {
+        TimelineRelationKind::OrdinaryReply
+    } else {
+        TimelineRelationKind::None
+    }
+}
+
+#[cfg(test)]
+fn preserve_sdk_order<'event>(
+    event_ids: impl IntoIterator<Item = &'event str>,
+    timestamps: impl IntoIterator<Item = u64>,
+) -> Vec<&'event str> {
+    event_ids
+        .into_iter()
+        .zip(timestamps)
+        .map(|(event_id, _timestamp)| event_id)
+        .collect()
 }
 
 fn timeline_send_state(send_state: Option<&EventSendState>) -> RoomTimelineSendState {
@@ -688,6 +896,18 @@ fn timeline_reply_preview(
     event: &matrix_sdk_ui::timeline::EventTimelineItem,
 ) -> Option<RoomTimelineReplyPreview> {
     let in_reply_to = event.content().in_reply_to()?;
+    if relation_kind(
+        event
+            .content()
+            .thread_root()
+            .as_deref()
+            .map(EventId::as_str),
+        Some(in_reply_to.event_id.as_str()),
+    )
+    .is_thread_reply()
+    {
+        return None;
+    }
     let embedded_event = match in_reply_to.event {
         TimelineDetails::Ready(embedded_event) => embedded_event,
         TimelineDetails::Unavailable | TimelineDetails::Pending | TimelineDetails::Error(_) => {
@@ -781,6 +1001,15 @@ fn sender_display_name(
     }
 }
 
+fn sender_avatar_url(
+    profile: &TimelineDetails<matrix_sdk_ui::timeline::Profile>,
+) -> Option<String> {
+    match profile {
+        TimelineDetails::Ready(profile) => profile.avatar_url.as_ref().map(ToString::to_string),
+        TimelineDetails::Unavailable | TimelineDetails::Pending | TimelineDetails::Error(_) => None,
+    }
+}
+
 trait TimelineItemIdentifierExt {
     fn to_string(&self) -> String;
 }
@@ -799,6 +1028,61 @@ impl TimelineItemIdentifierExt for matrix_sdk_ui::timeline::TimelineEventItemId 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn projection_retains_placeholder_states_and_safe_capabilities() {
+        let pending = project_timeline_content(TimelineContentProjection::PendingDecryption);
+        assert_eq!(
+            pending.kind,
+            RoomTimelineEventContentKind::PendingDecryption
+        );
+        assert_eq!(
+            pending.decryption_state,
+            RoomTimelineDecryptionState::Pending
+        );
+        assert_eq!(pending.body, "Message is waiting to be decrypted");
+        assert!(!pending.capabilities.can_edit);
+        assert!(!pending.capabilities.can_redact);
+        assert!(!pending.capabilities.can_reply);
+        assert!(!pending.capabilities.can_react);
+
+        let unable = project_timeline_content(TimelineContentProjection::UnableToDecrypt);
+        assert_eq!(unable.kind, RoomTimelineEventContentKind::UnableToDecrypt);
+        assert_eq!(
+            unable.decryption_state,
+            RoomTimelineDecryptionState::UnableToDecrypt
+        );
+
+        let redacted = project_timeline_content(TimelineContentProjection::Redacted);
+        assert_eq!(redacted.kind, RoomTimelineEventContentKind::Redacted);
+        assert!(redacted.is_redacted);
+        assert_eq!(redacted.body, "Message removed");
+
+        let unsupported = project_timeline_content(TimelineContentProjection::Unsupported);
+        assert_eq!(unsupported.kind, RoomTimelineEventContentKind::Unsupported);
+        assert_eq!(unsupported.body, "Unsupported message type");
+    }
+
+    #[test]
+    fn projection_order_is_never_sorted_by_timestamp() {
+        let source_order = ["$newer", "$missing", "$older"];
+        let timestamps = [20_u64, 0, 10];
+        let projected = preserve_sdk_order(source_order, timestamps);
+
+        assert_eq!(projected, source_order);
+    }
+
+    #[test]
+    fn thread_replies_are_distinct_from_ordinary_replies() {
+        assert_eq!(
+            relation_kind(None, Some("$ordinary")),
+            TimelineRelationKind::OrdinaryReply
+        );
+        assert_eq!(
+            relation_kind(Some("$root"), Some("$fallback")),
+            TimelineRelationKind::ThreadReply
+        );
+    }
 
     #[test]
     fn loaded_timeline_page_reveals_existing_older_windows_before_paginating() {

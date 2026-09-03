@@ -17,10 +17,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { Button, ScrollArea, Typography } from "../../../components/ui";
 import type { RoomTimelineItem } from "../appShellAdapters";
 import {
   formatRawEventJson,
+  timelineJsonSyntaxTheme,
   timelineInfoPresentation,
   timelineInfoViewLabels,
 } from "./infoPresentation";
@@ -173,11 +175,18 @@ export default function TimelineInfoSurface({
             className="timeline-info-raw-scroll"
             contentClassName="timeline-info-raw"
           >
-            <pre>
-              {presentation.rawEventJson
-                ? formatRawEventJson(presentation.rawEventJson)
-                : (rawEventError ?? "Loading event data…")}
-            </pre>
+            {presentation.rawEventJson ? (
+              <SyntaxHighlighter
+                PreTag="div"
+                language="json"
+                style={timelineJsonSyntaxTheme}
+                wrapLongLines
+              >
+                {formatRawEventJson(presentation.rawEventJson)}
+              </SyntaxHighlighter>
+            ) : (
+              <pre>{rawEventError ?? "Loading event data…"}</pre>
+            )}
           </ScrollArea>
         )}
       </section>

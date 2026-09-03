@@ -29,6 +29,7 @@
     "overlayscrollbars-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-syntax-highlighter": "catalog:",
     "react-virtuoso": "catalog:",
     "tauri-plugin-app-events-api": "workspace:*"
   },

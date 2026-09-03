@@ -17,6 +17,7 @@ import { describe, expect, test } from "vitest";
 import type { RoomTimelineItem } from "../appShellAdapters";
 import {
   formatRawEventJson,
+  timelineJsonSyntaxTheme,
   timelineInfoPresentation,
   timelineInfoViewLabels,
 } from "./infoPresentation";
@@ -83,6 +84,12 @@ describe("timeline Info presentation", () => {
 
   test("uses concise Easy and Advanced labels for the information view switcher", () => {
     expect(timelineInfoViewLabels).toEqual(["Easy View", "Advanced View"]);
+  });
+
+  test("keeps JSON property names on the normal text color and values on palette accents", () => {
+    expect(timelineJsonSyntaxTheme.property?.color).toBe("var(--on-surface)");
+    expect(timelineJsonSyntaxTheme.string?.color).toBe("var(--primary)");
+    expect(timelineJsonSyntaxTheme.number?.color).toBe("var(--secondary)");
   });
 });
 

@@ -25,6 +25,23 @@ export type TimelineInfoPresentation = {
 
 export const timelineInfoViewLabels = ["Easy View", "Advanced View"] as const;
 
+export const timelineJsonSyntaxTheme: Record<
+  string,
+  { backgroundColor?: string; color: string; fontStyle?: "italic" }
+> = {
+  'code[class*="language-"]': { color: "var(--on-surface)" },
+  'pre[class*="language-"]': {
+    backgroundColor: "transparent",
+    color: "var(--on-surface)",
+  },
+  property: { color: "var(--on-surface)" },
+  string: { color: "var(--primary)" },
+  number: { color: "var(--secondary)" },
+  boolean: { color: "var(--secondary)" },
+  null: { color: "var(--secondary)", fontStyle: "italic" },
+  punctuation: { color: "var(--on-surface-variant)" },
+};
+
 export function timelineInfoPresentation(
   item: RoomTimelineItem,
   rawEventJson: string | null = null,

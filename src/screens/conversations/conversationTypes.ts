@@ -14,10 +14,7 @@
  */
 
 export type RoomThreadSort =
-  | "newest"
-  | "oldest"
-  | "mostMessages"
-  | "alphabetical";
+  "newest" | "oldest" | "mostMessages" | "alphabetical";
 
 export type RoomThreadKindFilter = "direct" | "group";
 

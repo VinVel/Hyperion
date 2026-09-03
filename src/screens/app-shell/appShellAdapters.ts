@@ -59,10 +59,7 @@ export type BackendRoomTimelineItem = {
     };
     send_state: "pending" | "sending" | "sent" | "failed" | "retrying";
     decryption_state:
-      | "unencrypted"
-      | "decrypted"
-      | "unable_to_decrypt"
-      | "pending";
+      "unencrypted" | "decrypted" | "unable_to_decrypt" | "pending";
     reactions: BackendRoomTimelineReaction[];
     receipts: BackendRoomTimelineReceipt[];
     thread?: BackendRoomTimelineThreadRelation | null;
@@ -81,10 +78,7 @@ export type BackendRoomTimelineItem = {
 };
 
 export type RoomTimelineGroupPosition =
-  | "standalone"
-  | "start"
-  | "middle"
-  | "end";
+  "standalone" | "start" | "middle" | "end";
 
 type BackendRoomTimelineReaction = {
   key: string;

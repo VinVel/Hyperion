@@ -33,9 +33,9 @@ use crate::{
             read_state::mark_room_read_locally,
         },
         types::{
-            GetRoomEventContextRequest, GetRoomTimelineRequest, PaginateRoomTimelineRequest,
-            ResolveRoomReplyPreviewRequest, RoomTimeline, RoomTimelineItem,
-            RoomTimelinePaginationResponse, RoomTimelineReplyPreview,
+            GetRoomEventContextRequest, GetRoomEventRawRequest, GetRoomTimelineRequest,
+            PaginateRoomTimelineRequest, ResolveRoomReplyPreviewRequest, RoomTimeline,
+            RoomTimelineItem, RoomTimelinePaginationResponse, RoomTimelineReplyPreview,
             RoomTimelineReplyPreviewState, apply_timeline_presentation,
         },
     },
@@ -69,6 +69,23 @@ struct PaginationAttemptRecord<'a> {
 }
 
 impl ShellManager {
+    pub async fn get_room_event_raw(
+        &self,
+        active_account: &ActiveAccount,
+        request: GetRoomEventRawRequest,
+    ) -> Result<String, String> {
+        let account = active_account.snapshot();
+        let room = resolve_room(&account.client, &request.room_id)?;
+        let event_id = EventId::parse(&request.event_id)
+            .map_err(|error| format!("Invalid event id: {error}"))?;
+        let event = room
+            .event(&event_id, None)
+            .await
+            .map_err(|error| format!("Could not fetch raw event: {error}"))?;
+
+        Ok(event.raw().json().get().to_owned())
+    }
+
     pub async fn get_room_timeline(
         &self,
         app: &tauri::AppHandle,

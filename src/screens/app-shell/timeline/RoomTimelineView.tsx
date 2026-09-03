@@ -40,6 +40,7 @@ import {
 import { logPaginationDiagnostic } from "../paginationDiagnostics";
 import { timelineContextKey, type PaginationState } from "../pagination";
 import TimelineMarkdown from "./TimelineMarkdown";
+import TimelineInfoSurface from "./TimelineInfoSurface";
 import {
   messageContextActions,
   timelineMessagePresentation,
@@ -149,10 +150,16 @@ function RoomTimelineView({
   const [activeActionEventId, setActiveActionEventId] = useState<string | null>(
     null,
   );
+  const [activeInfoEventId, setActiveInfoEventId] = useState<string | null>(
+    null,
+  );
   const timelineItems = timeline?.items ?? [];
   const roomId = timeline?.roomId ?? null;
   const focusedEventId = timeline?.focusedEventId ?? null;
   const timelineContext = timelineContextKey(focusedEventId);
+  const activeInfoItem = activeInfoEventId
+    ? (timelineItems.find((item) => item.id === activeInfoEventId) ?? null)
+    : null;
   const [oldestBoundaryIsVisible, setOldestBoundaryIsVisible] = useState(false);
   const timelineTraceIsEnabled = isTracingLevelEnabled("trace");
 
@@ -276,6 +283,21 @@ function RoomTimelineView({
       document.removeEventListener("keydown", handleDocumentKeyDown, true);
     };
   }, [activeActionEventId]);
+
+  useEffect(() => {
+    if (!activeInfoEventId) return;
+    function handleOutsideInfoClick(event: PointerEvent) {
+      if (
+        event.target instanceof Element &&
+        event.target.closest(".timeline-info-panel")
+      )
+        return;
+      setActiveInfoEventId(null);
+    }
+    document.addEventListener("pointerdown", handleOutsideInfoClick, true);
+    return () =>
+      document.removeEventListener("pointerdown", handleOutsideInfoClick, true);
+  }, [activeInfoEventId]);
 
   const followTimelineOutput = useCallback(
     (wasAtBottom: boolean) => {
@@ -628,11 +650,18 @@ function RoomTimelineView({
             onRunTimelineAction={runTimelineAction}
             onScrollToTimelineEvent={scrollToTimelineEvent}
             onOpenMessageActions={setActiveActionEventId}
+            onOpenMessageInfo={setActiveInfoEventId}
             onToggleReaction={onToggleReaction}
             replyPreview={replyPreviewForItem(item)}
           />
         )}
       />
+      {activeInfoItem ? (
+        <TimelineInfoSurface
+          item={activeInfoItem}
+          onClose={() => setActiveInfoEventId(null)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -712,6 +741,7 @@ type TimelineMessageRowProps = {
   onBeginReplyToMessage: (eventId: string) => void;
   onCloseMessageActions: () => void;
   onOpenMessageActions: (eventId: string) => void;
+  onOpenMessageInfo: (eventId: string) => void;
   onRedactMessage: (eventId: string) => void;
   onRunTimelineAction: (action: () => void) => void;
   onScrollToTimelineEvent: (eventId: string) => void;
@@ -728,6 +758,7 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
   onBeginReplyToMessage,
   onCloseMessageActions,
   onOpenMessageActions,
+  onOpenMessageInfo,
   onRedactMessage,
   onRunTimelineAction,
   onScrollToTimelineEvent,
@@ -917,7 +948,7 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
             iconOnly
             variant="ghost"
             onMouseDown={preventActionButtonFocus}
-            onClick={() => runMessageAction(() => undefined)}
+            onClick={() => runMessageAction(() => onOpenMessageInfo(item.id))}
           >
             <Info aria-hidden="true" />
           </Button>

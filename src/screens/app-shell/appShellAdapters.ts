@@ -185,6 +185,7 @@ export type RoomTimelineItem = {
   id: string;
   transactionId: string | null;
   senderId: string;
+  roomId: string | null;
   senderDisplayName: string;
   senderAvatarUrl: string;
   body: string;
@@ -346,6 +347,7 @@ function mapRoomTimelineItem(item: BackendRoomTimelineItem): RoomTimelineItem {
     id: item.matrix.event_id,
     transactionId: item.matrix.transaction_id ?? null,
     senderId: item.matrix.sender_id,
+    roomId: item.matrix.room_id ?? null,
     senderDisplayName:
       item.presentation.sender_display_name?.trim() || item.matrix.sender_id,
     senderAvatarUrl: item.presentation.avatar_url ?? "",

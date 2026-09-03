@@ -85,6 +85,12 @@ pub struct ResolveRoomReplyPreviewRequest {
     pub event_id: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct GetRoomEventRawRequest {
+    pub room_id: String,
+    pub event_id: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct RoomTimelineItem {
     pub matrix: RoomTimelineMatrixData,

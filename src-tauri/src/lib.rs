@@ -50,13 +50,14 @@ use shell::{
         },
     },
     types::{
-        EditRoomMessageRequest, GetRoomEventContextRequest, GetRoomSummaryRequest,
-        GetRoomTimelineRequest, GlobalSearchIndexStatus, GlobalSearchRequest, GlobalSearchResponse,
-        ListRoomThreadsRequest, ListSpacesRequest, PaginateRoomTimelineRequest,
-        RedactRoomMessageRequest, ReplyToRoomMessageRequest, ResolveRoomReplyPreviewRequest,
-        RoomSummary, RoomThreadSummary, RoomTimeline, RoomTimelinePaginationResponse,
-        RoomTimelineReplyPreview, SendRoomMessageRequest, SendRoomMessageResponse,
-        SetRoomTypingRequest, SpaceSummary, ToggleRoomReactionRequest, ToggleRoomReactionResponse,
+        EditRoomMessageRequest, GetRoomEventContextRequest, GetRoomEventRawRequest,
+        GetRoomSummaryRequest, GetRoomTimelineRequest, GlobalSearchIndexStatus,
+        GlobalSearchRequest, GlobalSearchResponse, ListRoomThreadsRequest, ListSpacesRequest,
+        PaginateRoomTimelineRequest, RedactRoomMessageRequest, ReplyToRoomMessageRequest,
+        ResolveRoomReplyPreviewRequest, RoomSummary, RoomThreadSummary, RoomTimeline,
+        RoomTimelinePaginationResponse, RoomTimelineReplyPreview, SendRoomMessageRequest,
+        SendRoomMessageResponse, SetRoomTypingRequest, SpaceSummary, ToggleRoomReactionRequest,
+        ToggleRoomReactionResponse,
     },
 };
 
@@ -257,6 +258,26 @@ async fn get_room_event_context(
             let active_account = account_manager.require_active_account(&app).await?;
             shell_manager
                 .get_room_event_context(&app, &account_manager, &active_account, request)
+                .await
+        }),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn get_room_event_raw(
+    app: AppHandle,
+    account_manager: State<'_, AccountManager>,
+    shell_manager: State<'_, ShellManager>,
+    request: GetRoomEventRawRequest,
+) -> Result<String, String> {
+    utils::tracing::report_command_future(
+        "get_room_event_raw",
+        "shell.timeline",
+        Box::pin(async {
+            let active_account = account_manager.require_active_account(&app).await?;
+            shell_manager
+                .get_room_event_raw(&active_account, request)
                 .await
         }),
     )
@@ -636,6 +657,7 @@ pub fn run() {
             get_room_timeline,
             paginate_room_timeline_backwards,
             get_room_event_context,
+            get_room_event_raw,
             resolve_room_reply_preview,
             send_room_message,
             edit_room_message,

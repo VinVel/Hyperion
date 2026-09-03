@@ -229,6 +229,8 @@ function testTimelineItem(
     canReact: true,
     reactions: [],
     receipts: [],
+    thread: null,
+    threadReplyTo: null,
     replyPreview: null,
   };
 }

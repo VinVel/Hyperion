@@ -27,7 +27,7 @@ import {
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
-import { Link, Pencil, Reply, SmilePlus, Trash2 } from "lucide-react";
+import { Info, Link, Pencil, Reply, SmilePlus, Trash2 } from "lucide-react";
 import { Button, Typography } from "../../../components/ui";
 import { isTracingLevelEnabled } from "../../../utils/tracing";
 import {
@@ -40,6 +40,10 @@ import {
 import { logPaginationDiagnostic } from "../paginationDiagnostics";
 import { timelineContextKey, type PaginationState } from "../pagination";
 import TimelineMarkdown from "./TimelineMarkdown";
+import {
+  messageContextActions,
+  timelineMessagePresentation,
+} from "./presentation";
 import TimelineScroller, {
   type TimelineScrollerContext,
 } from "./TimelineScroller";
@@ -738,12 +742,15 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
     y: number;
   } | null>(null);
   const showsSender = shouldShowSender(item);
+  const presentation = timelineMessagePresentation(item, replyPreview);
+  const contextActions = messageContextActions(item);
   const reactions = item.reactions ?? [];
   const rowClasses = [
     "room-timeline-row",
     `room-timeline-row--${item.groupPosition}`,
     actionsAreOpen ? "room-timeline-row--actions-open" : "",
     item.isOwnMessage ? "room-timeline-row--own" : "",
+    presentation.isTombstone ? "room-timeline-row--tombstone" : "",
     isFocused ? "room-timeline-row--focused" : "",
   ]
     .filter(Boolean)
@@ -838,7 +845,7 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
 
       <div className="room-timeline-message">
         <div className="room-timeline-actions">
-          {item.canReply ? (
+          {contextActions.includes("reply") ? (
             <Button
               aria-label="Reply"
               iconOnly
@@ -851,7 +858,7 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
               <Reply aria-hidden="true" />
             </Button>
           ) : null}
-          {item.canReact ? (
+          {contextActions.includes("react") ? (
             <Button
               aria-label="React"
               iconOnly
@@ -864,7 +871,7 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
               <SmilePlus aria-hidden="true" />
             </Button>
           ) : null}
-          {item.canEdit ? (
+          {contextActions.includes("edit") ? (
             <Button
               aria-label="Edit"
               iconOnly
@@ -879,7 +886,7 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
               <Pencil aria-hidden="true" />
             </Button>
           ) : null}
-          {item.canRedact ? (
+          {contextActions.includes("redact") ? (
             <Button
               aria-label="Delete"
               iconOnly
@@ -890,7 +897,7 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
               <Trash2 aria-hidden="true" />
             </Button>
           ) : null}
-          {item.permalink ? (
+          {contextActions.includes("copyLink") ? (
             <Button
               aria-label="Copy message link"
               iconOnly
@@ -905,31 +912,46 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
               <Link aria-hidden="true" />
             </Button>
           ) : null}
+          <Button
+            aria-label="Message information"
+            iconOnly
+            variant="ghost"
+            onMouseDown={preventActionButtonFocus}
+            onClick={() => runMessageAction(() => undefined)}
+          >
+            <Info aria-hidden="true" />
+          </Button>
         </div>
 
         {showsSender ? (
           <header className="room-timeline-message-head">
             <span className="room-timeline-sender">
-              {item.senderDisplayName}
+              {presentation.senderDisplayName}
             </span>
-            {item.timeLabel ? (
-              <span className="room-timeline-time">{item.timeLabel}</span>
+            {presentation.timeLabel ? (
+              <span className="room-timeline-time">
+                {presentation.timeLabel}
+              </span>
             ) : null}
           </header>
         ) : null}
 
-        {replyPreview ? (
+        {presentation.replyCard ? (
           <button
             className="room-timeline-reply-preview"
-            disabled={replyPreview.state !== "resolved"}
+            disabled={!presentation.replyCard.canNavigate}
             type="button"
-            onClick={() => onScrollToTimelineEvent(replyPreview.eventId)}
+            onClick={() => {
+              if (presentation.replyCard?.canNavigate && replyPreview) {
+                onScrollToTimelineEvent(replyPreview.eventId);
+              }
+            }}
           >
             <span className="room-timeline-reply-author">
-              {replyPreview.senderDisplayName}
+              {presentation.replyCard.author}
             </span>
             <span className="room-timeline-reply-body">
-              {replyPreviewLabel(replyPreview)}
+              {presentation.replyCard.label}
             </span>
           </button>
         ) : null}
@@ -937,13 +959,11 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
         <div className="room-timeline-body-row">
           <TimelineMarkdown
             className={`room-timeline-body${
-              item.contentKind === "unableToDecrypt"
-                ? " room-timeline-body--system"
-                : ""
+              presentation.isPlaceholder ? " room-timeline-body--system" : ""
             }`}
-            markdown={item.body ?? ""}
+            markdown={presentation.body}
           />
-          {item.isEdited ? (
+          {presentation.isEdited ? (
             <span className="room-timeline-edited">edited</span>
           ) : null}
         </div>
@@ -1157,30 +1177,6 @@ function failedReplyPreview(eventId: string): RoomTimelineReplyPreview {
     body: "",
     isRedacted: false,
   };
-}
-
-function replyPreviewLabel(replyPreview: RoomTimelineReplyPreview): string {
-  if (replyPreview.state === "loading") {
-    return "Loading replied message...";
-  }
-
-  if (replyPreview.state === "deletedRedacted" || replyPreview.isRedacted) {
-    return "Original message deleted";
-  }
-
-  if (replyPreview.state === "inaccessible") {
-    return "Message not accessible";
-  }
-
-  if (replyPreview.state === "failedToLoad") {
-    return "Failed to load replied message";
-  }
-
-  if (replyPreview.state === "invalidRelation") {
-    return "Invalid reply";
-  }
-
-  return replyPreview.body;
 }
 
 function shouldShowSender(item: RoomTimelineItem): boolean {

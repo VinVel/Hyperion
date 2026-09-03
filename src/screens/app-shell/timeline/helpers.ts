@@ -212,8 +212,39 @@ function timelineItemsAreEqual(
     currentItem.canReact === refreshedItem.canReact &&
     reactionsAreEqual(currentItem.reactions, refreshedItem.reactions) &&
     receiptsAreEqual(currentItem.receipts, refreshedItem.receipts) &&
+    threadRelationsAreEqual(currentItem.thread, refreshedItem.thread) &&
+    threadReplyRelationsAreEqual(
+      currentItem.threadReplyTo,
+      refreshedItem.threadReplyTo,
+    ) &&
     replyPreviewsAreEqual(currentItem.replyPreview, refreshedItem.replyPreview)
   );
+}
+
+function threadRelationsAreEqual(
+  currentThread: RoomTimelineItem["thread"],
+  refreshedThread: RoomTimelineItem["thread"],
+): boolean {
+  if (!currentThread || !refreshedThread) {
+    return currentThread === refreshedThread;
+  }
+
+  return (
+    currentThread.rootEventId === refreshedThread.rootEventId &&
+    currentThread.latestEventId === refreshedThread.latestEventId &&
+    currentThread.replyCount === refreshedThread.replyCount
+  );
+}
+
+function threadReplyRelationsAreEqual(
+  currentThreadReply: RoomTimelineItem["threadReplyTo"],
+  refreshedThreadReply: RoomTimelineItem["threadReplyTo"],
+): boolean {
+  if (!currentThreadReply || !refreshedThreadReply) {
+    return currentThreadReply === refreshedThreadReply;
+  }
+
+  return currentThreadReply.rootEventId === refreshedThreadReply.rootEventId;
 }
 
 function reactionsAreEqual(
@@ -425,10 +456,12 @@ function normalizeRoomTimelineItem(item: RoomTimelineItem): RoomTimelineItem {
     permalink: item.permalink ?? "",
     canEdit: item.canEdit ?? false,
     canRedact: item.canRedact ?? false,
-    canReply: item.canReply ?? true,
-    canReact: item.canReact ?? true,
+    canReply: item.canReply ?? false,
+    canReact: item.canReact ?? false,
     reactions: item.reactions ?? [],
     receipts: item.receipts ?? [],
+    thread: item.thread ?? null,
+    threadReplyTo: item.threadReplyTo ?? null,
     replyPreview: item.replyPreview ?? null,
   };
 }

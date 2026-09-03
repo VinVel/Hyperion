@@ -211,7 +211,19 @@ export type RoomTimelineItem = {
   canReact: boolean;
   reactions: RoomTimelineReaction[];
   receipts: RoomTimelineReceipt[];
+  thread: RoomTimelineThreadRelation | null;
+  threadReplyTo: RoomTimelineThreadReplyRelation | null;
   replyPreview: RoomTimelineReplyPreview | null;
+};
+
+export type RoomTimelineThreadRelation = {
+  rootEventId: string;
+  latestEventId: string | null;
+  replyCount: number;
+};
+
+export type RoomTimelineThreadReplyRelation = {
+  rootEventId: string;
 };
 
 export type RoomTimelineReaction = {
@@ -326,8 +338,8 @@ function mapRoomTimelineItem(item: BackendRoomTimelineItem): RoomTimelineItem {
   const capabilities = item.presentation.capabilities ?? {
     can_edit: false,
     can_redact: false,
-    can_reply: true,
-    can_react: true,
+    can_reply: false,
+    can_react: false,
   };
 
   return {
@@ -357,6 +369,16 @@ function mapRoomTimelineItem(item: BackendRoomTimelineItem): RoomTimelineItem {
     receipts: (item.presentation.compact_receipts ?? []).map(
       mapTimelineReceipt,
     ),
+    thread: item.matrix.thread
+      ? {
+          rootEventId: item.matrix.thread.root_event_id,
+          latestEventId: item.matrix.thread.latest_event_id ?? null,
+          replyCount: item.matrix.thread.reply_count,
+        }
+      : null,
+    threadReplyTo: item.matrix.thread_reply_to
+      ? { rootEventId: item.matrix.thread_reply_to.root_event_id }
+      : null,
     replyPreview: item.presentation.reply_preview
       ? mapTimelineReplyPreview(item.presentation.reply_preview)
       : null,

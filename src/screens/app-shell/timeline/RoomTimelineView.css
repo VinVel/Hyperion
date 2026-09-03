@@ -97,6 +97,11 @@
     color-mix(in srgb, var(--secondary) 54%, transparent);
 }
 
+.room-timeline-row--tombstone .room-timeline-body {
+  color: var(--on-surface-variant);
+  font-style: italic;
+}
+
 .room-timeline-actions {
   --room-timeline-action-button-size: calc(
     var(--sizing-icon-button-size) * 0.625

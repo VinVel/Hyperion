@@ -29,6 +29,7 @@ pub(super) mod sync;
 mod sync_coordinator;
 
 pub(super) use self::caching::ShellCacheState;
+pub(in crate::shell) use self::room::timeline::parsing::project_timeline_rich_text;
 pub(super) use self::sync::{emit_shell_room_updated, emit_shell_timeline_updated};
 
 use self::{

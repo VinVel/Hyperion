@@ -120,8 +120,37 @@ pub struct RoomTimelineEventContent {
     pub kind: RoomTimelineEventContentKind,
     pub body: String,
     pub formatted_body: Option<String>,
+    pub formatted_body_format: Option<String>,
+    pub rich_text: Option<Vec<RoomTimelineRichTextNode>>,
     pub is_edited: bool,
     pub is_redacted: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum RoomTimelineRichTextNode {
+    Text {
+        text: String,
+    },
+    Element {
+        tag: String,
+        attributes: RoomTimelineRichTextAttributes,
+        children: Vec<RoomTimelineRichTextNode>,
+    },
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct RoomTimelineRichTextAttributes {
+    pub href: Option<String>,
+    pub target: Option<String>,
+    pub alt: Option<String>,
+    pub title: Option<String>,
+    pub language: Option<String>,
+    pub start: Option<i64>,
+    pub color: Option<String>,
+    pub background_color: Option<String>,
+    pub spoiler: Option<String>,
+    pub maths: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -299,6 +328,8 @@ impl RoomTimelineItem {
                     kind: RoomTimelineEventContentKind::Text,
                     body,
                     formatted_body: None,
+                    formatted_body_format: None,
+                    rich_text: None,
                     is_edited,
                     is_redacted: false,
                 },

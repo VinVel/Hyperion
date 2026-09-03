@@ -196,6 +196,8 @@ function timelineItemsAreEqual(
     currentItem.senderAvatarUrl === refreshedItem.senderAvatarUrl &&
     currentItem.body === refreshedItem.body &&
     currentItem.formattedBody === refreshedItem.formattedBody &&
+    currentItem.formattedBodyFormat === refreshedItem.formattedBodyFormat &&
+    currentItem.richText === refreshedItem.richText &&
     currentItem.contentKind === refreshedItem.contentKind &&
     currentItem.timestampUnixMs === refreshedItem.timestampUnixMs &&
     currentItem.timeLabel === refreshedItem.timeLabel &&
@@ -444,6 +446,8 @@ function normalizeRoomTimelineItem(item: RoomTimelineItem): RoomTimelineItem {
     senderAvatarUrl: item.senderAvatarUrl ?? "",
     body: item.body ?? "",
     formattedBody: item.formattedBody ?? "",
+    formattedBodyFormat: item.formattedBodyFormat ?? null,
+    richText: item.richText ?? null,
     contentKind: item.contentKind ?? "text",
     timestampUnixMs: item.timestampUnixMs ?? 0,
     timeLabel: item.timeLabel ?? "",

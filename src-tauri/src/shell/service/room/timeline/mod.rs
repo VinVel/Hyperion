@@ -28,6 +28,7 @@ use matrix_sdk::{
 };
 
 mod commands;
+pub(in crate::shell) mod parsing;
 
 use crate::shell::types::RoomTimelineItem;
 

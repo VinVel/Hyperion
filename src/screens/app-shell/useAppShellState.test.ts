@@ -213,6 +213,7 @@ function testTimelineItem(
     senderAvatarUrl: "",
     body: "body",
     formattedBody: "",
+    formattedBodyFormat: null,
     contentKind: "text",
     timestampUnixMs,
     timeLabel: "",

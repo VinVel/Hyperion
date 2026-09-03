@@ -15,13 +15,23 @@
 
 import MarkdownIt from "markdown-it";
 import { memo, useMemo } from "react";
+import { openTimelineLinkExternally } from "./timelineLinks";
 
 const markdownRenderer = new MarkdownIt({
   breaks: false,
   html: false,
-  linkify: false,
+  linkify: true,
   typographer: false,
 });
+
+// Plain timeline bodies only auto-link the same five schemes as formatted HTML.
+markdownRenderer.linkify.set({
+  fuzzyEmail: false,
+  fuzzyIP: false,
+  fuzzyLink: false,
+});
+markdownRenderer.linkify.add("//", null);
+markdownRenderer.linkify.add("magnet:", { validate: validateMagnetUri });
 
 type TimelineMarkdownProps = {
   className?: string;
@@ -38,8 +48,14 @@ function TimelineMarkdown({ className, markdown }: TimelineMarkdownProps) {
     <div
       className={className}
       dangerouslySetInnerHTML={{ __html: renderedMarkdown }}
+      onClick={openTimelineLinkExternally}
     />
   );
+}
+
+function validateMagnetUri(text: string, position: number): number {
+  const magnetQuery = text.slice(position).match(/^\?[^\s<>()]+/);
+  return magnetQuery?.[0].replace(/[.,!?;:]+$/, "").length ?? 0;
 }
 
 export default memo(TimelineMarkdown);

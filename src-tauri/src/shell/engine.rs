@@ -34,7 +34,7 @@ use tauri::async_runtime::JoinHandle;
 use tauri::async_runtime::Mutex as AsyncMutex;
 
 use super::{
-    service::{emit_shell_room_updated, emit_shell_timeline_updated},
+    service::{emit_shell_room_updated, emit_shell_timeline_updated, project_timeline_rich_text},
     types::{
         RoomTimelineDecryptionState, RoomTimelineEventContentKind, RoomTimelineItem,
         RoomTimelineItemCapabilities, RoomTimelineReaction, RoomTimelineReceipt,
@@ -637,6 +637,23 @@ fn timeline_item_to_shell_item(
     shell_item.matrix.content.kind = projection.kind;
     shell_item.matrix.content.is_redacted = projection.is_redacted;
     shell_item.matrix.decryption_state = projection.decryption_state;
+
+    if let Some((formatted_body, formatted_body_format)) = timeline_message_formatted_body(content)
+    {
+        shell_item.matrix.content.rich_text = Some(project_timeline_rich_text(
+            &shell_item.matrix.content.body,
+            Some(&formatted_body),
+            Some(&formatted_body_format),
+        ));
+        shell_item.matrix.content.formatted_body = Some(formatted_body);
+        shell_item.matrix.content.formatted_body_format = Some(formatted_body_format);
+    } else if projection.kind == RoomTimelineEventContentKind::Text {
+        shell_item.matrix.content.rich_text = Some(project_timeline_rich_text(
+            &shell_item.matrix.content.body,
+            None,
+            None,
+        ));
+    }
     shell_item.presentation.capabilities = projection.capabilities;
     shell_item.matrix.transaction_id = event.transaction_id().map(ToString::to_string);
     shell_item.matrix.send_state = timeline_send_state(event.send_state());
@@ -653,6 +670,20 @@ fn timeline_item_to_shell_item(
         shell_item.presentation.capabilities.can_reply = event.can_be_replied_to();
     }
     Some(shell_item)
+}
+
+fn timeline_message_formatted_body(
+    content: &matrix_sdk_ui::timeline::TimelineItemContent,
+) -> Option<(String, String)> {
+    let message = content.as_message()?;
+    let formatted = match message.msgtype() {
+        MessageType::Text(message) => message.formatted.as_ref(),
+        MessageType::Notice(message) => message.formatted.as_ref(),
+        MessageType::Emote(message) => message.formatted.as_ref(),
+        _ => None,
+    }?;
+
+    Some((formatted.body.clone(), formatted.format.as_str().to_owned()))
 }
 
 #[derive(Clone, Copy)]

@@ -102,6 +102,7 @@ function testItem(overrides: Partial<RoomTimelineItem> = {}): RoomTimelineItem {
     senderAvatarUrl: "",
     body: "Body",
     formattedBody: "",
+    formattedBodyFormat: null,
     contentKind: "text",
     timestampUnixMs: 1,
     timeLabel: "01:00",

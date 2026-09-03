@@ -397,6 +397,11 @@
   overflow-wrap: anywhere;
 }
 
+.room-timeline-body a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
 .room-timeline-body > :first-child {
   margin-block-start: 0;
 }

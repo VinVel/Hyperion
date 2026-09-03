@@ -147,6 +147,7 @@ function testTimelineItem(
     senderAvatarUrl: "",
     body: "Message body",
     formattedBody: "",
+    formattedBodyFormat: null,
     contentKind: "text",
     timestampUnixMs: 1,
     timeLabel: "",

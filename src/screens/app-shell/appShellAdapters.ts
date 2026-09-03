@@ -60,6 +60,8 @@ export type BackendRoomTimelineItem = {
         | "unsupported";
       body: string;
       formatted_body?: string | null;
+      formatted_body_format?: string | null;
+      rich_text?: BackendTimelineRichTextNode[] | null;
       is_edited: boolean;
       is_redacted: boolean;
     };
@@ -82,6 +84,28 @@ export type BackendRoomTimelineItem = {
     compact_receipts: BackendRoomTimelineReceipt[];
     thumbnail?: BackendRoomTimelineThumbnailState | null;
   };
+};
+
+export type BackendTimelineRichTextNode =
+  | { type: "text"; text: string }
+  | {
+      type: "element";
+      tag: string;
+      attributes: BackendTimelineRichTextAttributes;
+      children: BackendTimelineRichTextNode[];
+    };
+
+export type BackendTimelineRichTextAttributes = {
+  href?: string | null;
+  target?: string | null;
+  alt?: string | null;
+  title?: string | null;
+  language?: string | null;
+  start?: number | null;
+  color?: string | null;
+  background_color?: string | null;
+  spoiler?: string | null;
+  maths?: string | null;
 };
 
 export type RoomTimelineGroupPosition =
@@ -190,6 +214,8 @@ export type RoomTimelineItem = {
   senderAvatarUrl: string;
   body: string;
   formattedBody: string;
+  formattedBodyFormat: string | null;
+  richText: BackendTimelineRichTextNode[] | null;
   contentKind:
     | "text"
     | "pendingDecryption"
@@ -353,6 +379,8 @@ function mapRoomTimelineItem(item: BackendRoomTimelineItem): RoomTimelineItem {
     senderAvatarUrl: item.presentation.avatar_url ?? "",
     body: item.matrix.content.body ?? "",
     formattedBody: item.matrix.content.formatted_body ?? "",
+    formattedBodyFormat: item.matrix.content.formatted_body_format ?? null,
+    richText: item.matrix.content.rich_text ?? null,
     contentKind: mapTimelineContentKind(item.matrix.content.kind),
     timestampUnixMs: item.matrix.timestamp_unix_ms,
     timeLabel: formatTimelineTime(item.matrix.timestamp_unix_ms),

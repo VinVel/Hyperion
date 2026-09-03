@@ -39,6 +39,7 @@ import {
 } from "../appShellAdapters";
 import { logPaginationDiagnostic } from "../paginationDiagnostics";
 import { timelineContextKey, type PaginationState } from "../pagination";
+import FormattedTimelineBody from "./FormattedTimelineBody";
 import TimelineMarkdown from "./TimelineMarkdown";
 import TimelineInfoSurface from "./TimelineInfoSurface";
 import {
@@ -988,12 +989,18 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
         ) : null}
 
         <div className="room-timeline-body-row">
-          <TimelineMarkdown
-            className={`room-timeline-body${
-              presentation.isPlaceholder ? " room-timeline-body--system" : ""
-            }`}
-            markdown={presentation.body}
-          />
+          {presentation.isPlaceholder ? (
+            <TimelineMarkdown
+              className="room-timeline-body room-timeline-body--system"
+              markdown={presentation.body}
+            />
+          ) : (
+            <FormattedTimelineBody
+              body={presentation.body}
+              className="room-timeline-body"
+              richText={item.richText}
+            />
+          )}
           {presentation.isEdited ? (
             <span className="room-timeline-edited">edited</span>
           ) : null}

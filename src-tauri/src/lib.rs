@@ -598,6 +598,10 @@ fn set_theme_mode(app: AppHandle, mode: String) -> Result<String, String> {
 /// Panics if Tauri fails to initialize or the application runtime exits with an
 /// unrecoverable error.
 pub fn run() {
+    // matrix-sdk's Git revision opts into reqwest's explicit-provider mode.
+    // Set the process-wide provider before Tauri starts worker threads or any
+    // Matrix/HTTP client can create a TLS configuration.
+    let _already_configured = rustls::crypto::aws_lc_rs::default_provider().install_default();
     let _tracing_guard = utils::tracing::initialize();
 
     tauri::Builder::default()

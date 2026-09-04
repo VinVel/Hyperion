@@ -40,6 +40,7 @@ base64 = { workspace = true }
 rand = { workspace = true }
 rusqlite = { workspace = true, features = ["bundled"] }
 reqwest = { workspace = true, features = ["json"] }
+rustls = { workspace = true }
 rust-i18n = { workspace = true }
 futures-util = { workspace = true }
 tokio = { workspace = true }
@@ -65,7 +66,6 @@ features = [
 [target.'cfg(target_os = "android")'.dependencies]
 android-native-keyring-store = { workspace = true }
 ndk-context = { workspace = true }
-rustls = { workspace = true }
 rustls-native-certs = { workspace = true }
 tauri-plugin-app-events = { workspace = true }
 tauri-plugin-mobile-webview-overlay = { workspace = true }

@@ -36,9 +36,11 @@ reqwest = { version = "0.13.4", default-features = false }
 rust-i18n = "4.2.1"
 futures-util = "0.3"
 eyeball-im = "0.8"
-matrix-sdk-crypto = { version = "0.18.0", default-features = false }
-matrix-sdk = { version = "0.18.0", default-features = false }
-matrix-sdk-ui = { version = "0.18.0", default-features = false }
+# matrix-sdk 0.18.0 can desynchronise EventCache's OrderTracker when it reloads
+# the final persisted chunk, which panics during timeline pagination.
+matrix-sdk-crypto = { git = "https://github.com/matrix-org/matrix-rust-sdk", rev = "1c74383", default-features = false }
+matrix-sdk = { git = "https://github.com/matrix-org/matrix-rust-sdk", rev = "1c74383", default-features = false }
+matrix-sdk-ui = { git = "https://github.com/matrix-org/matrix-rust-sdk", rev = "1c74383", default-features = false }
 keyring-core = "1.0.0"
 ndk-context = "0.1.1"
 rustls = "0.23.43"

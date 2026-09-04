@@ -150,7 +150,19 @@ impl AccountManager {
                 .restore_completed
                 .write()
                 .expect("account manager restore flag lock poisoned");
-            *restore_completed = !restore_state.retry_needed;
+            // A failed store restore must not cause every command to repeat
+            // homeserver discovery. A future explicit recovery attempt can
+            // retry it, while accounts restored in this pass remain usable.
+            *restore_completed = true;
+        }
+
+        if restore_state.retry_needed {
+            tracing::debug!(
+                target: "hyperion",
+                event_name = "account.restore_retry_pending",
+                component = "account.storage",
+                "One or more persisted account stores need a later recovery attempt"
+            );
         }
 
         Ok(())

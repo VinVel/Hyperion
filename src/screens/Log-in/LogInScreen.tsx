@@ -42,6 +42,7 @@ type FormValues = {
 type LogInScreenProps = {
   initialFeedback?: FeedbackMessage | null;
   initialHomeserver?: string;
+  initialUsername?: string;
   onAuthenticated?: (account: AccountSummary) => void;
   onBackToApp?: () => void;
   onOpenRegistration?: () => void;
@@ -70,6 +71,7 @@ function getErrorMessage(error: unknown): string {
 export default function LogInScreen({
   initialFeedback = null,
   initialHomeserver = "",
+  initialUsername = "",
   onAuthenticated,
   onBackToApp,
   onOpenRegistration,
@@ -77,6 +79,7 @@ export default function LogInScreen({
   const [formValues, setFormValues] = useState<FormValues>(() => ({
     ...defaultFormValues,
     homeserver: initialHomeserver,
+    username: initialUsername,
   }));
   const [feedback, setFeedback] = useState<FeedbackMessage | null>(
     initialFeedback,
@@ -105,6 +108,20 @@ export default function LogInScreen({
           : initialHomeserver,
     }));
   }, [initialHomeserver]);
+
+  useEffect(() => {
+    if (initialUsername.length === 0) {
+      return;
+    }
+
+    setFormValues((currentValues) => ({
+      ...currentValues,
+      username:
+        currentValues.username.trim().length > 0
+          ? currentValues.username
+          : initialUsername,
+    }));
+  }, [initialUsername]);
 
   const usernameMissing =
     validationRequested && formValues.username.trim().length === 0;

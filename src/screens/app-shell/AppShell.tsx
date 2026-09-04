@@ -13,7 +13,13 @@
  * Project home: hyperion.velcore.net
  */
 
-import { ScreenMain, ScreenShell, useFeedbackToast } from "../../components/ui";
+import {
+  Button,
+  ScreenMain,
+  ScreenShell,
+  Typography,
+  useFeedbackToast,
+} from "../../components/ui";
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect } from "react";
 import type { AccountSummary } from "./appShellAdapters";
@@ -35,6 +41,8 @@ type AppShellProps = {
   onAddAccount: () => void;
   onActiveAccountChange: (nextAccount: AccountSummary) => void;
   onSignedOut: (nextAccount: AccountSummary | null) => void;
+  isReadOnly?: boolean;
+  onReauthenticate?: () => void;
 };
 
 export default function AppShell({
@@ -42,6 +50,8 @@ export default function AppShell({
   onAddAccount,
   onActiveAccountChange,
   onSignedOut,
+  isReadOnly = false,
+  onReauthenticate,
 }: AppShellProps) {
   const shell = useAppShellState({
     activeAccount,
@@ -90,6 +100,17 @@ export default function AppShell({
         largeBlockPadding
         wide
       >
+        {isReadOnly ? (
+          <section role="alert" className="app-shell-read-only-notice">
+            <Typography variant="body">
+              This session needs to sign in again. Cached history remains
+              available; sync and message actions are disabled.
+            </Typography>
+            {onReauthenticate ? (
+              <Button onClick={onReauthenticate}>Sign in again</Button>
+            ) : null}
+          </section>
+        ) : null}
         <section
           className="app-shell-layout"
           aria-label="Authenticated application shell"

@@ -19,6 +19,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
 import {
   notifyFeedback,
+  Button,
   ScreenMain,
   ScreenShell,
   Typography,
@@ -29,9 +30,11 @@ import { LogInScreen } from "./screens/Log-in";
 import { RegistrationScreen } from "./screens/registration";
 
 type EntryScreen = "login" | "registration";
-type AppStage = "loading" | "unauthenticated" | "authenticated";
+type AppStage =
+  "loading" | "unauthenticated" | "authenticated" | "storage_recovery";
 type LoginLaunchState = {
   homeserver?: string;
+  username?: string;
   text: string;
   tone: "error" | "success" | "info";
 };
@@ -39,11 +42,18 @@ type LoginLaunchState = {
 const ACTIVE_ACCOUNT_CACHE_KEY = "hyperion.activeAccountSummary";
 const APP_BOOTSTRAP_FALLBACK_DELAY_MS = 1200;
 const SHELL_SESSION_DEAUTHORIZED_EVENT = "hyperion://session-deauthorized";
+const SHELL_SESSION_REAUTHENTICATION_REQUIRED_EVENT =
+  "hyperion://session-reauthentication-required";
 const SESSION_VERIFICATION_REQUEST_RECEIVED_EVENT =
   "hyperion://session-verification-request-received";
 
 type SessionDeauthorizedPayload = {
   account_key: string;
+};
+type SessionReauthenticationRequiredPayload = {
+  account_key: string;
+  state: "reauthentication_required";
+  reason: string;
 };
 
 type IncomingSessionVerification = {
@@ -118,6 +128,9 @@ function App() {
   const [verificationFeedback, setVerificationFeedback] =
     useState<Feedback | null>(null);
   useFeedbackToast(verificationFeedback);
+  const [readOnlyAccountKey, setReadOnlyAccountKey] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     persistCachedActiveAccount(activeAccount);
@@ -148,6 +161,22 @@ function App() {
       },
     );
 
+    return () => {
+      cancelled = true;
+      void unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const unlistenPromise = listen<SessionReauthenticationRequiredPayload>(
+      SHELL_SESSION_REAUTHENTICATION_REQUIRED_EVENT,
+      (event) => {
+        if (!cancelled) {
+          setReadOnlyAccountKey(event.payload.account_key);
+        }
+      },
+    );
     return () => {
       cancelled = true;
       void unlistenPromise.then((unlisten) => unlisten());
@@ -276,9 +305,17 @@ function App() {
         }
 
         setActiveAccount(null);
-      } catch {
-        // Native restore can fail while the device is offline. Keep the cached
-        // account mounted so cached rooms and messages remain available.
+      } catch (error) {
+        if (
+          typeof error === "string" &&
+          error.startsWith("secure_storage_unavailable:")
+        ) {
+          setActiveAccount(null);
+          setAppStage("storage_recovery");
+          return;
+        }
+        // Transport failures remain ordinary offline startup: a locally restored
+        // account may still expose its cached history.
         if (!cancelled && activeAccount) {
           setAppStage("authenticated");
           return;
@@ -308,6 +345,7 @@ function App() {
     setActiveAccount(nextAccount);
 
     if (nextAccount) {
+      setReadOnlyAccountKey(null);
       setAppStage("authenticated");
       return;
     }
@@ -315,6 +353,21 @@ function App() {
     setAppStage("unauthenticated");
     setActiveScreen("login");
     setLoginLaunchState(null);
+  }
+
+  async function retrySecureStorageRestore() {
+    setAppStage("loading");
+    try {
+      const account = await invoke<AccountSummary | null>("active_account");
+      if (account) {
+        setActiveAccount(account);
+        setAppStage("authenticated");
+        return;
+      }
+      setAppStage("unauthenticated");
+    } catch {
+      setAppStage("storage_recovery");
+    }
   }
 
   if (appStage === "loading") {
@@ -329,6 +382,28 @@ function App() {
     );
   }
 
+  if (appStage === "storage_recovery") {
+    return (
+      <ScreenShell>
+        <ScreenMain centered largeBlockPadding>
+          <Typography as="h1" variant="h1">
+            Secure storage is unavailable
+          </Typography>
+          <Typography variant="body">
+            Hyperion cannot unlock this device’s encrypted account data. Start
+            or unlock your desktop Secret Service, then try again.
+          </Typography>
+          <Button onClick={() => void retrySecureStorageRestore()}>
+            Try again
+          </Button>
+          <Button variant="ghost" onClick={openAccountEntryFlow}>
+            Return to sign in
+          </Button>
+        </ScreenMain>
+      </ScreenShell>
+    );
+  }
+
   if (appStage === "authenticated" && activeAccount) {
     return (
       <AppShell
@@ -336,6 +411,17 @@ function App() {
         onAddAccount={openAccountEntryFlow}
         onActiveAccountChange={setActiveAccount}
         onSignedOut={handleSessionStateChange}
+        isReadOnly={readOnlyAccountKey === activeAccount.account_key}
+        onReauthenticate={() => {
+          setAppStage("unauthenticated");
+          setActiveScreen("login");
+          setLoginLaunchState({
+            tone: "info",
+            homeserver: activeAccount.homeserver_url,
+            username: activeAccount.user_id,
+            text: "Please sign in again to resume syncing.",
+          });
+        }}
       />
     );
   }
@@ -356,8 +442,10 @@ function App() {
     <LogInScreen
       initialFeedback={loginLaunchState}
       initialHomeserver={loginLaunchState?.homeserver}
+      initialUsername={loginLaunchState?.username}
       onAuthenticated={(nextAccount) => {
         setActiveAccount(nextAccount);
+        setReadOnlyAccountKey(null);
         setAppStage("authenticated");
       }}
       onBackToApp={

@@ -13,8 +13,10 @@
  * Project home: hyperion.velcore.net
  */
 
+#[cfg(any(target_os = "android", target_os = "linux"))]
+use std::collections::HashMap;
 #[cfg(target_os = "android")]
-use std::{collections::HashMap, sync::mpsc};
+use std::sync::mpsc;
 use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     sync::{Arc, Mutex, OnceLock},
@@ -26,6 +28,11 @@ use tauri::{AppHandle, Runtime};
 // Matrix store encryption keys are grouped under this stable service name for
 // compatibility with existing desktop credentials.
 const SECRET_SERVICE_NAME: &str = "net.velcore.hyperion.matrix-store";
+
+// Secret Service displays this label in KWallet Manager and GNOME Keyring.
+// The lookup service stays stable so existing entries remain discoverable.
+#[cfg(target_os = "linux")]
+const LINUX_SECRET_LABEL: &str = "Hyperion";
 
 // Android uses a named keyring-core store so Hyperion credentials stay isolated
 // from any other Rust keyring users in the same application process.
@@ -145,7 +152,7 @@ fn platform_default_store() -> keyring_core::Result<Arc<keyring_core::Credential
 
 #[cfg(target_os = "linux")]
 fn platform_default_store() -> keyring_core::Result<Arc<keyring_core::CredentialStore>> {
-    let store = linux_keyutils_keyring_store::Store::new()?;
+    let store = zbus_secret_service_keyring_store::Store::new()?;
     Ok(store)
 }
 
@@ -159,34 +166,98 @@ fn platform_default_store() -> keyring_core::Result<Arc<keyring_core::Credential
 }
 
 pub fn get_secret<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<Option<Vec<u8>>, String> {
-    ensure_default_store(app)?;
-    let entry = keyring_core::Entry::new(SECRET_SERVICE_NAME, key)
-        .map_err(|error| format!("Failed to open secure storage entry: {error}"))?;
+    run_keyring_operation(|| get_secret_inner(app, key))
+}
+
+fn get_secret_inner<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<Option<Vec<u8>>, String> {
+    ensure_default_store(app).map_err(secure_storage_unavailable)?;
+    let entry = open_secret_entry(key)?;
 
     match entry.get_secret() {
         Ok(secret) => Ok(Some(secret)),
         Err(keyring_core::Error::NoEntry) => Ok(None),
-        Err(error) => Err(format!("Failed to read secure storage entry: {error}")),
+        Err(error) => Err(secure_storage_unavailable(format!(
+            "Failed to read secure storage entry: {error}"
+        ))),
     }
 }
 
 pub fn set_secret<R: Runtime>(app: &AppHandle<R>, key: &str, value: &[u8]) -> Result<(), String> {
-    ensure_default_store(app)?;
-    let entry = keyring_core::Entry::new(SECRET_SERVICE_NAME, key)
-        .map_err(|error| format!("Failed to open secure storage entry: {error}"))?;
+    run_keyring_operation(|| set_secret_inner(app, key, value))
+}
 
-    entry
-        .set_secret(value)
-        .map_err(|error| format!("Failed to write secure storage entry: {error}"))
+fn set_secret_inner<R: Runtime>(app: &AppHandle<R>, key: &str, value: &[u8]) -> Result<(), String> {
+    ensure_default_store(app).map_err(secure_storage_unavailable)?;
+    let entry = open_secret_entry(key)?;
+
+    entry.set_secret(value).map_err(|error| {
+        secure_storage_unavailable(format!("Failed to write secure storage entry: {error}"))
+    })
 }
 
 pub fn delete_secret<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<(), String> {
-    ensure_default_store(app)?;
-    let entry = keyring_core::Entry::new(SECRET_SERVICE_NAME, key)
-        .map_err(|error| format!("Failed to open secure storage entry: {error}"))?;
+    run_keyring_operation(|| delete_secret_inner(app, key))
+}
+
+fn delete_secret_inner<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<(), String> {
+    ensure_default_store(app).map_err(secure_storage_unavailable)?;
+    let entry = open_secret_entry(key)?;
 
     match entry.delete_credential() {
         Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
-        Err(error) => Err(format!("Failed to delete secure storage entry: {error}")),
+        Err(error) => Err(secure_storage_unavailable(format!(
+            "Failed to delete secure storage entry: {error}"
+        ))),
+    }
+}
+
+fn run_keyring_operation<T>(operation: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
+    // zbus-secret-service-keyring-store exposes the keyring-core synchronous API
+    // and internally creates a Tokio runtime for each Secret Service call. Exit
+    // Hyperion's worker runtime first so its blocking API cannot nest runtimes.
+    tokio::task::block_in_place(operation)
+}
+
+fn open_secret_entry(key: &str) -> Result<keyring_core::Entry, String> {
+    #[cfg(target_os = "linux")]
+    let entry_result = {
+        let modifiers = HashMap::from([("label", LINUX_SECRET_LABEL)]);
+        keyring_core::Entry::new_with_modifiers(SECRET_SERVICE_NAME, key, &modifiers)
+    };
+
+    #[cfg(not(target_os = "linux"))]
+    let entry_result = keyring_core::Entry::new(SECRET_SERVICE_NAME, key);
+
+    entry_result.map_err(|error| {
+        secure_storage_unavailable(format!("Failed to open secure storage entry: {error}"))
+    })
+}
+
+fn secure_storage_unavailable(detail: impl std::fmt::Display) -> String {
+    // The stable prefix is safe to expose over IPC; detailed provider errors stay
+    // in backend diagnostics rather than becoming UI-visible implementation data.
+    crate::utils::tracing::report_recoverable_error(
+        "account.secure_storage",
+        "access_secret_service",
+        "account.secure_storage_unavailable",
+        "storage",
+        &detail,
+    );
+    String::from("secure_storage_unavailable: encrypted account data cannot be unlocked")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::run_keyring_operation;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn keyring_operation_can_start_a_blocking_provider_runtime() {
+        let result = run_keyring_operation(|| {
+            let provider_runtime = tokio::runtime::Runtime::new()
+                .map_err(|error| format!("failed to build provider runtime: {error}"))?;
+            Ok::<u8, String>(provider_runtime.block_on(async { 7 }))
+        });
+
+        assert_eq!(result, Ok(7));
     }
 }

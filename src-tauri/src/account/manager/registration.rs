@@ -21,7 +21,7 @@ use matrix_sdk::{
 };
 use tauri::AppHandle;
 
-use super::AccountManager;
+use super::{AccountAuthorizationMode, AccountManager};
 use crate::{
     account::types::{
         HomeserverDirectory, HomeserverDirectoryEntry, RegisterAccountRequest, RegistrationFlow,
@@ -147,6 +147,7 @@ impl AccountManager {
             storage.store_dir,
             client,
         );
+        self.set_authorization_mode(&account.account_key, AccountAuthorizationMode::Online);
         self.persist_account_store_metadata().await?;
 
         Ok(RegistrationOutcome::Registered {
@@ -198,6 +199,7 @@ async fn perform_registration(
     registration_request.username = Some(request.username.clone());
     registration_request.password = Some(request.password.clone());
     registration_request.initial_device_display_name = request.device_display_name.clone();
+    registration_request.refresh_token = true;
 
     let matrix_auth = client.matrix_auth();
     matrix_auth.register(registration_request).await

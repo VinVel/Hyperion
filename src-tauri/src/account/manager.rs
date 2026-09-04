@@ -29,6 +29,13 @@ use super::types::{
     AccountClientSnapshot, AccountSummary, ActiveAccount, EncryptionPreferences, LoginRequest,
 };
 
+#[derive(Clone, Copy, Default, Eq, PartialEq)]
+pub enum AccountAuthorizationMode {
+    #[default]
+    Online,
+    ReauthenticationRequired,
+}
+
 mod registration;
 mod storage;
 
@@ -66,6 +73,7 @@ pub struct AccountManager {
     active_account_key: Arc<RwLock<Option<String>>>,
     restore_lock: Arc<AsyncMutex<()>>,
     restore_completed: Arc<RwLock<bool>>,
+    authorization_modes: Arc<RwLock<HashMap<String, AccountAuthorizationMode>>>,
 }
 
 impl AccountManager {
@@ -84,8 +92,16 @@ impl AccountManager {
         // its own encrypted sqlite database directory under the app data folder.
         let storage = self.account_storage(app, &request.homeserver_url, &request.username)?;
         let store_key = Self::load_or_create_store_key(app, &storage.store_id)?;
+        // A soft logout retains the encrypted store and its device identity.
+        // Reusing that device ID is required by the Matrix soft-logout flow.
+        let retained_device_id = self.device_id_for_store_dir(&storage.store_dir);
         let client = self
-            .login_client_with_recovery(&storage, &store_key, &request)
+            .login_client_with_recovery(
+                &storage,
+                &store_key,
+                &request,
+                retained_device_id.as_deref(),
+            )
             .await?;
         let matrix_auth = client.matrix_auth();
         let session = matrix_auth
@@ -101,6 +117,7 @@ impl AccountManager {
             storage.store_dir,
             client,
         );
+        self.set_authorization_mode(&account.account_key, AccountAuthorizationMode::Online);
         self.persist_account_store_metadata().await?;
 
         Ok(account)
@@ -331,6 +348,42 @@ impl AccountManager {
             .ok_or_else(|| String::from("No active account is available"))
     }
 
+    pub fn network_actions_allowed(&self, account_key: &str) -> bool {
+        self.authorization_modes
+            .read()
+            .expect("account authorization modes lock poisoned")
+            .get(account_key)
+            .copied()
+            .unwrap_or_default()
+            == AccountAuthorizationMode::Online
+    }
+
+    pub fn mark_reauthentication_required(&self, account_key: &str) {
+        self.set_authorization_mode(
+            account_key,
+            AccountAuthorizationMode::ReauthenticationRequired,
+        );
+    }
+
+    pub async fn persist_refreshed_session(
+        &self,
+        account: &AccountClientSnapshot,
+    ) -> Result<(), String> {
+        let session = account.client.matrix_auth().session().ok_or_else(|| {
+            String::from("session_refresh_persistence_failed: refreshed session is unavailable")
+        })?;
+        Self::persist_session(&account.client, &session)
+            .await
+            .map_err(|error| format!("session_refresh_persistence_failed: {error}"))
+    }
+
+    fn set_authorization_mode(&self, account_key: &str, mode: AccountAuthorizationMode) {
+        self.authorization_modes
+            .write()
+            .expect("account authorization modes lock poisoned")
+            .insert(account_key.to_owned(), mode);
+    }
+
     pub(crate) fn active_account_client_loaded(&self) -> Option<AccountClientSnapshot> {
         let active_account_key = self
             .active_account_key
@@ -420,17 +473,22 @@ impl AccountManager {
         storage: &AccountStorageLocation,
         store_key: &[u8; STORE_KEY_LENGTH],
         request: &LoginRequest,
+        retained_device_id: Option<&str>,
     ) -> Result<Client, String> {
         match Self::build_and_login_client(
             &storage.store_dir,
             &storage.cache_dir,
             store_key,
             request,
+            retained_device_id,
         )
         .await
         {
             Ok(client) => Ok(client),
-            Err(error_message) if Self::is_stale_crypto_store_error(&error_message) => {
+            Err(error_message)
+                if retained_device_id.is_none()
+                    && Self::is_stale_crypto_store_error(&error_message) =>
+            {
                 // If the server issued this account a new device ID, the old crypto
                 // store can no longer be reused. Reset just this account's local
                 // store and retry the login once with a clean database.
@@ -442,6 +500,7 @@ impl AccountManager {
                     &storage.cache_dir,
                     store_key,
                     request,
+                    None,
                 )
                 .await
                 .map_err(|retry_error| {
@@ -488,6 +547,18 @@ impl AccountManager {
         }
     }
 
+    fn device_id_for_store_dir(&self, store_dir: &Path) -> Option<String> {
+        let accounts = self
+            .accounts
+            .read()
+            .expect("account manager accounts lock poisoned");
+        accounts
+            .values()
+            .find(|account| account.store_dir == store_dir)
+            .and_then(|account| account.client.matrix_auth().session())
+            .map(|session| session.meta.device_id.to_string())
+    }
+
     fn active_account_snapshot(&self) -> Option<(AccountSummary, Client, PathBuf)> {
         let active_account_key = self
             .active_account_key
@@ -521,15 +592,20 @@ impl AccountManager {
         cache_dir: &Path,
         store_key: &[u8; STORE_KEY_LENGTH],
         request: &LoginRequest,
+        retained_device_id: Option<&str>,
     ) -> Result<Client, String> {
         let client =
             Self::build_client(&request.homeserver_url, store_dir, cache_dir, store_key).await?;
         let mut login_builder = client
             .matrix_auth()
-            .login_username(&request.username, &request.password);
+            .login_username(&request.username, &request.password)
+            .request_refresh_token();
 
         if let Some(device_name) = &request.device_display_name {
             login_builder = login_builder.initial_device_display_name(device_name);
+        }
+        if let Some(device_id) = retained_device_id {
+            login_builder = login_builder.device_id(device_id);
         }
 
         login_builder
@@ -571,6 +647,7 @@ impl AccountManager {
             .sqlite_store_with_config_and_cache_path(store_config, Some(cache_dir))
             .with_room_key_recipient_strategy(room_key_recipient_strategy)
             .with_enable_share_history_on_invite(preferences.share_encrypted_history_on_invite)
+            .handle_refresh_tokens()
             // Hyperion owns durable search indexing. Keeping the SDK's
             // experimental index in memory avoids path issues from raw room IDs
             // on Windows while the app-level index handles searchable metadata.

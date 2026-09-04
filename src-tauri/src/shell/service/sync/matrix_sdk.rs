@@ -46,6 +46,8 @@ pub const SHELL_TIMELINE_UPDATED_EVENT: &str = "hyperion://shell-timeline-update
 pub const SHELL_TYPING_UPDATED_EVENT: &str = "hyperion://shell-typing-updated";
 pub const SHELL_SYNC_STATUS_EVENT: &str = "hyperion://shell-sync-status";
 pub const SHELL_SESSION_DEAUTHORIZED_EVENT: &str = "hyperion://session-deauthorized";
+pub const SHELL_SESSION_REAUTHENTICATION_REQUIRED_EVENT: &str =
+    "hyperion://session-reauthentication-required";
 
 // The active account keeps a broad room-list observer alive so SyncService has
 // a visible range immediately after login instead of waiting for a UI command.
@@ -82,6 +84,13 @@ struct ShellTypingUpdatedPayload {
     room_id: String,
     users: Vec<String>,
     updated_at_unix_ms: u64,
+}
+
+#[derive(Clone, Serialize)]
+struct SessionReauthenticationRequiredPayload {
+    account_key: String,
+    state: &'static str,
+    reason: &'static str,
 }
 
 #[derive(Clone)]
@@ -204,8 +213,12 @@ impl ShellSyncManager {
             account.account_key.clone(),
             sync_service.clone(),
         );
-        let session_change_listener_handle =
-            Self::spawn_session_change_listener_task(app.clone(), account_manager, account.clone());
+        let session_change_listener_handle = Self::spawn_session_change_listener_task(
+            app.clone(),
+            account_manager,
+            account.clone(),
+            self.clone(),
+        );
 
         sync_service.start().await;
 
@@ -320,13 +333,22 @@ impl ShellSyncManager {
         app: tauri::AppHandle,
         account_manager: AccountManager,
         account: AccountClientSnapshot,
+        sync_manager: ShellSyncManager,
     ) -> JoinHandle<()> {
         tauri::async_runtime::spawn(async move {
             let mut session_changes = account.client.subscribe_to_session_changes();
 
             loop {
                 match session_changes.recv().await {
-                    Ok(SessionChange::UnknownToken(_soft_logout)) => {
+                    Ok(SessionChange::UnknownToken(unknown_token)) => {
+                        sync_manager
+                            .stop_account_from_session_listener(&account.account_key)
+                            .await;
+                        if unknown_token.soft_logout {
+                            account_manager.mark_reauthentication_required(&account.account_key);
+                            emit_session_reauthentication_required(&app, &account.account_key);
+                            break;
+                        }
                         if let Err(error) = account_manager
                             .deauthorize_account_store(&app, &account.store_dir)
                             .await
@@ -342,7 +364,19 @@ impl ShellSyncManager {
                         emit_session_deauthorized(&app, &account.account_key);
                         break;
                     }
-                    Ok(SessionChange::TokensRefreshed) => {}
+                    Ok(SessionChange::TokensRefreshed) => {
+                        if let Err(error) =
+                            account_manager.persist_refreshed_session(&account).await
+                        {
+                            crate::utils::tracing::report_recoverable_error(
+                                "shell.sync",
+                                "persist_refreshed_session",
+                                "account.session_refresh_persistence_failed",
+                                "storage",
+                                &error,
+                            );
+                        }
+                    }
                     Err(error) => {
                         crate::utils::tracing::report_background_error(
                             "shell.sync",
@@ -466,6 +500,29 @@ impl ShellSyncManager {
             .write()
             .expect("shell sync manager focused-rooms lock poisoned");
         focused_rooms.remove(account_key);
+    }
+
+    async fn stop_account_from_session_listener(&self, account_key: &str) {
+        let running_account = self
+            .running_accounts
+            .write()
+            .expect("shell sync manager running-accounts lock poisoned")
+            .remove(account_key);
+        let Some(running_account) = running_account else {
+            return;
+        };
+        running_account.sync_service.stop().await;
+        running_account.state_listener_handle.abort();
+        running_account.room_update_listener_handle.abort();
+        running_account.room_list_observer_handle.abort();
+        // This task owns `session_change_listener_handle`; never abort or await itself.
+        drop(running_account.state_listener_handle.await);
+        drop(running_account.room_update_listener_handle.await);
+        drop(running_account.room_list_observer_handle.await);
+        self.focused_rooms
+            .write()
+            .expect("shell sync manager focused-rooms lock poisoned")
+            .remove(account_key);
     }
 }
 
@@ -609,6 +666,23 @@ fn emit_session_deauthorized(app: &tauri::AppHandle, account_key: &str) {
             "emit_session_deauthorization",
             "shell.sync_event_emit_failed",
             "sync",
+            &error,
+        );
+    }
+}
+
+fn emit_session_reauthentication_required(app: &tauri::AppHandle, account_key: &str) {
+    let payload = SessionReauthenticationRequiredPayload {
+        account_key: account_key.to_owned(),
+        state: "reauthentication_required",
+        reason: "The server requires this session to sign in again.",
+    };
+    if let Err(error) = app.emit(SHELL_SESSION_REAUTHENTICATION_REQUIRED_EVENT, payload) {
+        crate::utils::tracing::report_recoverable_error(
+            "shell.sync",
+            "emit_reauthentication_required",
+            "shell.event_emit_failed",
+            "event",
             &error,
         );
     }

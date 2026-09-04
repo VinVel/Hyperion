@@ -92,6 +92,13 @@ impl ShellManager {
         };
         let account = active_account.into_snapshot();
 
+        if !account_manager.network_actions_allowed(&account.account_key) {
+            self.stop_account(&account.account_key).await;
+            return Err(String::from(
+                "reauthentication_required: cached data is available, but network actions are disabled",
+            ));
+        }
+
         self.sync_coordinator
             .ensure_account_running(app, account_manager, account)
             .await

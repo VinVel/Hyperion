@@ -1188,3 +1188,9 @@
     flex-direction: column;
   }
 }
+.app-shell-read-only-notice {
+  display: flex;
+  gap: var(--spacing-medium, 12px);
+  align-items: center;
+  padding: var(--spacing-medium, 12px);
+}

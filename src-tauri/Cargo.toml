@@ -42,6 +42,7 @@ rusqlite = { workspace = true, features = ["bundled"] }
 reqwest = { workspace = true, features = ["json"] }
 rust-i18n = { workspace = true }
 futures-util = { workspace = true }
+tokio = { workspace = true }
 eyeball-im = { workspace = true }
 matrix-sdk-crypto = { workspace = true }
 keyring-core = { workspace = true }
@@ -86,5 +87,5 @@ apple-native-keyring-store = { workspace = true, features = ["keychain"] }
 tracing-oslog = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-linux-keyutils-keyring-store = { workspace = true }
+zbus-secret-service-keyring-store = { workspace = true , features = ["rt-tokio-crypto-openssl"]}
 tracing-journald = { workspace = true }

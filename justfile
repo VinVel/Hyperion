@@ -46,6 +46,10 @@ build-desktop-debug:
 build-android-debug:
     pnpm tauri android build --verbose --debug --apk --split-per-abi --target aarch64
 
+storybook:
+    pnpm build-storybook
+    pnpm storybook
+
 # Composite Tasks
 test: test-rust test-typescript
 check: check-rust check-typescript

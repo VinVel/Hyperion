@@ -142,6 +142,7 @@ When choosing where new behavior belongs:
 - For Rust modules with reusable error types, repeated error mapping, domain-specific error constructors, or meaningful conversions, extract that error handling into a nearby `errors.rs` module.
 - Do not create `errors.rs` only for one-off `map_err` messages or tiny private helpers. Keep trivial local error handling near the code it explains.
 - Prefer named error helpers over repeated string formatting when the same failure mode appears in multiple places.
+- For Rust errors that never reach the frontend, use the shared tracing wrapper in `src-tauri/src/utils/tracing.rs` rather than calling the `tracing` crate directly. Errors deliberately returned to the frontend may use normal error handling at that boundary.
 - Keep `if` / `else` branching shallow without eliminating it entirely. Prefer not to exceed 3 nested conditional layers.
 - In Rust, prefer simple guard clauses, early returns, small `if` checks, helper functions, or named intermediate booleans when nested branches would get deeper.
 - Use Rust `match` when it makes enum, state, or small shape-based branching clearer. Do not replace readable `if` checks with large pattern matches across many variables; long match arms over 6 or more inputs are usually harder to scan than several simple checks.
@@ -188,24 +189,25 @@ Dependency defaults:
 - Avoid adding dependencies that substantially overlap with tools already present in the repo.
 - When adding a dependency, keep the choice narrow and explain why existing options were insufficient.
 - Explain why existing platform APIs, current dependencies, or a small local utility are insufficient before introducing a new package or crate.
+- Add npm dependencies with `pnpm add <package> --filter <workspace-package> --save-catalog`.
+- Add Cargo dependencies by first writing the dependency in the root `Cargo.toml` with `default-features = false`, then adding it to the appropriate workspace member with `cargo add <package> -p <workspace-package>`.
 
 ## Verification Expectations
 
 Cross-layer verification is the default after meaningful code changes. Even when a change looks isolated, prefer checking both frontend and backend impact where reasonable.
 
-Standard verification commands:
+Required verification commands:
 
-- `just check`
 - `just test`
+- `just check`
 - `just fmt`
-- `just build-debug`
 - `cargo clippy --fix ...` when Clippy suggests a concrete automatic fix command instead of manual fixing.
 - relevant `pnpm tauri ...` commands when platform or integration behavior is affected
-- `pnpm build-storybook` when Storybook configuration, stories, or shared UI presentation changes.
+- `just storybook` when Storybook configuration, stories, or shared UI presentation changes.
 
 Verification rules:
 
-- Run the relevant checks you can run in the current environment.
+- Run the relevant checks you can run in the current environment, prefer the `just *` commands over others.
 - Prefer reporting both what passed and what was not run.
 - When `cargo clippy` reports warnings, fix the underlying issue instead of suppressing it by default. Treat suppression as a last resort that must be justified in code.
 - If Clippy suggests a concrete automatic fix command such as `cargo clippy --fix ...`, prefer running that command before manually patching the issue, then inspect the resulting diff for correctness.
@@ -227,6 +229,7 @@ Verification rules:
 Testing expectations:
 
 - Prefer adding or updating tests alongside meaningful behavior changes instead of relying only on manual verification.
+- Write tests first, verify that they fail for the missing behavior, and only then write the accompanying implementation.
 - Rust unit tests should stay close to the code they exercise, usually in the same `.rs` file under an inline `#[cfg(test)] mod tests { ... }` module. A separate test-only source file under `src-tauri/src/` is acceptable only when keeping the tests inline would make the production module unreasonably large or hard to scan.
 - Rust integration tests should live under `src-tauri/tests/`. Add integration coverage when a change affects user-facing command behavior, persistence flows, cross-module service behavior, or any path where multiple backend modules must work together correctly.
 - Do not turn private implementation details public only to make an integration test possible. If the behavior is still internal and narrow, keep it as a unit test. If the behavior is observable through a public API, command-facing facade, or stable service boundary, prefer an integration test in addition to focused unit tests.

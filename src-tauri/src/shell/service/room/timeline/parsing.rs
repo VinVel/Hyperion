@@ -99,7 +99,7 @@ fn parse_matrix_html(source: &str) -> Option<Vec<RoomTimelineRichTextNode>> {
 
         append_text(&mut roots, &mut stack, &suppressed, &source[index..start]);
 
-        let end = source[start..].find('>')? + start;
+        let end = find_tag_end(source, start)?;
 
         index = end + 1;
 
@@ -196,18 +196,34 @@ fn parse_tag(raw: &str) -> Option<(bool, bool, String, HashMap<String, String>)>
     while !rest.is_empty() {
         let equals = rest.find('=')?;
         let key = rest[..equals].trim().to_ascii_lowercase();
-        let quote = rest[equals + 1..].trim_start().chars().next()?;
+        let value = rest[equals + 1..].trim_start();
+        let quote = value.chars().next()?;
 
         if !matches!(quote, '\'' | '"') {
             return None;
         }
 
-        let value_end = rest[1..].find(quote)? + 1;
+        let value_end = value[1..].find(quote)? + 1;
 
-        attributes.insert(key, decode_entities(&rest[1..value_end]));
-        rest = rest[value_end + 1..].trim_start();
+        attributes.insert(key, decode_entities(&value[1..value_end]));
+        rest = value[value_end + 1..].trim_start();
     }
     Some((closing, self_closing, name, attributes))
+}
+
+fn find_tag_end(source: &str, start: usize) -> Option<usize> {
+    let mut quote = None;
+
+    for (offset, character) in source[start + 1..].char_indices() {
+        match (quote, character) {
+            (Some(active_quote), character) if character == active_quote => quote = None,
+            (None, '\'' | '"') => quote = Some(character),
+            (None, '>') => return Some(start + offset + 1),
+            _ => {}
+        }
+    }
+
+    None
 }
 
 fn sanitize_attributes(
@@ -391,7 +407,7 @@ fn decode_entities(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::project_timeline_rich_text;
+    use super::{RoomTimelineRichTextNode, project_timeline_rich_text};
 
     #[test]
     fn projects_matrix_html_into_safe_typed_nodes() {
@@ -404,6 +420,30 @@ mod tests {
             .len(),
             1
         );
+    }
+
+    #[test]
+    fn preserves_formatted_links_with_quoted_attributes() {
+        let nodes = project_timeline_rich_text(
+            "Matrix",
+            Some("<a href=\"https://matrix.org/?value=a>b\">Matrix</a>"),
+            Some("org.matrix.custom.html"),
+        );
+
+        assert_eq!(nodes.len(), 1);
+        let RoomTimelineRichTextNode::Element {
+            attributes,
+            children,
+            ..
+        } = &nodes[0]
+        else {
+            panic!("expected a link element");
+        };
+        assert_eq!(
+            attributes.href.as_deref(),
+            Some("https://matrix.org/?value=a>b")
+        );
+        assert_eq!(children.len(), 1);
     }
 
     #[test]

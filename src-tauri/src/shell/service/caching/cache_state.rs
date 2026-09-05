@@ -101,30 +101,6 @@ impl ShellCacheState {
         served_accounts.clear();
     }
 
-    pub(in crate::shell::service) fn room_timeline_cache_was_served(
-        &self,
-        account_key: &str,
-        room_id: &str,
-    ) -> bool {
-        let served_keys = self
-            .room_timeline_cache_served_keys
-            .read()
-            .expect("shell manager timeline-cache-served lock poisoned");
-        served_keys.contains(&Self::room_cache_key(account_key, room_id))
-    }
-
-    pub(in crate::shell::service) fn mark_room_timeline_cache_served(
-        &self,
-        account_key: &str,
-        room_id: &str,
-    ) {
-        let mut served_keys = self
-            .room_timeline_cache_served_keys
-            .write()
-            .expect("shell manager timeline-cache-served lock poisoned");
-        served_keys.insert(Self::room_cache_key(account_key, room_id));
-    }
-
     pub(in crate::shell::service) fn clear_served_room_timeline_caches(&self, account_key: &str) {
         let account_prefix = format!("{account_key}::");
         let mut served_keys = self
@@ -251,9 +227,5 @@ impl ShellCacheState {
             page_limit,
             returned_item_count,
         );
-    }
-
-    fn room_cache_key(account_key: &str, room_id: &str) -> String {
-        format!("{account_key}::{room_id}")
     }
 }

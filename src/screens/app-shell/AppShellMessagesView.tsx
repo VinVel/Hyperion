@@ -29,15 +29,12 @@ import {
   type RoomThreadSummary,
 } from "../conversations";
 import { type RoomSummary, type RoomTimeline } from "./appShellAdapters";
-import { type PaginationState } from "./pagination";
 import { RoomTimelineView } from "./timeline";
 
 type AppShellMessagesViewProps = {
   activeComposerMode: "message" | "edit" | "reply";
-  accountKey: string;
   composerValue: string;
   isLoadingOlderMessages: boolean;
-  paginationState: PaginationState;
   isSendingMessage: boolean;
   isSortMenuOpen: boolean;
   selectedRoomSummary: RoomSummary | null;
@@ -64,10 +61,8 @@ type AppShellMessagesViewProps = {
 
 export default function AppShellMessagesView({
   activeComposerMode,
-  accountKey,
   composerValue,
   isLoadingOlderMessages,
-  paginationState,
   isSendingMessage,
   isSortMenuOpen,
   selectedRoomSummary,
@@ -157,9 +152,7 @@ export default function AppShellMessagesView({
             </header>
 
             <RoomTimelineView
-              accountKey={accountKey}
               isLoadingOlderMessages={isLoadingOlderMessages}
-              paginationState={paginationState}
               timeline={selectedTimeline}
               onBeginEditMessage={onBeginEditMessage}
               onBeginReplyToMessage={onBeginReplyToMessage}

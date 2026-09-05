@@ -44,27 +44,38 @@
   overscroll-behavior: contain;
 }
 
+.room-timeline-pagination-loader {
+  position: absolute;
+  z-index: 1;
+  top: var(--spacing-gap-small);
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: var(--sizing-icon-button-size);
+  height: var(--sizing-icon-button-size);
+  color: var(--primary);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.room-timeline-pagination-loader svg {
+  width: var(--sizing-icon-medium);
+  height: var(--sizing-icon-medium);
+  animation: room-timeline-pagination-loader-spin 800ms linear infinite;
+}
+
+@keyframes room-timeline-pagination-loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .room-timeline-empty {
   display: grid;
   gap: var(--spacing-gap-small);
   align-content: center;
   padding: var(--spacing-panel-padding);
   color: var(--on-surface-variant);
-}
-
-.room-timeline-controls {
-  display: flex;
-  justify-content: center;
-  padding: var(--spacing-gap-medium) 0 var(--spacing-gap-large);
-}
-
-.room-timeline-controls .ui-button[aria-disabled="true"] {
-  cursor: progress;
-  background: color-mix(
-    in srgb,
-    var(--surface-container-low) 82%,
-    var(--surface-container-highest)
-  );
 }
 
 .room-timeline-row {
@@ -100,6 +111,25 @@
 .room-timeline-row--tombstone .room-timeline-body {
   color: var(--on-surface-variant);
   font-style: italic;
+}
+
+.room-timeline-scroll-seek-placeholder {
+  min-height: calc(
+    var(--sizing-room-list-avatar-size) + (var(--spacing-gap-medium) * 2)
+  );
+  margin-inline: var(--spacing-gap-medium);
+  border-radius: var(--shape-radius-small);
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent var(--spacing-gap-small),
+    color-mix(in srgb, var(--on-surface) 48%, transparent)
+      var(--spacing-gap-small),
+    color-mix(in srgb, var(--on-surface) 48%, transparent)
+      calc(var(--spacing-gap-small) + 0.125rem),
+    transparent calc(var(--spacing-gap-small) + 0.125rem),
+    transparent calc(var(--spacing-gap-medium) + 0.125rem)
+  );
 }
 
 .timeline-info-surface {
@@ -408,6 +438,17 @@
 
 .room-timeline-body > :last-child {
   margin-block-end: 0;
+}
+
+/* ResizeObserver does not include margins, so rows must use padding for spacing. */
+.room-timeline-body :is(p, h1, h2, h3, h4, h5, h6, ul, ol, blockquote, pre) {
+  margin: 0;
+}
+
+.room-timeline-body
+  :is(p, h1, h2, h3, h4, h5, h6, ul, ol, blockquote, pre)
+  + :is(p, h1, h2, h3, h4, h5, h6, ul, ol, blockquote, pre) {
+  padding-block-start: var(--spacing-gap-small);
 }
 
 .room-timeline-body pre {

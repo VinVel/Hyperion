@@ -34,7 +34,7 @@ use tauri::{Emitter, async_runtime::JoinHandle};
 use crate::{
     account::{AccountClientSnapshot, AccountManager},
     settings::sessions::register_session_verification_event_handler,
-    shell::types::RoomTimelineItem,
+    shell::types::{RoomTimeline, RoomTimelineIdentity, RoomTimelineItem},
     utils::time::now_unix_ms,
 };
 
@@ -71,6 +71,9 @@ struct ShellSyncStatusPayload {
 
 #[derive(Clone, Serialize)]
 struct ShellTimelineUpdatedPayload {
+    timeline_identity: RoomTimelineIdentity,
+    revision: u64,
+    focused_event_id: Option<String>,
     account_key: String,
     room_id: String,
     items: Vec<RoomTimelineItem>,
@@ -713,16 +716,16 @@ pub(in crate::shell) fn emit_shell_room_updated(
 
 pub(in crate::shell) fn emit_shell_timeline_updated(
     app: &tauri::AppHandle,
-    account_key: &str,
-    room_id: &str,
-    items: Vec<RoomTimelineItem>,
-    redacted_event_ids: Vec<String>,
+    snapshot: RoomTimeline,
 ) {
     let payload = ShellTimelineUpdatedPayload {
-        account_key: account_key.to_owned(),
-        room_id: room_id.to_owned(),
-        items,
-        redacted_event_ids,
+        account_key: snapshot.timeline_identity.account_key.clone(),
+        timeline_identity: snapshot.timeline_identity,
+        revision: snapshot.revision,
+        focused_event_id: snapshot.focused_event_id,
+        room_id: snapshot.room_id,
+        items: snapshot.items,
+        redacted_event_ids: snapshot.redacted_event_ids,
         updated_at_unix_ms: now_unix_ms(),
     };
 
@@ -941,7 +944,7 @@ mod tests {
 
     #[test]
     fn classifies_transport_error_as_offline() {
-        // Unit tests bypass run(), which installs the provider required by the SDK.
+        // Unit tests do not run app startup, which normally installs this provider.
         let _already_configured = rustls::crypto::aws_lc_rs::default_provider().install_default();
         let listener = TcpListener::bind("127.0.0.1:0").expect("test listener should bind");
         let address = listener

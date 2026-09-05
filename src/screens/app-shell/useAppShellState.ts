@@ -48,9 +48,9 @@ import { outboundMessageContentFromMarkdown } from "./outboundMarkdown";
 import {
   durableRoomTimeline,
   emptyRoomTimeline,
-  mergeOlderTimelineItemsWithCounts,
   mergeTimelineRefresh,
   normalizeRoomTimeline,
+  prependTimelinePage,
   roomTimelineFromUpdatePayload,
   timelineAnchorForRoom,
 } from "./timeline/helpers";
@@ -58,7 +58,10 @@ import { logPaginationDiagnostic } from "./paginationDiagnostics";
 import {
   createPaginationRequestId,
   idlePaginationState,
+  paginationBackoffDelayMilliseconds,
+  paginationCanAutomaticallyContinue,
   paginationContextForTimeline,
+  paginationErrorIsRateLimited,
   paginationIsLoading,
   paginationStateKey,
   type PaginationContext,
@@ -322,6 +325,14 @@ export default function useAppShellState({
   const activeAccountKeyRef = useRef(activeAccount.account_key);
   const sendMessageInFlightRef = useRef(false);
   const paginationStatesByKeyRef = useRef<Record<string, PaginationState>>({});
+  const loadOlderMessagesRef = useRef<(() => Promise<void>) | null>(null);
+  const paginationRetryCountsRef = useRef<Record<string, number>>({});
+  const paginationRetryTimeoutsRef = useRef<Record<string, number>>({});
+  // A pagination response must be the only timeline model update while
+  // Virtuoso applies its prepend index shift. SDK refreshes are retained and
+  // merged immediately after that atomic presentation update.
+  const paginationPresentationRoomIdRef = useRef<string | null>(null);
+  const deferredTimelineRefreshRef = useRef<SelectedRoomSnapshot | null>(null);
   const composerDraftsByRoomIdRef = useRef<Record<string, RoomComposerDraft>>(
     {},
   );
@@ -503,6 +514,11 @@ export default function useAppShellState({
     updateComposerDrafts(() => ({}));
     setTypingUsersByRoomId({});
     paginationStatesByKeyRef.current = {};
+    paginationRetryCountsRef.current = {};
+    for (const timeoutId of Object.values(paginationRetryTimeoutsRef.current)) {
+      window.clearTimeout(timeoutId);
+    }
+    paginationRetryTimeoutsRef.current = {};
     setPaginationStatesByKey({});
   }, [activeAccount.account_key, updateComposerDrafts]);
 
@@ -616,6 +632,10 @@ export default function useAppShellState({
       }
 
       setSelectedRoomSummary(roomSnapshot.summary);
+      if (paginationPresentationRoomIdRef.current === roomId) {
+        deferredTimelineRefreshRef.current = roomSnapshot;
+        return;
+      }
       setSelectedTimeline((currentTimeline) => {
         const mergedTimeline = mergeTimelineRefresh(
           currentTimeline,
@@ -646,6 +666,24 @@ export default function useAppShellState({
       }
 
       const refreshedTimeline = roomTimelineFromUpdatePayload(payload);
+      if (paginationPresentationRoomIdRef.current === payload.room_id) {
+        const matchingThread = roomThreads.find(
+          (thread) => thread.id === payload.room_id,
+        );
+        const summary =
+          selectedRoomSummary?.id === payload.room_id
+            ? selectedRoomSummary
+            : matchingThread
+              ? fallbackRoomSummaryFromThread(matchingThread)
+              : null;
+        if (summary) {
+          deferredTimelineRefreshRef.current = {
+            summary,
+            timeline: refreshedTimeline,
+          };
+          return;
+        }
+      }
       setSelectedTimeline((currentTimeline) => {
         const mergedTimeline = mergeTimelineRefresh(
           currentTimeline,
@@ -1242,14 +1280,17 @@ export default function useAppShellState({
     const stateKey = paginationStateKey(paginationContext);
     const currentPaginationState =
       paginationStatesByKeyRef.current[stateKey] ?? idlePaginationState;
-    if (currentPaginationState.status === "loading") {
+    if (paginationIsLoading(currentPaginationState)) {
       logPaginationDiagnostic("pagination.ui.click_ignored", {
         accountKey: paginationContext.accountKey,
         roomId: paginationContext.roomId,
         timelineContext: paginationContext.timelineContext,
         currentStatus: currentPaginationState.status,
         loading: true,
-        requestId: currentPaginationState.requestId,
+        requestId:
+          currentPaginationState.status === "loading"
+            ? currentPaginationState.requestId
+            : undefined,
         reason: "loading",
       });
       return;
@@ -1261,6 +1302,7 @@ export default function useAppShellState({
       requestId,
       startedAt: Date.now(),
     });
+    paginationPresentationRoomIdRef.current = paginationContext.roomId;
 
     let timeoutDidFire = false;
     const timeoutId = window.setTimeout(() => {
@@ -1324,7 +1366,7 @@ export default function useAppShellState({
           receivedItemCount: 0,
           reason: paginationResponse.reason,
         });
-        if (paginationResponse.nextBefore) {
+        if (paginationResponse.tokenChanged) {
           setSelectedTimeline((currentTimeline) => {
             if (
               !currentTimeline ||
@@ -1366,7 +1408,37 @@ export default function useAppShellState({
             return cursorAdvancedTimeline;
           });
         }
-        updatePaginationState(paginationContext, idlePaginationState);
+        const retryCount = paginationRetryCountsRef.current[stateKey] ?? 0;
+        const cursorAdvanceCount = retryCount + 1;
+        if (
+          paginationCanAutomaticallyContinue(
+            paginationResponse,
+            cursorAdvanceCount,
+          )
+        ) {
+          const retryDelayMilliseconds =
+            paginationBackoffDelayMilliseconds(retryCount);
+          paginationRetryCountsRef.current[stateKey] = cursorAdvanceCount;
+          updatePaginationState(paginationContext, {
+            status: "cooldown",
+            retryAt: Date.now() + retryDelayMilliseconds,
+            retryCount,
+          });
+          paginationRetryTimeoutsRef.current[stateKey] = window.setTimeout(
+            () => {
+              delete paginationRetryTimeoutsRef.current[stateKey];
+              if (selectedThreadIdRef.current !== paginationContext.roomId) {
+                return;
+              }
+              updatePaginationState(paginationContext, idlePaginationState);
+              void loadOlderMessagesRef.current?.();
+            },
+            retryDelayMilliseconds,
+          );
+        } else {
+          paginationRetryCountsRef.current[stateKey] = 0;
+          updatePaginationState(paginationContext, idlePaginationState);
+        }
         return;
       }
 
@@ -1416,30 +1488,24 @@ export default function useAppShellState({
           return replacementTimeline;
         }
 
-        const mergeResult = mergeOlderTimelineItemsWithCounts(
-          currentTimeline.items,
+        const prependResult = prependTimelinePage(
+          currentTimeline,
           paginationResponse.items,
+          paginationResponse.nextBefore,
+          paginationResponse.tokenChanged,
         );
-        if (mergeResult.insertedCount === 0) {
+        if (prependResult.insertedCount === 0) {
           logPaginationDiagnostic("pagination.ui.duplicate_only", {
             accountKey: paginationContext.accountKey,
             roomId: paginationContext.roomId,
             timelineContext: paginationContext.timelineContext,
             requestId,
             receivedItemCount: paginationResponse.items.length,
-            duplicateCount: mergeResult.duplicateCount,
+            duplicateCount: prependResult.duplicateCount,
           });
         }
 
-        const nextBefore =
-          mergeResult.insertedCount > 0 && paginationResponse.nextBefore
-            ? paginationResponse.nextBefore
-            : currentTimeline.nextBefore;
-        const mergedTimeline = {
-          ...currentTimeline,
-          items: mergeResult.items,
-          nextBefore,
-        };
+        const mergedTimeline = prependResult.timeline;
         const roomSnapshot = {
           summary: selectedRoomSummaryForSelectedThread ?? {
             id: mergedTimeline.roomId,
@@ -1462,12 +1528,43 @@ export default function useAppShellState({
           timelineContext: paginationContext.timelineContext,
           requestId,
           receivedItemCount: paginationResponse.items.length,
-          mergedItemCount: mergeResult.insertedCount,
-          duplicateCount: mergeResult.duplicateCount,
+          mergedItemCount: prependResult.insertedCount,
+          duplicateCount: prependResult.duplicateCount,
         });
         return mergedTimeline;
       });
-      updatePaginationState(paginationContext, idlePaginationState);
+      const retryCount = paginationRetryCountsRef.current[stateKey] ?? 0;
+      const cursorAdvanceCount = retryCount + 1;
+      if (
+        paginationCanAutomaticallyContinue(
+          paginationResponse,
+          cursorAdvanceCount,
+        )
+      ) {
+        const retryDelayMilliseconds =
+          paginationBackoffDelayMilliseconds(retryCount);
+        paginationRetryCountsRef.current[stateKey] = cursorAdvanceCount;
+        updatePaginationState(paginationContext, {
+          status: "cooldown",
+          retryAt: Date.now() + retryDelayMilliseconds,
+          retryCount,
+        });
+        const priorTimeoutId = paginationRetryTimeoutsRef.current[stateKey];
+        if (priorTimeoutId !== undefined) {
+          window.clearTimeout(priorTimeoutId);
+        }
+        paginationRetryTimeoutsRef.current[stateKey] = window.setTimeout(() => {
+          delete paginationRetryTimeoutsRef.current[stateKey];
+          if (selectedThreadIdRef.current !== paginationContext.roomId) {
+            return;
+          }
+          updatePaginationState(paginationContext, idlePaginationState);
+          void loadOlderMessagesRef.current?.();
+        }, retryDelayMilliseconds);
+      } else {
+        paginationRetryCountsRef.current[stateKey] = 0;
+        updatePaginationState(paginationContext, idlePaginationState);
+      }
     } catch (error) {
       window.clearTimeout(timeoutId);
       const message = error instanceof Error ? error.message : String(error);
@@ -1483,8 +1580,39 @@ export default function useAppShellState({
       updatePaginationState(paginationContext, { status: "error", message });
       setGenericErrorFeedback(
         setFeedbackMessage,
-        "Could not load older messages.",
+        paginationErrorIsRateLimited(error)
+          ? "Older messages are temporarily rate limited. Please wait and try again."
+          : "Could not load older messages.",
       );
+    } finally {
+      const paginationPresentationIsCurrent =
+        paginationPresentationRoomIdRef.current === paginationContext.roomId;
+      if (paginationPresentationIsCurrent) {
+        paginationPresentationRoomIdRef.current = null;
+        const deferredRefresh = deferredTimelineRefreshRef.current;
+        deferredTimelineRefreshRef.current = null;
+        const deferredRefreshStillApplies =
+          deferredRefresh &&
+          selectedThreadIdRef.current === paginationContext.roomId;
+        if (deferredRefreshStillApplies) {
+          setSelectedRoomSummary(deferredRefresh.summary);
+          setSelectedTimeline((currentTimeline) => {
+            const mergedTimeline = mergeTimelineRefresh(
+              currentTimeline,
+              deferredRefresh.timeline,
+            );
+            const roomSnapshot = {
+              summary: deferredRefresh.summary,
+              timeline: mergedTimeline,
+            };
+            setRoomSnapshotsByRoomId((currentSnapshots) =>
+              rememberRoomSnapshot(currentSnapshots, roomSnapshot),
+            );
+            writeCachedRoomSnapshot(activeAccount.account_key, roomSnapshot);
+            return mergedTimeline;
+          });
+        }
+      }
     }
   }, [
     activeAccount.account_key,
@@ -1494,6 +1622,8 @@ export default function useAppShellState({
     selectedTimeline,
     updatePaginationState,
   ]);
+
+  loadOlderMessagesRef.current = loadOlderMessages;
 
   const openMessagesView = useCallback(() => {
     setActiveView("messages");

@@ -19,18 +19,19 @@ import {
   useRef,
   type ForwardedRef,
   type HTMLAttributes,
-  type PointerEvent as ReactPointerEvent,
   type RefObject,
-  type TouchEvent as ReactTouchEvent,
-  type WheelEvent as ReactWheelEvent,
 } from "react";
 import { classNames } from "../../../components/ui/classNames";
 import { useScrollAreaOverlay } from "../../../components/ui";
 
 export type TimelineScrollerContext = {
-  onScrollInteractionStart: () => void;
-  onScrollInteractionEnd: () => void;
+  onTopScrollIntent: () => void;
 };
+
+// WebKitGTK loses consistent scroll velocity with extreme free-spin mouse input.
+// Keep normal wheel events native and cap only the outlier velocity path.
+const timelineMaximumWheelVelocityPixelsPerSecond = 15_000;
+const estimatedWheelLineHeightPixels = 16;
 
 type TimelineScrollerProps = HTMLAttributes<HTMLDivElement> & {
   context?: TimelineScrollerContext;
@@ -44,18 +45,50 @@ const TimelineScroller = forwardRef<HTMLDivElement, TimelineScrollerProps>(
   ) {
     const rootRef = useRef<HTMLDivElement | null>(null);
     const scrollerRef = useRef<HTMLDivElement | null>(null);
-    const scrollInteractionEndTimeoutRef = useRef<number | null>(null);
     useScrollAreaOverlay({
       rootRef,
       viewportRef: scrollerRef,
     });
+    const topScrollIntentRef = useRef(context?.onTopScrollIntent);
+    const previousWheelTimestampRef = useRef<number | null>(null);
+    topScrollIntentRef.current = context?.onTopScrollIntent;
 
     useEffect(() => {
-      return () => {
-        if (scrollInteractionEndTimeoutRef.current !== null) {
-          window.clearTimeout(scrollInteractionEndTimeoutRef.current);
+      const scrollerElement = scrollerRef.current;
+      if (!scrollerElement) {
+        return;
+      }
+      const activeScroller: HTMLDivElement = scrollerElement;
+
+      function handleWheel(event: WheelEvent) {
+        const deltaY = wheelDeltaPixels(event, activeScroller);
+        if (deltaY < 0 && activeScroller.scrollTop <= 0) {
+          topScrollIntentRef.current?.();
         }
-      };
+
+        const previousTimestamp = previousWheelTimestampRef.current;
+        previousWheelTimestampRef.current = event.timeStamp;
+        if (previousTimestamp === null) {
+          return;
+        }
+
+        const elapsedMilliseconds = Math.max(
+          1,
+          event.timeStamp - previousTimestamp,
+        );
+        const maximumDelta =
+          (timelineMaximumWheelVelocityPixelsPerSecond * elapsedMilliseconds) /
+          1_000;
+        if (Math.abs(deltaY) <= maximumDelta) {
+          return;
+        }
+
+        event.preventDefault();
+        activeScroller.scrollTop += Math.sign(deltaY) * maximumDelta;
+      }
+
+      activeScroller.addEventListener("wheel", handleWheel, { passive: false });
+      return () => activeScroller.removeEventListener("wheel", handleWheel);
     }, []);
 
     return (
@@ -72,44 +105,6 @@ const TimelineScroller = forwardRef<HTMLDivElement, TimelineScrollerProps>(
             className,
           )}
           data-overlayscrollbars-contents=""
-          onPointerCancel={(event) => {
-            props.onPointerCancel?.(event);
-            clearScheduledScrollInteractionEnd(scrollInteractionEndTimeoutRef);
-            handleScrollInteractionEnd(event, context);
-          }}
-          onPointerDownCapture={(event) => {
-            props.onPointerDownCapture?.(event);
-            clearScheduledScrollInteractionEnd(scrollInteractionEndTimeoutRef);
-            handleScrollInteractionStart(event, context);
-          }}
-          onPointerUp={(event) => {
-            props.onPointerUp?.(event);
-            clearScheduledScrollInteractionEnd(scrollInteractionEndTimeoutRef);
-            handleScrollInteractionEnd(event, context);
-          }}
-          onTouchCancel={(event) => {
-            props.onTouchCancel?.(event);
-            clearScheduledScrollInteractionEnd(scrollInteractionEndTimeoutRef);
-            handleScrollInteractionEnd(event, context);
-          }}
-          onTouchEnd={(event) => {
-            props.onTouchEnd?.(event);
-            clearScheduledScrollInteractionEnd(scrollInteractionEndTimeoutRef);
-            handleScrollInteractionEnd(event, context);
-          }}
-          onTouchStartCapture={(event) => {
-            props.onTouchStartCapture?.(event);
-            clearScheduledScrollInteractionEnd(scrollInteractionEndTimeoutRef);
-            handleScrollInteractionStart(event, context);
-          }}
-          onWheelCapture={(event) => {
-            props.onWheelCapture?.(event);
-            handleScrollInteractionStart(event, context);
-            scheduleScrollInteractionEnd(
-              scrollInteractionEndTimeoutRef,
-              context,
-            );
-          }}
           ref={(node) => assignScrollerRef(node, scrollerRef, ref)}
           style={style}
         >
@@ -120,9 +115,15 @@ const TimelineScroller = forwardRef<HTMLDivElement, TimelineScrollerProps>(
   },
 );
 
-// Wheel gestures at an already-clamped scroll boundary may not produce a
-// Virtuoso scrolling transition, so end wheel ownership after input settles.
-const scrollInteractionIdleMilliseconds = 180;
+function wheelDeltaPixels(event: WheelEvent, scroller: HTMLDivElement): number {
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+    return event.deltaY * estimatedWheelLineHeightPixels;
+  }
+  if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+    return event.deltaY * scroller.clientHeight;
+  }
+  return event.deltaY;
+}
 
 function assignScrollerRef(
   node: HTMLDivElement | null,
@@ -139,45 +140,6 @@ function assignScrollerRef(
   if (forwardedRef) {
     forwardedRef.current = node;
   }
-}
-
-function handleScrollInteractionStart(
-  _event:
-    | ReactPointerEvent<HTMLDivElement>
-    | ReactTouchEvent<HTMLDivElement>
-    | ReactWheelEvent<HTMLDivElement>,
-  context: TimelineScrollerContext | undefined,
-) {
-  context?.onScrollInteractionStart();
-}
-
-function handleScrollInteractionEnd(
-  _event: ReactPointerEvent<HTMLDivElement> | ReactTouchEvent<HTMLDivElement>,
-  context: TimelineScrollerContext | undefined,
-) {
-  context?.onScrollInteractionEnd();
-}
-
-function scheduleScrollInteractionEnd(
-  timeoutRef: RefObject<number | null>,
-  context: TimelineScrollerContext | undefined,
-) {
-  clearScheduledScrollInteractionEnd(timeoutRef);
-  timeoutRef.current = window.setTimeout(() => {
-    timeoutRef.current = null;
-    context?.onScrollInteractionEnd();
-  }, scrollInteractionIdleMilliseconds);
-}
-
-function clearScheduledScrollInteractionEnd(
-  timeoutRef: RefObject<number | null>,
-) {
-  if (timeoutRef.current === null) {
-    return;
-  }
-
-  window.clearTimeout(timeoutRef.current);
-  timeoutRef.current = null;
 }
 
 export default TimelineScroller;

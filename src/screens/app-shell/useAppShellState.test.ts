@@ -16,12 +16,19 @@
 import { describe, expect, test } from "vitest";
 import type { RoomTimeline, RoomTimelineItem } from "./appShellAdapters";
 import {
+  durableRoomTimeline,
   mergeOlderTimelineItems,
   mergeOlderTimelineItemsWithCounts,
   mergeTimelineRefresh,
+  prependTimelinePage,
 } from "./timeline/helpers";
 import {
   idlePaginationState,
+  paginationBackoffDelayMilliseconds,
+  paginationCanAutomaticallyContinue,
+  paginationCanAdvanceCursor,
+  paginationCanLoadAtTimelineStart,
+  paginationErrorIsRateLimited,
   paginationIsLoading,
   paginationStateKey,
   timelineContextKey,
@@ -85,6 +92,21 @@ describe("timeline reconciliation helpers", () => {
     );
 
     expect(eventIds(mergedTimeline.items)).toEqual(["$older", "$current"]);
+  });
+
+  test("durable timeline snapshots retain only a bounded recent window", () => {
+    const items = Array.from({ length: 101 }, (_, index) =>
+      testTimelineItem(`$${index}`, index),
+    );
+
+    const durableTimeline = durableRoomTimeline({
+      ...testTimeline(items),
+      nextBefore: "timeline-ui-page:101",
+    });
+
+    expect(durableTimeline.items).toHaveLength(100);
+    expect(durableTimeline.items[0]?.id).toBe("$1");
+    expect(durableTimeline.nextBefore).toBeNull();
   });
 
   test("unchanged live refresh preserves timeline and item identities", () => {
@@ -151,6 +173,43 @@ describe("timeline reconciliation helpers", () => {
     expect(result.duplicateCount).toBe(0);
     expect(eventIds(result.items)).toEqual(["$1"]);
   });
+
+  test("pagination prepends items and shifts the virtual index in one model update", () => {
+    const currentTimeline = {
+      ...testTimeline([testTimelineItem("$3", 3), testTimelineItem("$4", 4)]),
+      firstItemIndex: 100_000,
+      nextBefore: "before-4",
+    };
+
+    const result = prependTimelinePage(
+      currentTimeline,
+      [testTimelineItem("$1", 1), testTimelineItem("$2", 2)],
+      "before-2",
+      true,
+    );
+
+    expect(eventIds(result.timeline.items)).toEqual(["$1", "$2", "$3", "$4"]);
+    expect(result.timeline.firstItemIndex).toBe(99_998);
+    expect(result.timeline.nextBefore).toBe("before-2");
+    expect(result.insertedCount).toBe(2);
+  });
+
+  test("duplicate pagination pages leave the virtual index untouched", () => {
+    const currentTimeline = {
+      ...testTimeline([testTimelineItem("$1", 1), testTimelineItem("$2", 2)]),
+      firstItemIndex: 99_998,
+    };
+
+    const result = prependTimelinePage(
+      currentTimeline,
+      [testTimelineItem("$1", 1), testTimelineItem("$2", 2)],
+      "before-2",
+      true,
+    );
+
+    expect(result.timeline.firstItemIndex).toBe(99_998);
+    expect(result.insertedCount).toBe(0);
+  });
 });
 
 describe("pagination state helpers", () => {
@@ -188,6 +247,98 @@ describe("pagination state helpers", () => {
   test("focused timelines use their own pagination context", () => {
     expect(timelineContextKey(null)).toBe("live");
     expect(timelineContextKey("$event")).toBe("focused:$event");
+  });
+
+  test("empty and duplicate-only pages with an advanced cursor retry with bounded backoff", () => {
+    expect(
+      paginationCanAutomaticallyContinue(
+        {
+          hadNewItems: false,
+          nextBefore: "timeline-ui-page:2",
+          reachedStart: false,
+          tokenChanged: true,
+        },
+        1,
+      ),
+    ).toBe(true);
+    expect(
+      paginationCanAutomaticallyContinue(
+        {
+          hadNewItems: false,
+          nextBefore: null,
+          reachedStart: true,
+          tokenChanged: true,
+        },
+        1,
+      ),
+    ).toBe(false);
+    expect(
+      paginationCanAutomaticallyContinue(
+        {
+          hadNewItems: true,
+          nextBefore: "timeline-ui-page:2",
+          reachedStart: false,
+          tokenChanged: true,
+        },
+        1,
+      ),
+    ).toBe(false);
+
+    expect(paginationBackoffDelayMilliseconds(0)).toBe(500);
+    expect(paginationBackoffDelayMilliseconds(1)).toBe(1_000);
+    expect(paginationBackoffDelayMilliseconds(10)).toBe(8_000);
+  });
+
+  test("top-boundary pagination requires an upward attempt at the clamped start", () => {
+    expect(
+      paginationCanLoadAtTimelineStart(false, "timeline-ui-page:2", true, true),
+    ).toBe(true);
+    expect(
+      paginationCanLoadAtTimelineStart(
+        false,
+        "timeline-ui-page:2",
+        true,
+        false,
+      ),
+    ).toBe(false);
+    expect(
+      paginationCanLoadAtTimelineStart(
+        false,
+        "timeline-ui-page:2",
+        false,
+        true,
+      ),
+    ).toBe(false);
+    expect(
+      paginationCanLoadAtTimelineStart(true, "timeline-ui-page:2", true, true),
+    ).toBe(false);
+    expect(paginationCanLoadAtTimelineStart(false, null, true, true)).toBe(
+      false,
+    );
+  });
+
+  test("a top-boundary pagination session caps cursor advances", () => {
+    expect(paginationCanAdvanceCursor(0)).toBe(true);
+    expect(paginationCanAdvanceCursor(2)).toBe(true);
+    expect(paginationCanAdvanceCursor(3)).toBe(false);
+    expect(
+      paginationCanAutomaticallyContinue(
+        {
+          hadNewItems: false,
+          nextBefore: "timeline-ui-page:4",
+          reachedStart: false,
+          tokenChanged: true,
+        },
+        3,
+      ),
+    ).toBe(false);
+  });
+
+  test("rate-limited pagination errors are distinguished for feedback", () => {
+    expect(
+      paginationErrorIsRateLimited("Matrix error M_LIMIT_EXCEEDED (429)"),
+    ).toBe(true);
+    expect(paginationErrorIsRateLimited("network connection lost")).toBe(false);
   });
 });
 

@@ -33,8 +33,15 @@ export function readCachedJson<T>(storageKey: string, fallback: T): T {
     return fallback;
   }
 }
-export function writeCachedJson<T>(storageKey: string, value: T) {
-  window.localStorage.setItem(storageKey, JSON.stringify(value));
+export function writeCachedJson<T>(storageKey: string, value: T): boolean {
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(value));
+    return true;
+  } catch {
+    // A cache failure must not escape a React state updater. The backend SDK is
+    // still the timeline authority, so the application remains fully usable.
+    return false;
+  }
 }
 export function cachedRoomThreadsKey(accountKey: string): string {
   return accountScopedStorageKey(cachedRoomThreadsStoragePrefix, accountKey);

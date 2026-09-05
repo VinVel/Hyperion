@@ -139,7 +139,7 @@ fn parse_matrix_html(source: &str) -> Option<Vec<RoomTimelineRichTextNode>> {
                 &mut stack,
                 RoomTimelineRichTextNode::Element {
                     tag: name,
-                    attributes: open_attributes,
+                    attributes: Box::new(open_attributes),
                     children,
                 },
             );
@@ -152,7 +152,7 @@ fn parse_matrix_html(source: &str) -> Option<Vec<RoomTimelineRichTextNode>> {
                     &mut stack,
                     RoomTimelineRichTextNode::Element {
                         tag: name,
-                        attributes,
+                        attributes: Box::new(attributes),
                         children: Vec::new(),
                     },
                 );
@@ -347,10 +347,10 @@ fn linkify_text(value: &str) -> Vec<RoomTimelineRichTextNode> {
 
         nodes.push(RoomTimelineRichTextNode::Element {
             tag: "a".to_owned(),
-            attributes: RoomTimelineRichTextAttributes {
+            attributes: Box::new(RoomTimelineRichTextAttributes {
                 href: Some(link.to_owned()),
                 ..Default::default()
-            },
+            }),
             children: vec![RoomTimelineRichTextNode::Text {
                 text: link.to_owned(),
             }],

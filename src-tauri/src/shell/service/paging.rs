@@ -119,7 +119,7 @@ pub(super) fn parse_timeline_page_token(token: &str) -> Option<usize> {
         .and_then(|value| value.parse::<usize>().ok())
 }
 
-fn parse_focused_timeline_page_token(token: &str) -> Option<(String, usize)> {
+pub(super) fn parse_focused_timeline_page_token(token: &str) -> Option<(String, usize)> {
     let token = token.strip_prefix(TIMELINE_UI_EVENT_PAGE_TOKEN_PREFIX)?;
     let (encoded_event_id, page_index) = token.rsplit_once(':')?;
     let event_id = URL_SAFE_NO_PAD.decode(encoded_event_id).ok()?;

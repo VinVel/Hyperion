@@ -134,7 +134,7 @@ pub enum RoomTimelineRichTextNode {
     },
     Element {
         tag: String,
-        attributes: RoomTimelineRichTextAttributes,
+        attributes: Box<RoomTimelineRichTextAttributes>,
         children: Vec<RoomTimelineRichTextNode>,
     },
 }
@@ -481,8 +481,18 @@ fn matrix_to_path_segment(value: &str) -> String {
         .collect::<String>()
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct RoomTimelineIdentity {
+    pub account_key: String,
+    pub room_id: String,
+    pub instance_id: String,
+    pub focused_event_id: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct RoomTimeline {
+    pub timeline_identity: RoomTimelineIdentity,
+    pub revision: u64,
     pub room_id: String,
     pub items: Vec<RoomTimelineItem>,
     pub next_before: Option<String>,
@@ -502,6 +512,7 @@ pub struct RoomTimelinePaginationResponse {
     pub duplicate_item_count: usize,
     pub continuation_attempt_count: usize,
     pub token_changed: bool,
+    pub reached_start: bool,
     pub reason: Option<String>,
 }
 

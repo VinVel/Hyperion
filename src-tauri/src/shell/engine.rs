@@ -13,9 +13,10 @@
  * Project home: hyperion.velcore.net
  */
 
+mod projection;
+
 use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
 
-use futures_util::StreamExt;
 use matrix_sdk::room::edit::EditedContent;
 use matrix_sdk::ruma::{
     EventId, OwnedEventId,
@@ -30,11 +31,12 @@ use matrix_sdk_ui::timeline::{
     EventSendState, ReactionStatus, Timeline, TimelineDetails, TimelineEventFocusThreadMode,
     TimelineEventItemId, TimelineFocus, TimelineItem, TimelineItemKind,
 };
-use tauri::async_runtime::JoinHandle;
+use projection::ActivePublications;
+pub(super) use projection::TimelineInstance;
 use tauri::async_runtime::Mutex as AsyncMutex;
 
 use super::{
-    service::{emit_shell_room_updated, emit_shell_timeline_updated, project_timeline_rich_text},
+    service::project_timeline_rich_text,
     types::{
         RoomTimelineDecryptionState, RoomTimelineEventContentKind, RoomTimelineItem,
         RoomTimelineItemCapabilities, RoomTimelineReaction, RoomTimelineReceipt,
@@ -58,14 +60,15 @@ pub struct ShellTimelineRegistry {
     // Timeline instances are expensive live views with their own background
     // tasks, so cache them per active account+room instead of rebuilding them
     // on every command call during the first migration phase.
-    live_timelines: Arc<AsyncMutex<HashMap<String, Arc<Timeline>>>>,
+    live_timelines: Arc<AsyncMutex<HashMap<String, Arc<TimelineInstance>>>>,
     // Focused event timelines are cached separately because they keep their own
     // pagination cursor around a specific anchor event instead of following the
     // room's normal live edge.
-    focused_timelines: Arc<AsyncMutex<HashMap<String, Arc<Timeline>>>>,
+    focused_timelines: Arc<AsyncMutex<HashMap<String, Arc<TimelineInstance>>>>,
     // Timeline subscriptions are the live bridge from matrix-sdk-ui into the
     // Tauri shell event stream; snapshots alone do not wake the frontend.
-    live_timeline_update_handles: Arc<AsyncMutex<HashMap<String, JoinHandle<()>>>>,
+    active_publications: Arc<std::sync::Mutex<ActivePublications>>,
+    lifecycle_revision: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl ShellTimelineRegistry {
@@ -77,7 +80,7 @@ impl ShellTimelineRegistry {
         &self,
         account_key: &str,
         room: &Room,
-    ) -> Result<Arc<Timeline>, String> {
+    ) -> Result<Arc<TimelineInstance>, String> {
         let cache_key = Self::cache_key(account_key, room.room_id().as_str());
 
         {
@@ -87,6 +90,10 @@ impl ShellTimelineRegistry {
             }
         }
 
+        let lifecycle_revision = self
+            .lifecycle_revision
+            .load(std::sync::atomic::Ordering::SeqCst);
+
         // Keep SDK receipt tracking disabled for the room stream. In
         // matrix-sdk-ui 0.17 it can panic when cached/paginated rooms expose
         // duplicate receipt moves during timeline construction.
@@ -95,7 +102,26 @@ impl ShellTimelineRegistry {
             .map(Arc::new)
             .map_err(|error| format!("Failed to build the room timeline: {error}"))?;
 
+        let timeline = Arc::new(
+            TimelineInstance::new(
+                timeline,
+                account_key,
+                room,
+                None,
+                self.active_publications.clone(),
+            )
+            .await,
+        );
         let mut timelines = self.live_timelines.lock().await;
+        if lifecycle_revision
+            != self
+                .lifecycle_revision
+                .load(std::sync::atomic::Ordering::SeqCst)
+        {
+            return Err(String::from(
+                "Timeline creation was invalidated by account teardown",
+            ));
+        }
         Ok(timelines
             .entry(cache_key)
             .or_insert_with(|| timeline.clone())
@@ -151,50 +177,37 @@ impl ShellTimelineRegistry {
         _store_dir: &Path,
         room: &Room,
     ) -> Result<(), String> {
-        let cache_key = Self::cache_key(account_key, room.room_id().as_str());
-        {
-            let handles = self.live_timeline_update_handles.lock().await;
-            if handles.contains_key(&cache_key) {
-                return Ok(());
-            }
-        }
-
         let timeline = self.live_timeline(account_key, room).await?;
-        let (timeline_initial_items, mut timeline_stream) = timeline.subscribe().await;
-        drop(timeline_initial_items);
-        let account_key = account_key.to_owned();
-        let room_id = room.room_id().to_string();
-        let update_handles = self.live_timeline_update_handles.clone();
-        let cache_key_for_task = cache_key.clone();
-        let handle = tauri::async_runtime::spawn(async move {
-            while let Some(diffs) = timeline_stream.next().await {
-                if diffs.is_empty() {
-                    continue;
-                }
-
-                let items = timeline.items().await;
-                let shell_items = timeline_items_to_shell_items(items.iter(), &room_id);
-                let redacted_event_ids = redacted_event_ids_from_timeline_items(items.iter());
-                emit_shell_timeline_updated(
-                    &app,
-                    &account_key,
-                    &room_id,
-                    shell_items,
-                    redacted_event_ids,
-                );
-                emit_shell_room_updated(&app, &account_key, &room_id, false);
-            }
-
-            let mut handles = update_handles.lock().await;
-            handles.remove(&cache_key_for_task);
-        });
-
-        self.live_timeline_update_handles
-            .lock()
-            .await
-            .entry(cache_key)
-            .or_insert(handle);
+        timeline.publish_to(app);
         Ok(())
+    }
+
+    pub async fn open_timeline_view(
+        &self,
+        app: &tauri::AppHandle,
+        account_key: &str,
+        room: &Room,
+        focused_event: Option<(OwnedEventId, u16)>,
+    ) -> Result<Arc<TimelineInstance>, String> {
+        // Reserve before awaiting SDK construction so a slow prior open cannot
+        // take publication ownership back from a newer room/context selection.
+        let generation = self
+            .active_publications
+            .lock()
+            .expect("timeline publication lock poisoned")
+            .reserve(account_key);
+        let timeline = match focused_event {
+            Some((event_id, limit)) => {
+                self.focused_timeline(account_key, room, event_id, limit)
+                    .await?
+            }
+            None => self.live_timeline(account_key, room).await?,
+        };
+        if !timeline.activate(generation) {
+            return Err(String::from("Timeline view was replaced while opening"));
+        }
+        timeline.publish_to(app.clone());
+        Ok(timeline)
     }
 
     pub async fn ensure_live_timeline_window(
@@ -306,7 +319,7 @@ impl ShellTimelineRegistry {
         room: &Room,
         event_id: OwnedEventId,
         context_limit: u16,
-    ) -> Result<Arc<Timeline>, String> {
+    ) -> Result<Arc<TimelineInstance>, String> {
         let cache_key = Self::focused_cache_key(account_key, room.room_id().as_str(), &event_id);
 
         {
@@ -316,6 +329,9 @@ impl ShellTimelineRegistry {
             }
         }
 
+        let lifecycle_revision = self
+            .lifecycle_revision
+            .load(std::sync::atomic::Ordering::SeqCst);
         let timeline = matrix_sdk_ui::timeline::RoomExt::timeline_builder(room)
             .with_focus(TimelineFocus::Event {
                 target: event_id.clone(),
@@ -329,7 +345,26 @@ impl ShellTimelineRegistry {
             .map(Arc::new)
             .map_err(|error| format!("Failed to build the focused room timeline: {error}"))?;
 
+        let timeline = Arc::new(
+            TimelineInstance::new(
+                timeline,
+                account_key,
+                room,
+                Some(event_id.to_string()),
+                self.active_publications.clone(),
+            )
+            .await,
+        );
         let mut timelines = self.focused_timelines.lock().await;
+        if lifecycle_revision
+            != self
+                .lifecycle_revision
+                .load(std::sync::atomic::Ordering::SeqCst)
+        {
+            return Err(String::from(
+                "Timeline creation was invalidated by account teardown",
+            ));
+        }
         Ok(timelines
             .entry(cache_key)
             .or_insert_with(|| timeline.clone())
@@ -519,51 +554,42 @@ impl ShellTimelineRegistry {
         format!("{account_key}::{room_id}::{event_id}")
     }
 
+    pub fn close_account_view(&self, account_key: &str) {
+        self.active_publications
+            .lock()
+            .expect("timeline publication lock poisoned")
+            .close_account(account_key);
+    }
+
     pub async fn clear_account(&self, account_key: &str) {
+        self.lifecycle_revision
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.close_account_view(account_key);
         let account_prefix = format!("{account_key}::");
-
-        let mut live_timelines = self.live_timelines.lock().await;
-        live_timelines.retain(|cache_key, _| !cache_key.starts_with(&account_prefix));
-        drop(live_timelines);
-
-        let mut focused_timelines = self.focused_timelines.lock().await;
-        focused_timelines.retain(|cache_key, _| !cache_key.starts_with(&account_prefix));
-        drop(focused_timelines);
-
-        let removed_handles = {
-            let mut handles = self.live_timeline_update_handles.lock().await;
-            handles
-                .extract_if(|cache_key, _handle| cache_key.starts_with(&account_prefix))
-                .map(|(_cache_key, handle)| handle)
-                .collect::<Vec<_>>()
-        };
-
-        for handle in removed_handles {
-            handle.abort();
-            drop(handle.await);
+        for timelines in [&self.live_timelines, &self.focused_timelines] {
+            timelines.lock().await.retain(|cache_key, timeline| {
+                if cache_key.starts_with(&account_prefix) {
+                    timeline.invalidate();
+                    return false;
+                }
+                true
+            });
         }
     }
 
     pub async fn clear_all(&self) {
-        let mut live_timelines = self.live_timelines.lock().await;
-        live_timelines.clear();
-        drop(live_timelines);
-
-        let mut focused_timelines = self.focused_timelines.lock().await;
-        focused_timelines.clear();
-        drop(focused_timelines);
-
-        let removed_handles = {
-            let mut handles = self.live_timeline_update_handles.lock().await;
-            handles
-                .drain()
-                .map(|handle_entry| handle_entry.1)
-                .collect::<Vec<_>>()
-        };
-
-        for handle in removed_handles {
-            handle.abort();
-            drop(handle.await);
+        self.active_publications
+            .lock()
+            .expect("timeline publication lock poisoned")
+            .close_all();
+        self.lifecycle_revision
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        for timelines in [&self.live_timelines, &self.focused_timelines] {
+            let mut timelines = timelines.lock().await;
+            for timeline in timelines.values() {
+                timeline.invalidate();
+            }
+            timelines.clear();
         }
     }
 }

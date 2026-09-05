@@ -24,12 +24,13 @@ use matrix_sdk::{Room, ruma::EventId};
 use crate::{
     account::{AccountClientSnapshot, AccountManager, ActiveAccount},
     shell::{
-        service::emit_shell_room_updated,
         service::{
             DEFAULT_EVENT_CONTEXT_LIMIT, DEFAULT_TIMELINE_LIMIT, MAX_RESTORED_TIMELINE_ITEMS,
             ShellCacheState, ShellManager,
             caching::restored_timeline_limit,
-            paging::{focused_timeline_page_token, parse_timeline_page_token, timeline_page_token},
+            paging::{
+                focused_timeline_page_token, parse_focused_timeline_page_token, timeline_page_token,
+            },
             read_state::mark_room_read_locally,
         },
         types::{
@@ -43,7 +44,9 @@ use crate::{
 
 use super::super::{resolve_room, room_title};
 
-const MAX_PAGINATION_CONTINUATION_ATTEMPTS: usize = 3;
+// A command performs one SDK page. Cursor-advancing empty pages are retried by
+// the focused UI with bounded backoff, rather than issuing a burst here.
+const MAX_PAGINATION_CONTINUATION_ATTEMPTS: usize = 1;
 
 struct PaginationPageResult {
     accepted_items: Vec<RoomTimelineItem>,
@@ -95,12 +98,6 @@ impl ShellManager {
     ) -> Result<RoomTimeline, String> {
         let account = active_account.snapshot();
 
-        if let Some(cached_timeline) =
-            self.cached_timeline_response(app, account_manager, account, &request)
-        {
-            return Ok(cached_timeline);
-        }
-
         self.sync_coordinator
             .ensure_account_running(app, account_manager, account.clone())
             .await?;
@@ -109,6 +106,19 @@ impl ShellManager {
         if request.before.is_none() {
             self.mark_room_focused(app, &account.account_key, &room);
         }
+        let focused_event = request
+            .before
+            .as_deref()
+            .and_then(parse_focused_timeline_page_token)
+            .map(|(event_id, _page_index)| {
+                EventId::parse(event_id).map(|event_id| (event_id, DEFAULT_EVENT_CONTEXT_LIMIT))
+            })
+            .transpose()
+            .map_err(|error| format!("Invalid focused event id: {error}"))?;
+        let timeline = self
+            .sync_coordinator
+            .open_timeline_view(app, &account.account_key, &room, focused_event)
+            .await?;
         self.prepare_room_timeline_load(account, &room);
         let (mut items, next_before) = self
             .load_room_timeline_items(app, account, &room, &request)
@@ -127,13 +137,7 @@ impl ShellManager {
         )
         .await?;
 
-        Ok(RoomTimeline {
-            room_id: room.room_id().to_string(),
-            items,
-            next_before,
-            focused_event_id: None,
-            redacted_event_ids,
-        })
+        timeline.snapshot(next_before)
     }
 
     pub async fn paginate_room_timeline_backwards(
@@ -445,6 +449,15 @@ impl ShellManager {
             .map_err(|error| format!("Invalid event id: {error}"))?
             .clone();
         let context_limit = request.context_limit.unwrap_or(DEFAULT_EVENT_CONTEXT_LIMIT);
+        let timeline = self
+            .sync_coordinator
+            .open_timeline_view(
+                app,
+                &account.account_key,
+                &room,
+                Some((event_id.clone(), context_limit)),
+            )
+            .await?;
         let mut items = self
             .sync_coordinator
             .focused_timeline_items(&account.account_key, &room, event_id.clone(), context_limit)
@@ -469,15 +482,7 @@ impl ShellManager {
         )
         .await;
 
-        Ok(RoomTimeline {
-            room_id: room.room_id().to_string(),
-            items,
-            next_before: Some(focused_timeline_page_token(event_id.as_ref(), 1)),
-            focused_event_id: Some(request.event_id),
-            redacted_event_ids: self
-                .focused_redacted_event_ids(&account.account_key, &room, event_id, context_limit)
-                .await,
-        })
+        timeline.snapshot(Some(focused_timeline_page_token(event_id.as_ref(), 1)))
     }
 
     pub async fn resolve_room_reply_preview(
@@ -554,127 +559,6 @@ impl ShellManager {
             request.event_id,
             &focused_items,
         ))
-    }
-
-    fn cached_timeline_response(
-        &self,
-        app: &tauri::AppHandle,
-        account_manager: &AccountManager,
-        account: &AccountClientSnapshot,
-        request: &GetRoomTimelineRequest,
-    ) -> Option<RoomTimeline> {
-        if self
-            .cache_state
-            .room_timeline_cache_was_served(&account.account_key, &request.room_id)
-            && request.before.is_none()
-        {
-            return None;
-        }
-
-        let (items, next_before) = ShellCacheState::cached_room_timeline(
-            &account.account_key,
-            &account.store_dir,
-            &request.room_id,
-        )?;
-        let (mut items, next_before) = cached_timeline_window(&items, next_before, request)?;
-        if request.before.is_none() {
-            emit_pagination_diagnostic(
-                "pagination.restart_restore_check",
-                &[
-                    ("account_key", account.account_key.as_str()),
-                    ("room_id", request.room_id.as_str()),
-                    ("request_id", "room_load_cache"),
-                    (
-                        "cached_count_on_room_load",
-                        items.len().to_string().as_str(),
-                    ),
-                    ("localStorage_count_on_room_load", "frontend_only"),
-                    (
-                        "backend_returned_count_on_room_load",
-                        items.len().to_string().as_str(),
-                    ),
-                ],
-            );
-        }
-        apply_timeline_presentation(&mut items, request.room_id.as_str());
-
-        if request.before.is_none() {
-            let room = resolve_room(&account.client, &request.room_id).ok()?;
-            self.mark_room_focused(app, &account.account_key, &room);
-            self.cache_state
-                .mark_room_timeline_cache_served(&account.account_key, &request.room_id);
-        }
-        self.refresh_room_timeline_in_background(app, account_manager, request.clone());
-        Some(RoomTimeline {
-            room_id: request.room_id.clone(),
-            items,
-            next_before,
-            focused_event_id: None,
-            redacted_event_ids: Vec::new(),
-        })
-    }
-
-    fn refresh_room_timeline_in_background(
-        &self,
-        app: &tauri::AppHandle,
-        account_manager: &AccountManager,
-        request: GetRoomTimelineRequest,
-    ) {
-        let shell_manager = self.clone();
-        let app = app.clone();
-        let account_manager = account_manager.clone();
-        tauri::async_runtime::spawn(async move {
-            if let Err(error) = shell_manager
-                .refresh_room_timeline_after_cached_response(&app, &account_manager, request)
-                .await
-            {
-                crate::utils::tracing::report_background_error(
-                    "shell.timeline",
-                    "refresh_cached_timeline",
-                    "shell.timeline_load_failed",
-                    "timeline",
-                    &error,
-                );
-            }
-        });
-    }
-
-    async fn refresh_room_timeline_after_cached_response(
-        &self,
-        app: &tauri::AppHandle,
-        account_manager: &AccountManager,
-        request: GetRoomTimelineRequest,
-    ) -> Result<(), String> {
-        let Some(active_account) = account_manager.optional_active_account(app).await? else {
-            return Ok(());
-        };
-        let account = active_account.snapshot();
-
-        self.sync_coordinator
-            .ensure_account_running(app, account_manager, account.clone())
-            .await?;
-
-        let room = resolve_room(&account.client, &request.room_id)?;
-        self.prepare_room_timeline_load(account, &room);
-        let (mut items, next_before) = self
-            .load_room_timeline_items(app, account, &room, &request)
-            .await?;
-        apply_timeline_presentation(&mut items, room.room_id().as_str());
-        let redacted_event_ids = self
-            .live_redacted_event_ids(&account.account_key, &room)
-            .await;
-        self.after_room_timeline_load(
-            account,
-            &room,
-            &request,
-            &items,
-            next_before.as_deref(),
-            &redacted_event_ids,
-        )
-        .await?;
-        emit_shell_room_updated(app, &account.account_key, room.room_id().as_str(), false);
-
-        Ok(())
     }
 
     fn prepare_room_timeline_load(&self, account: &AccountClientSnapshot, room: &Room) {
@@ -825,69 +709,6 @@ impl ShellManager {
             }
         }
     }
-
-    async fn focused_redacted_event_ids(
-        &self,
-        account_key: &str,
-        room: &Room,
-        event_id: matrix_sdk::ruma::OwnedEventId,
-        context_limit: u16,
-    ) -> Vec<String> {
-        match self
-            .sync_coordinator
-            .focused_redacted_event_ids(account_key, room, event_id, context_limit)
-            .await
-        {
-            Ok(redacted_event_ids) => redacted_event_ids,
-            Err(error) => {
-                crate::utils::tracing::report_recoverable_error(
-                    "shell.timeline",
-                    "inspect_focused_redacted_items",
-                    "shell.timeline_redaction_scan_failed",
-                    "timeline",
-                    &error,
-                );
-                Vec::new()
-            }
-        }
-    }
-}
-
-fn cached_timeline_window(
-    items: &[crate::shell::types::RoomTimelineItem],
-    next_before: Option<String>,
-    request: &GetRoomTimelineRequest,
-) -> Option<(Vec<crate::shell::types::RoomTimelineItem>, Option<String>)> {
-    let Some(before) = request.before.as_deref() else {
-        return Some((items.to_vec(), next_before));
-    };
-    let page_index = parse_timeline_page_token(before)?;
-    let page_limit = usize::from(request.limit.unwrap_or(DEFAULT_TIMELINE_LIMIT));
-    if page_limit == 0 {
-        return None;
-    }
-
-    let visible_count = page_index.saturating_mul(page_limit);
-    if items.len() <= visible_count {
-        return None;
-    }
-
-    let older_end = items.len().saturating_sub(visible_count);
-    let older_start = older_end.saturating_sub(page_limit);
-    let cached_items = items[older_start..older_end].to_vec();
-    if cached_items.is_empty() {
-        return None;
-    }
-
-    let next_before = if older_start == 0 {
-        None
-    } else {
-        Some(crate::shell::service::paging::timeline_page_token(
-            page_index + 1,
-        ))
-    };
-
-    Some((cached_items, next_before))
 }
 
 fn reply_preview_from_focused_items(
@@ -982,6 +803,7 @@ fn pagination_response(
         duplicate_item_count: page_result.duplicate_item_count,
         continuation_attempt_count: page_result.continuation_attempt_count,
         token_changed,
+        reached_start: page_result.final_next_before.is_none(),
         next_before: page_result.final_next_before,
         request_id: request.request_id,
         items: page_result.accepted_items,
@@ -1758,6 +1580,33 @@ mod tests {
         assert!(response.token_changed);
         assert_eq!(response.next_before.as_deref(), Some(final_token.as_str()));
         assert_eq!(response.reason.as_deref(), Some("duplicate_only"));
+        assert!(!response.reached_start);
+    }
+
+    #[test]
+    fn terminal_pagination_response_is_distinct_from_an_empty_advanced_cursor() {
+        let page_result = PaginationPageResult {
+            accepted_items: Vec::new(),
+            duplicate_item_count: 0,
+            final_next_before: None,
+            last_attempt_index: Some(0),
+            returned_item_count: 0,
+            continuation_attempt_count: 0,
+            initial_token_hash: super::token_hash(Some("timeline-ui-page:4")),
+        };
+        let request = PaginateRoomTimelineRequest {
+            room_id: String::from("!room:example.org"),
+            before: Some(String::from("timeline-ui-page:4")),
+            limit: Some(30),
+            request_id: String::from("request-terminal"),
+            known_event_ids: Vec::new(),
+        };
+
+        let response = pagination_response("!room:example.org", request, page_result);
+
+        assert!(response.reached_start);
+        assert!(response.token_changed);
+        assert_eq!(response.next_before, None);
     }
 
     fn test_timeline_item(event_id: &str, body: &str) -> RoomTimelineItem {

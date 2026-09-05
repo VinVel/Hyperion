@@ -23,6 +23,12 @@ import { ShellTimelineUpdatedPayload, TimelineJumpTarget } from "../types";
 // Local echo timestamps and remote event timestamps can differ slightly, so
 // reconcile provisional own messages within this bounded send window.
 const localEchoReconciliationWindowMilliseconds = 120_000;
+// A high initial index gives Virtuoso room to decrement for older pages.
+const timelineInitialItemIndex = 100_000;
+// Browser storage is a startup convenience, not a second timeline authority.
+// Keep its serialized room window bounded so WebKit localStorage cannot grow
+// with every older page the user visits.
+const maximumDurableTimelineItemCount = 100;
 
 export function canonicalizeTimelineItems(
   items: RoomTimelineItem[],
@@ -80,6 +86,40 @@ export function mergeOlderTimelineItemsWithCounts(
   };
 }
 
+/**
+ * Commits a backwards page as one virtual-list model change. Virtuoso needs
+ * the inserted rows and their matching absolute-index shift in the same React
+ * update to retain the visible rows as the page is prepended.
+ */
+export function prependTimelinePage(
+  currentTimeline: RoomTimeline,
+  olderItems: RoomTimelineItem[],
+  nextBefore: string | null,
+  tokenChanged: boolean,
+) {
+  const mergeResult = mergeOlderTimelineItemsWithCounts(
+    currentTimeline.items,
+    olderItems,
+  );
+  const prependedItemCount = Math.max(
+    0,
+    mergeResult.items.length - currentTimeline.items.length,
+  );
+
+  return {
+    duplicateCount: mergeResult.duplicateCount,
+    insertedCount: mergeResult.insertedCount,
+    timeline: {
+      ...currentTimeline,
+      items: mergeResult.items,
+      nextBefore: tokenChanged ? nextBefore : currentTimeline.nextBefore,
+      firstItemIndex:
+        (currentTimeline.firstItemIndex ?? timelineInitialItemIndex) -
+        prependedItemCount,
+    },
+  };
+}
+
 export function mergeTimelineRefresh(
   currentTimeline: RoomTimeline | null,
   refreshedTimeline: RoomTimeline,
@@ -103,6 +143,8 @@ export function mergeTimelineRefresh(
       ...refreshedTimeline,
       items: currentItems.filter((item) => !redactedItemIds.has(item.id)),
       nextBefore: currentTimeline.nextBefore ?? refreshedTimeline.nextBefore,
+      firstItemIndex:
+        currentTimeline.firstItemIndex ?? refreshedTimeline.firstItemIndex,
     };
     return reuseUnchangedTimeline(currentTimeline, preservedTimeline);
   }
@@ -116,6 +158,8 @@ export function mergeTimelineRefresh(
     return {
       ...refreshedTimeline,
       items: refreshedItems,
+      firstItemIndex:
+        currentTimeline.firstItemIndex ?? refreshedTimeline.firstItemIndex,
     };
   }
 
@@ -132,6 +176,8 @@ export function mergeTimelineRefresh(
     ...refreshedTimeline,
     items: [...olderPrefixItems, ...refreshedItems],
     nextBefore: currentTimeline.nextBefore ?? refreshedTimeline.nextBefore,
+    firstItemIndex:
+      currentTimeline.firstItemIndex ?? refreshedTimeline.firstItemIndex,
   };
   const canonicalTimeline = {
     ...mergedTimeline,
@@ -176,7 +222,8 @@ function reuseUnchangedTimeline(
     redactedEventIdsAreUnchanged &&
     currentTimeline.roomId === refreshedTimeline.roomId &&
     currentTimeline.nextBefore === refreshedTimeline.nextBefore &&
-    currentTimeline.focusedEventId === refreshedTimeline.focusedEventId
+    currentTimeline.focusedEventId === refreshedTimeline.focusedEventId &&
+    currentTimeline.firstItemIndex === refreshedTimeline.firstItemIndex
   ) {
     return currentTimeline;
   }
@@ -412,6 +459,7 @@ export function emptyRoomTimeline(roomId: string): RoomTimeline {
     nextBefore: null,
     focusedEventId: null,
     redactedEventIds: [],
+    firstItemIndex: timelineInitialItemIndex,
   };
 }
 export function normalizeRoomTimeline(timeline: RoomTimeline): RoomTimeline {
@@ -423,15 +471,23 @@ export function normalizeRoomTimeline(timeline: RoomTimeline): RoomTimeline {
     nextBefore: timeline.nextBefore ?? null,
     focusedEventId: timeline.focusedEventId ?? null,
     redactedEventIds: timeline.redactedEventIds ?? [],
+    firstItemIndex: timeline.firstItemIndex ?? timelineInitialItemIndex,
   };
 }
 function isDurableTimelineItem(item: RoomTimelineItem): boolean {
   return isRemoteEventId(item.id);
 }
 export function durableRoomTimeline(timeline: RoomTimeline): RoomTimeline {
+  const durableItems = timeline.items.filter(isDurableTimelineItem);
+  const wasTrimmed = durableItems.length > maximumDurableTimelineItemCount;
   return {
     ...timeline,
-    items: timeline.items.filter(isDurableTimelineItem),
+    items: wasTrimmed
+      ? durableItems.slice(-maximumDurableTimelineItemCount)
+      : durableItems,
+    // A cursor preceding discarded cache-only items is invalid. The SDK reload
+    // will provide the authoritative cursor before pagination can continue.
+    nextBefore: wasTrimmed ? null : timeline.nextBefore,
   };
 }
 

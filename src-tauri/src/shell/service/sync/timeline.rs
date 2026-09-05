@@ -83,6 +83,18 @@ impl ShellSyncCoordinator {
     ) -> &Arc<std::sync::RwLock<std::collections::HashMap<String, String>>> {
         self.timeline_service.locally_read_room_state()
     }
+    pub(in crate::shell::service) async fn open_timeline_view(
+        &self,
+        app: &tauri::AppHandle,
+        account_key: &str,
+        room: &Room,
+        focused_event: Option<(OwnedEventId, u16)>,
+    ) -> Result<Arc<crate::shell::engine::TimelineInstance>, String> {
+        self.timeline_service
+            .registry()
+            .open_timeline_view(app, account_key, room, focused_event)
+            .await
+    }
     pub(in crate::shell::service) async fn focused_timeline_items(
         &self,
         account_key: &str,

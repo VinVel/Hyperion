@@ -34,6 +34,9 @@ impl ShellSyncCoordinator {
         if previous_room_id.as_deref() == Some(room_id) {
             return;
         }
+        self.timeline_service
+            .registry()
+            .close_account_view(account_key);
         if let Some(previous_room_id) = previous_room_id.as_deref() {
             self.clear_typing_room_state(account_key, previous_room_id, "focus_changed");
             emit_sync_diagnostic(
@@ -73,6 +76,9 @@ impl ShellSyncCoordinator {
     }
 
     pub(super) fn clear_account_focus(&self, account_key: &str) {
+        self.timeline_service
+            .registry()
+            .close_account_view(account_key);
         let room_id = self
             .focused_rooms
             .write()

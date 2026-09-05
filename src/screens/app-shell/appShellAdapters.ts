@@ -202,6 +202,7 @@ export type BackendRoomTimelinePaginationResponse = {
   duplicate_item_count: number;
   continuation_attempt_count: number;
   token_changed: boolean;
+  reached_start: boolean;
   reason?: string | null;
 };
 
@@ -281,6 +282,7 @@ export type RoomTimeline = {
   nextBefore: string | null;
   focusedEventId: string | null;
   redactedEventIds: string[];
+  firstItemIndex?: number;
 };
 
 export type RoomTimelinePaginationResponse = {
@@ -294,6 +296,7 @@ export type RoomTimelinePaginationResponse = {
   duplicateCount: number;
   continuationAttemptCount: number;
   tokenChanged: boolean;
+  reachedStart: boolean;
   reason: string;
 };
 
@@ -340,6 +343,7 @@ export function mapRoomTimeline(
     nextBefore: backendTimeline.next_before ?? null,
     focusedEventId: backendTimeline.focused_event_id ?? null,
     redactedEventIds: backendTimeline.redacted_event_ids ?? [],
+    firstItemIndex: timelineInitialItemIndex,
   };
 }
 
@@ -357,9 +361,13 @@ export function mapRoomTimelinePaginationResponse(
     duplicateCount: response.duplicate_item_count,
     continuationAttemptCount: response.continuation_attempt_count,
     tokenChanged: response.token_changed,
+    reachedStart: response.reached_start,
     reason: response.reason ?? "",
   };
 }
+
+// Virtuoso requires a stable high index so prepend operations can preserve the viewport.
+const timelineInitialItemIndex = 100_000;
 
 function mapRoomTimelineItem(item: BackendRoomTimelineItem): RoomTimelineItem {
   const capabilities = item.presentation.capabilities ?? {

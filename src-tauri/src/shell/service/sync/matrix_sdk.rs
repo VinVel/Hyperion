@@ -623,8 +623,6 @@ fn http_error_is_offline(error: &HttpError) -> bool {
             RefreshTokenError::RefreshTokenRequired | RefreshTokenError::OAuth(_),
         ) => false,
         HttpError::Api(_) | HttpError::IntoHttp(_) => false,
-        #[cfg(target_os = "android")]
-        HttpError::VerifierBuilder(_) => false,
     }
 }
 

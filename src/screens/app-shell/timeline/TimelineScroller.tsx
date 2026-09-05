@@ -21,6 +21,7 @@ import {
   type HTMLAttributes,
   type RefObject,
 } from "react";
+import { attachTimelineTouchPagination } from "./touchPagination";
 import { classNames } from "../../../components/ui/classNames";
 import { useScrollAreaOverlay } from "../../../components/ui";
 
@@ -88,7 +89,14 @@ const TimelineScroller = forwardRef<HTMLDivElement, TimelineScrollerProps>(
       }
 
       activeScroller.addEventListener("wheel", handleWheel, { passive: false });
-      return () => activeScroller.removeEventListener("wheel", handleWheel);
+      const detachTouchPagination = attachTimelineTouchPagination(
+        activeScroller,
+        () => topScrollIntentRef.current?.(),
+      );
+      return () => {
+        detachTouchPagination();
+        activeScroller.removeEventListener("wheel", handleWheel);
+      };
     }, []);
 
     return (

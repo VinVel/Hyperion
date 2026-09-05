@@ -327,11 +327,12 @@ function RoomTimelineView({
 
   const handleTimelineStartReached = useCallback(
     (hasTopScrollIntent: boolean) => {
+      const scroller = timelineScroller(timelineRootRef.current);
       if (
         !paginationCanLoadAtTimelineStart(
           isLoadingOlderMessages,
           timeline?.nextBefore ?? null,
-          timelineScroller(timelineRootRef.current)?.scrollTop === 0,
+          scroller !== null && scroller.scrollTop <= 0,
           hasTopScrollIntent,
         )
       ) {

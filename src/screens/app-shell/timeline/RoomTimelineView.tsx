@@ -63,6 +63,7 @@ import {
   useTimelineRowDebug,
 } from "./timelineDebug";
 import "./RoomTimelineView.css";
+import { useTimelineBookmark } from "./useTimelineBookmark";
 
 type RoomTimelineViewProps = {
   isLoadingOlderMessages: boolean;
@@ -141,6 +142,7 @@ function RoomTimelineView({
   onToggleReaction,
 }: RoomTimelineViewProps) {
   const timelineRootRef = useRef<HTMLDivElement | null>(null);
+  useTimelineBookmark(timelineRootRef, timeline, bottomAnchorTolerancePixels);
   const virtuosoRef = useRef<VirtuosoHandle | null>(null);
   const pendingActionScrollSnapshotRef = useRef<TimelineScrollSnapshot | null>(
     null,

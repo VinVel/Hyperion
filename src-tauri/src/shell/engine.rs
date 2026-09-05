@@ -160,16 +160,6 @@ impl ShellTimelineRegistry {
         Ok(redacted_event_ids_from_timeline_items(items.iter()))
     }
 
-    pub async fn live_timeline_item_count(
-        &self,
-        account_key: &str,
-        room: &Room,
-    ) -> Result<usize, String> {
-        let timeline = self.live_timeline(account_key, room).await?;
-        let items = timeline.items().await;
-        Ok(timeline_items_to_shell_items(items.iter(), room.room_id().as_str()).len())
-    }
-
     pub async fn subscribe_live_timeline_updates(
         &self,
         app: tauri::AppHandle,

@@ -17,176 +17,11 @@ import {
   mapRoomTimeline,
   type RoomTimeline,
   type RoomTimelineItem,
+  type BackendTimelineRichTextNode,
 } from "../appShellAdapters";
-import { ShellTimelineUpdatedPayload, TimelineJumpTarget } from "../types";
+import type { ShellTimelineUpdatedPayload, TimelineJumpTarget } from "../types";
 
-// Local echo timestamps and remote event timestamps can differ slightly, so
-// reconcile provisional own messages within this bounded send window.
-const localEchoReconciliationWindowMilliseconds = 120_000;
-// A high initial index gives Virtuoso room to decrement for older pages.
-const timelineInitialItemIndex = 100_000;
-// Browser storage is a startup convenience, not a second timeline authority.
-// Keep its serialized room window bounded so WebKit localStorage cannot grow
-// with every older page the user visits.
-const maximumDurableTimelineItemCount = 100;
-
-export function canonicalizeTimelineItems(
-  items: RoomTimelineItem[],
-): RoomTimelineItem[] {
-  const confirmedItems = items.filter(isConfirmedOwnRemoteEvent);
-  const seenItemIds = new Set<string>();
-
-  return items.filter((item) => {
-    if (seenItemIds.has(item.id)) {
-      return false;
-    }
-    seenItemIds.add(item.id);
-
-    if (!isTransientLocalEcho(item)) {
-      return true;
-    }
-
-    return !confirmedItems.some((confirmedItem) =>
-      timelineItemsRepresentSameSend(item, confirmedItem),
-    );
-  });
-}
-
-export function mergeOlderTimelineItems(
-  currentItems: RoomTimelineItem[],
-  olderItems: RoomTimelineItem[],
-): RoomTimelineItem[] {
-  return mergeOlderTimelineItemsWithCounts(currentItems, olderItems).items;
-}
-
-export function mergeOlderTimelineItemsWithCounts(
-  currentItems: RoomTimelineItem[],
-  olderItems: RoomTimelineItem[],
-): {
-  duplicateCount: number;
-  insertedCount: number;
-  items: RoomTimelineItem[];
-} {
-  const currentTimelineItems = currentItems ?? [];
-  const olderTimelineItems = olderItems ?? [];
-  const seenItemIds = new Set(currentTimelineItems.map((item) => item.id));
-  const uniqueOlderItems = olderTimelineItems.filter(
-    (item) => !seenItemIds.has(item.id),
-  );
-
-  const items = canonicalizeTimelineItems([
-    ...uniqueOlderItems,
-    ...currentTimelineItems,
-  ]);
-
-  return {
-    duplicateCount: olderTimelineItems.length - uniqueOlderItems.length,
-    insertedCount: uniqueOlderItems.length,
-    items,
-  };
-}
-
-/**
- * Commits a backwards page as one virtual-list model change. Virtuoso needs
- * the inserted rows and their matching absolute-index shift in the same React
- * update to retain the visible rows as the page is prepended.
- */
-export function prependTimelinePage(
-  currentTimeline: RoomTimeline,
-  olderItems: RoomTimelineItem[],
-  nextBefore: string | null,
-  tokenChanged: boolean,
-) {
-  const mergeResult = mergeOlderTimelineItemsWithCounts(
-    currentTimeline.items,
-    olderItems,
-  );
-  const prependedItemCount = Math.max(
-    0,
-    mergeResult.items.length - currentTimeline.items.length,
-  );
-
-  return {
-    duplicateCount: mergeResult.duplicateCount,
-    insertedCount: mergeResult.insertedCount,
-    timeline: {
-      ...currentTimeline,
-      items: mergeResult.items,
-      nextBefore: tokenChanged ? nextBefore : currentTimeline.nextBefore,
-      firstItemIndex:
-        (currentTimeline.firstItemIndex ?? timelineInitialItemIndex) -
-        prependedItemCount,
-    },
-  };
-}
-
-export function mergeTimelineRefresh(
-  currentTimeline: RoomTimeline | null,
-  refreshedTimeline: RoomTimeline,
-): RoomTimeline {
-  if (
-    !currentTimeline ||
-    currentTimeline.roomId !== refreshedTimeline.roomId ||
-    refreshedTimeline.focusedEventId
-  ) {
-    return refreshedTimeline;
-  }
-
-  const currentItems = canonicalizeTimelineItems(currentTimeline.items ?? []);
-  const refreshedItems = reuseUnchangedTimelineItems(
-    currentItems,
-    canonicalizeTimelineItems(refreshedTimeline.items ?? []),
-  );
-  const redactedItemIds = new Set(refreshedTimeline.redactedEventIds ?? []);
-  if (!refreshedItems.length && currentItems.length) {
-    const preservedTimeline = {
-      ...refreshedTimeline,
-      items: currentItems.filter((item) => !redactedItemIds.has(item.id)),
-      nextBefore: currentTimeline.nextBefore ?? refreshedTimeline.nextBefore,
-      firstItemIndex:
-        currentTimeline.firstItemIndex ?? refreshedTimeline.firstItemIndex,
-    };
-    return reuseUnchangedTimeline(currentTimeline, preservedTimeline);
-  }
-
-  const refreshedItemIds = new Set(refreshedItems.map((item) => item.id));
-  const firstOverlapIndex = currentItems.findIndex((item) =>
-    refreshedItemIds.has(item.id),
-  );
-
-  if (firstOverlapIndex < 0) {
-    return {
-      ...refreshedTimeline,
-      items: refreshedItems,
-      firstItemIndex:
-        currentTimeline.firstItemIndex ?? refreshedTimeline.firstItemIndex,
-    };
-  }
-
-  const olderPrefixItems = currentItems
-    .slice(0, firstOverlapIndex)
-    .filter(
-      (item) =>
-        !redactedItemIds.has(item.id) &&
-        !refreshedItemIds.has(item.id) &&
-        !hasReconciledRemoteItem(item, refreshedItems),
-    );
-
-  const mergedTimeline: RoomTimeline = {
-    ...refreshedTimeline,
-    items: [...olderPrefixItems, ...refreshedItems],
-    nextBefore: currentTimeline.nextBefore ?? refreshedTimeline.nextBefore,
-    firstItemIndex:
-      currentTimeline.firstItemIndex ?? refreshedTimeline.firstItemIndex,
-  };
-  const canonicalTimeline = {
-    ...mergedTimeline,
-    items: canonicalizeTimelineItems(mergedTimeline.items),
-  };
-  return reuseUnchangedTimeline(currentTimeline, canonicalTimeline);
-}
-
-function reuseUnchangedTimelineItems(
+export function reuseUnchangedTimelineItems(
   currentItems: RoomTimelineItem[],
   refreshedItems: RoomTimelineItem[],
 ): RoomTimelineItem[] {
@@ -204,33 +39,6 @@ function reuseUnchangedTimelineItems(
   });
 }
 
-function reuseUnchangedTimeline(
-  currentTimeline: RoomTimeline,
-  refreshedTimeline: RoomTimeline,
-): RoomTimeline {
-  const itemsAreUnchanged =
-    currentTimeline.items.length === refreshedTimeline.items.length &&
-    currentTimeline.items.every(
-      (item, index) => item === refreshedTimeline.items[index],
-    );
-  const redactedEventIdsAreUnchanged = stringArraysAreEqual(
-    currentTimeline.redactedEventIds,
-    refreshedTimeline.redactedEventIds,
-  );
-  if (
-    itemsAreUnchanged &&
-    redactedEventIdsAreUnchanged &&
-    currentTimeline.roomId === refreshedTimeline.roomId &&
-    currentTimeline.nextBefore === refreshedTimeline.nextBefore &&
-    currentTimeline.focusedEventId === refreshedTimeline.focusedEventId &&
-    currentTimeline.firstItemIndex === refreshedTimeline.firstItemIndex
-  ) {
-    return currentTimeline;
-  }
-
-  return refreshedTimeline;
-}
-
 function timelineItemsAreEqual(
   currentItem: RoomTimelineItem,
   refreshedItem: RoomTimelineItem,
@@ -239,12 +47,13 @@ function timelineItemsAreEqual(
     currentItem.id === refreshedItem.id &&
     currentItem.transactionId === refreshedItem.transactionId &&
     currentItem.senderId === refreshedItem.senderId &&
+    currentItem.roomId === refreshedItem.roomId &&
     currentItem.senderDisplayName === refreshedItem.senderDisplayName &&
     currentItem.senderAvatarUrl === refreshedItem.senderAvatarUrl &&
     currentItem.body === refreshedItem.body &&
     currentItem.formattedBody === refreshedItem.formattedBody &&
     currentItem.formattedBodyFormat === refreshedItem.formattedBodyFormat &&
-    currentItem.richText === refreshedItem.richText &&
+    richTextIsEqual(currentItem.richText, refreshedItem.richText) &&
     currentItem.contentKind === refreshedItem.contentKind &&
     currentItem.timestampUnixMs === refreshedItem.timestampUnixMs &&
     currentItem.timeLabel === refreshedItem.timeLabel &&
@@ -352,192 +161,42 @@ function replyPreviewsAreEqual(
   );
 }
 
-function stringArraysAreEqual(
-  currentValues: string[],
-  refreshedValues: string[],
+// Rich text is deserialized on every snapshot, so reference equality alone
+// would replace every formatted row even when the SDK content is unchanged.
+function richTextIsEqual(
+  left: RoomTimelineItem["richText"],
+  right: RoomTimelineItem["richText"],
 ): boolean {
-  return (
-    currentValues.length === refreshedValues.length &&
-    currentValues.every((value, index) => value === refreshedValues[index])
-  );
+  if (left === right) return true;
+  if (!left || !right || left.length !== right.length) return false;
+  return left.every((node, index) => richTextNodeIsEqual(node, right[index]!));
 }
 
-function isRemoteEventId(eventId: string | null | undefined): boolean {
-  return eventId?.startsWith("$") === true;
-}
-
-function isTransientLocalEcho(item: RoomTimelineItem): boolean {
-  return item.isOwnMessage && !isRemoteEventId(item.id);
-}
-
-function isConfirmedOwnRemoteEvent(item: RoomTimelineItem): boolean {
-  return (
-    item.isOwnMessage && isRemoteEventId(item.id) && item.sendState === "sent"
-  );
-}
-
-function timelineItemsRepresentSameSend(
-  localEcho: RoomTimelineItem,
-  confirmedItem: RoomTimelineItem,
+function richTextNodeIsEqual(
+  left: BackendTimelineRichTextNode,
+  right: BackendTimelineRichTextNode,
 ): boolean {
-  if (
-    !isTransientLocalEcho(localEcho) ||
-    !isConfirmedOwnRemoteEvent(confirmedItem)
-  ) {
-    return false;
-  }
-
-  if (
-    localEcho.transactionId &&
-    confirmedItem.transactionId &&
-    localEcho.transactionId === confirmedItem.transactionId
-  ) {
-    return true;
-  }
-
-  const timestampDelta = Math.abs(
-    localEcho.timestampUnixMs - confirmedItem.timestampUnixMs,
-  );
+  if (left.type === "text")
+    return right.type === "text" && left.text === right.text;
+  if (right.type !== "element" || left.tag !== right.tag) return false;
+  const attributeNames = Object.keys(
+    left.attributes,
+  ) as (keyof typeof left.attributes)[];
   return (
-    localEcho.senderId === confirmedItem.senderId &&
-    localEcho.body === confirmedItem.body &&
-    timestampDelta <= localEchoReconciliationWindowMilliseconds
+    attributeNames.length === Object.keys(right.attributes).length &&
+    attributeNames.every(
+      (name) => left.attributes[name] === right.attributes[name],
+    ) &&
+    richTextIsEqual(left.children, right.children)
   );
 }
 
-function isProvisionalLocalEcho(item: RoomTimelineItem): boolean {
-  return (
-    item.isOwnMessage &&
-    (item.sendState === "pending" ||
-      item.sendState === "sending" ||
-      item.sendState === "retrying")
-  );
-}
-
-function canReconcileLocalEcho(
-  localEcho: RoomTimelineItem,
-  refreshedItem: RoomTimelineItem,
-): boolean {
-  if (
-    !isProvisionalLocalEcho(localEcho) ||
-    refreshedItem.sendState !== "sent"
-  ) {
-    return false;
-  }
-
-  if (
-    localEcho.transactionId &&
-    refreshedItem.transactionId &&
-    localEcho.transactionId === refreshedItem.transactionId
-  ) {
-    return true;
-  }
-
-  const timestampDelta = Math.abs(
-    localEcho.timestampUnixMs - refreshedItem.timestampUnixMs,
-  );
-  return (
-    localEcho.isOwnMessage === refreshedItem.isOwnMessage &&
-    localEcho.senderId === refreshedItem.senderId &&
-    localEcho.body === refreshedItem.body &&
-    timestampDelta <= localEchoReconciliationWindowMilliseconds
-  );
-}
-
-function hasReconciledRemoteItem(
-  localEcho: RoomTimelineItem,
-  refreshedItems: RoomTimelineItem[],
-): boolean {
-  return refreshedItems.some((refreshedItem) =>
-    canReconcileLocalEcho(localEcho, refreshedItem),
-  );
-}
-export function emptyRoomTimeline(roomId: string): RoomTimeline {
-  return {
-    roomId,
-    items: [],
-    nextBefore: null,
-    focusedEventId: null,
-    redactedEventIds: [],
-    firstItemIndex: timelineInitialItemIndex,
-  };
-}
-export function normalizeRoomTimeline(timeline: RoomTimeline): RoomTimeline {
-  return {
-    ...timeline,
-    items: canonicalizeTimelineItems(
-      (timeline.items ?? []).map(normalizeRoomTimelineItem),
-    ),
-    nextBefore: timeline.nextBefore ?? null,
-    focusedEventId: timeline.focusedEventId ?? null,
-    redactedEventIds: timeline.redactedEventIds ?? [],
-    firstItemIndex: timeline.firstItemIndex ?? timelineInitialItemIndex,
-  };
-}
-function isDurableTimelineItem(item: RoomTimelineItem): boolean {
-  return isRemoteEventId(item.id);
-}
-export function durableRoomTimeline(timeline: RoomTimeline): RoomTimeline {
-  const durableItems = timeline.items.filter(isDurableTimelineItem);
-  const wasTrimmed = durableItems.length > maximumDurableTimelineItemCount;
-  return {
-    ...timeline,
-    items: wasTrimmed
-      ? durableItems.slice(-maximumDurableTimelineItemCount)
-      : durableItems,
-    // A cursor preceding discarded cache-only items is invalid. The SDK reload
-    // will provide the authoritative cursor before pagination can continue.
-    nextBefore: wasTrimmed ? null : timeline.nextBefore,
-  };
-}
-
-function normalizeRoomTimelineItem(item: RoomTimelineItem): RoomTimelineItem {
-  const senderId = item.senderId ?? "";
-  return {
-    ...item,
-    id: item.id ?? item.transactionId ?? "",
-    transactionId: item.transactionId ?? null,
-    senderId,
-    senderDisplayName: item.senderDisplayName ?? senderId,
-    senderAvatarUrl: item.senderAvatarUrl ?? "",
-    body: item.body ?? "",
-    formattedBody: item.formattedBody ?? "",
-    formattedBodyFormat: item.formattedBodyFormat ?? null,
-    richText: item.richText ?? null,
-    contentKind: item.contentKind ?? "text",
-    timestampUnixMs: item.timestampUnixMs ?? 0,
-    timeLabel: item.timeLabel ?? "",
-    isEdited: item.isEdited ?? false,
-    isRedacted: item.isRedacted ?? false,
-    isOwnMessage: item.isOwnMessage ?? false,
-    sendState: item.sendState ?? "sent",
-    decryptionState: item.decryptionState ?? "unencrypted",
-    groupPosition: item.groupPosition ?? "standalone",
-    permalink: item.permalink ?? "",
-    canEdit: item.canEdit ?? false,
-    canRedact: item.canRedact ?? false,
-    canReply: item.canReply ?? false,
-    canReact: item.canReact ?? false,
-    reactions: item.reactions ?? [],
-    receipts: item.receipts ?? [],
-    thread: item.thread ?? null,
-    threadReplyTo: item.threadReplyTo ?? null,
-    replyPreview: item.replyPreview ?? null,
-  };
-}
 export function roomTimelineFromUpdatePayload(
   payload: ShellTimelineUpdatedPayload,
 ): RoomTimeline {
-  return normalizeRoomTimeline(
-    mapRoomTimeline({
-      room_id: payload.room_id,
-      items: payload.items,
-      next_before: null,
-      focused_event_id: null,
-      redacted_event_ids: payload.redacted_event_ids,
-    }),
-  );
+  return mapRoomTimeline({ ...payload, next_before: null });
 }
+
 export function timelineAnchorForRoom(
   roomId: string,
   timelineJumpTarget: TimelineJumpTarget | null,

@@ -23,7 +23,6 @@ import {
   type BackendRoomSummary,
   type BackendRoomTimeline,
   type BackendSpaceSummary,
-  type RoomTimeline,
   type RoomSummary,
   type SpaceSummary,
   mapRoomSummary,
@@ -46,14 +45,10 @@ import {
 } from "./search";
 import { outboundMessageContentFromMarkdown } from "./outboundMarkdown";
 import {
-  durableRoomTimeline,
-  emptyRoomTimeline,
-  mergeTimelineRefresh,
-  normalizeRoomTimeline,
-  prependTimelinePage,
   roomTimelineFromUpdatePayload,
   timelineAnchorForRoom,
 } from "./timeline/helpers";
+import { useTimelineModel } from "./timeline/useTimelineModel";
 import { logPaginationDiagnostic } from "./paginationDiagnostics";
 import {
   createPaginationRequestId,
@@ -81,7 +76,7 @@ import {
 } from "./types";
 import {
   readCachedJson,
-  cachedRoomSnapshotKey,
+  removeLegacyTimelineSnapshots,
   writeCachedJson,
   cachedRoomThreadsKey,
   cachedSpacesKey,
@@ -107,13 +102,6 @@ const paginationLoadingTimeoutMilliseconds = 3_000;
 const globalSearchDebounceMilliseconds = 150;
 // Each search group is capped to keep the overlay compact.
 const globalSearchLimitPerGroup = 4;
-// Keep recently opened room views in memory so switching rooms is an immediate
-// render operation while the backend refresh catches up.
-const maximumInMemoryRoomSnapshots = 24;
-export const cachedRoomThreadsStoragePrefix = "hyperion.appShell.roomThreads";
-export const cachedSpacesStoragePrefix = "hyperion.appShell.spaces";
-export const cachedRoomSnapshotsStoragePrefix =
-  "hyperion.appShell.roomSnapshots";
 // Startup retries cover the common mobile flow where the WebView returns before
 // the native Matrix client is ready.
 const shellStartupRetryDelayMilliseconds = [1_000, 3_000, 7_000, 15_000];
@@ -122,13 +110,6 @@ const shellStartupRetryDelayMilliseconds = [1_000, 3_000, 7_000, 15_000];
 const shellCollectionRecoveryRefreshIntervalMilliseconds = 15_000;
 // Stop our typing notice shortly after the composer becomes idle.
 const roomTypingIdleMilliseconds = 1_500;
-export function accountScopedStorageKey(
-  prefix: string,
-  accountKey: string,
-): string {
-  return `${prefix}.${accountKey}`;
-}
-
 function setGenericErrorFeedback(
   setFeedbackMessage: (feedback: FeedbackMessage | null) => void,
   text: string,
@@ -149,56 +130,6 @@ function fallbackRoomSummaryFromThread(thread: RoomThread): RoomSummary {
     isDirect: thread.isDirect,
     canSendMessages: false,
   };
-}
-
-function readCachedRoomSnapshot(
-  accountKey: string,
-  roomId: string,
-): SelectedRoomSnapshot | null {
-  const cachedSnapshot = readCachedJson<SelectedRoomSnapshot | null>(
-    cachedRoomSnapshotKey(accountKey, roomId),
-    null,
-  );
-  if (!cachedSnapshot) {
-    logPaginationDiagnostic("pagination.restart_restore_check", {
-      accountKey,
-      roomId,
-      cachedCountOnRoomLoad: 0,
-      localStorageCountOnRoomLoad: 0,
-      backendReturnedCountOnRoomLoad: "pending",
-    });
-    return null;
-  }
-
-  const normalizedSnapshot = {
-    ...cachedSnapshot,
-    timeline: durableRoomTimeline(
-      normalizeRoomTimeline(cachedSnapshot.timeline),
-    ),
-  };
-  logPaginationDiagnostic("pagination.restart_restore_check", {
-    accountKey,
-    roomId,
-    cachedCountOnRoomLoad: "backend_pending",
-    localStorageCountOnRoomLoad: normalizedSnapshot.timeline.items.length,
-    backendReturnedCountOnRoomLoad: "pending",
-  });
-  return normalizedSnapshot;
-}
-
-function writeCachedRoomSnapshot(
-  accountKey: string,
-  roomSnapshot: SelectedRoomSnapshot,
-) {
-  const normalizedRoomSnapshot = {
-    ...roomSnapshot,
-    timeline: durableRoomTimeline(normalizeRoomTimeline(roomSnapshot.timeline)),
-  };
-
-  writeCachedJson(
-    cachedRoomSnapshotKey(accountKey, normalizedRoomSnapshot.timeline.roomId),
-    normalizedRoomSnapshot,
-  );
 }
 
 function retainCurrentSelection<T extends { id: string }>(
@@ -232,33 +163,6 @@ function emptyComposerDraft(): RoomComposerDraft {
   };
 }
 
-function rememberRoomSnapshot(
-  currentSnapshots: Record<string, SelectedRoomSnapshot>,
-  roomSnapshot: SelectedRoomSnapshot,
-): Record<string, SelectedRoomSnapshot> {
-  const normalizedRoomSnapshot = {
-    ...roomSnapshot,
-    timeline: normalizeRoomTimeline(roomSnapshot.timeline),
-  };
-  const nextSnapshots = {
-    ...currentSnapshots,
-    [normalizedRoomSnapshot.timeline.roomId]: normalizedRoomSnapshot,
-  };
-  const snapshotEntries = Object.entries(nextSnapshots);
-  if (snapshotEntries.length <= maximumInMemoryRoomSnapshots) {
-    return nextSnapshots;
-  }
-
-  const [oldestRoomId] = snapshotEntries[0] ?? [];
-  if (!oldestRoomId) {
-    return nextSnapshots;
-  }
-
-  const trimmedSnapshots = { ...nextSnapshots };
-  delete trimmedSnapshots[oldestRoomId];
-  return trimmedSnapshots;
-}
-
 export default function useAppShellState({
   activeAccount,
   onActiveAccountChange,
@@ -281,12 +185,14 @@ export default function useAppShellState({
   );
   const [selectedRoomSummary, setSelectedRoomSummary] =
     useState<RoomSummary | null>(null);
-  const [selectedTimeline, setSelectedTimeline] = useState<RoomTimeline | null>(
-    null,
-  );
-  const [roomSnapshotsByRoomId, setRoomSnapshotsByRoomId] = useState<
-    Record<string, SelectedRoomSnapshot>
-  >({});
+  const {
+    selectedTimeline,
+    timelineModelRef,
+    beginTimeline,
+    closeTimeline,
+    acceptTimelineSnapshot,
+    updateTimelineStatus,
+  } = useTimelineModel();
   const [timelineJumpTarget, setTimelineJumpTarget] =
     useState<TimelineJumpTarget | null>(null);
   const [composerValue, setComposerValue] = useState("");
@@ -323,16 +229,12 @@ export default function useAppShellState({
   );
   const [isLoadingShell, setIsLoadingShell] = useState(true);
   const activeAccountKeyRef = useRef(activeAccount.account_key);
+  const timelineListenerReadyRef = useRef<Promise<void>>(Promise.resolve());
   const sendMessageInFlightRef = useRef(false);
   const paginationStatesByKeyRef = useRef<Record<string, PaginationState>>({});
   const loadOlderMessagesRef = useRef<(() => Promise<void>) | null>(null);
   const paginationRetryCountsRef = useRef<Record<string, number>>({});
   const paginationRetryTimeoutsRef = useRef<Record<string, number>>({});
-  // A pagination response must be the only timeline model update while
-  // Virtuoso applies its prepend index shift. SDK refreshes are retained and
-  // merged immediately after that atomic presentation update.
-  const paginationPresentationRoomIdRef = useRef<string | null>(null);
-  const deferredTimelineRefreshRef = useRef<SelectedRoomSnapshot | null>(null);
   const composerDraftsByRoomIdRef = useRef<Record<string, RoomComposerDraft>>(
     {},
   );
@@ -472,26 +374,18 @@ export default function useAppShellState({
         }),
         timelineRequest,
       ]);
-      const mappedTimeline = normalizeRoomTimeline(
-        mapRoomTimeline(backendTimeline),
-      );
-      logPaginationDiagnostic("pagination.restart_restore_check", {
-        accountKey: activeAccount.account_key,
-        roomId,
-        cachedCountOnRoomLoad: "backend_reported_separately",
-        localStorageCountOnRoomLoad:
-          readCachedRoomSnapshot(activeAccount.account_key, roomId)?.timeline
-            .items.length ?? 0,
-        backendReturnedCountOnRoomLoad: mappedTimeline.items.length,
-      });
-
+      const mappedTimeline = mapRoomTimeline(backendTimeline);
       return {
         summary: mapRoomSummary(backendSummary),
         timeline: mappedTimeline,
       };
     },
-    [activeAccount.account_key],
+    [],
   );
+
+  useEffect(() => {
+    removeLegacyTimelineSnapshots();
+  }, []);
 
   useEffect(() => {
     if (activeAccountKeyRef.current === activeAccount.account_key) {
@@ -507,8 +401,7 @@ export default function useAppShellState({
     setSelectedThreadId(null);
     setSelectedSpaceId(null);
     setSelectedRoomSummary(null);
-    setSelectedTimeline(null);
-    setRoomSnapshotsByRoomId({});
+    closeTimeline();
     setTimelineJumpTarget(null);
     setComposerValue("");
     updateComposerDrafts(() => ({}));
@@ -520,7 +413,7 @@ export default function useAppShellState({
     }
     paginationRetryTimeoutsRef.current = {};
     setPaginationStatesByKey({});
-  }, [activeAccount.account_key, updateComposerDrafts]);
+  }, [activeAccount.account_key, closeTimeline, updateComposerDrafts]);
 
   useEffect(() => {
     let cancelled = false;
@@ -552,73 +445,6 @@ export default function useAppShellState({
   }, [activeAccount, refreshShellSnapshot]);
 
   useEffect(() => {
-    if (selectionAccountKey !== activeAccount.account_key) {
-      return;
-    }
-
-    if (!selectedThreadId) {
-      setSelectedRoomSummary(null);
-      setSelectedTimeline(null);
-      setTimelineJumpTarget(null);
-      setComposerValue("");
-      return;
-    }
-
-    let cancelled = false;
-    const roomId = selectedThreadId;
-
-    async function loadSelectedRoom() {
-      try {
-        const anchoredEventId = timelineAnchorForRoom(
-          roomId,
-          timelineJumpTarget,
-        );
-        const roomSnapshot = await loadSelectedRoomSnapshot(
-          roomId,
-          anchoredEventId,
-        );
-        if (cancelled || selectedThreadIdRef.current !== roomId) {
-          return;
-        }
-
-        setSelectedRoomSummary(roomSnapshot.summary);
-        setSelectedTimeline(roomSnapshot.timeline);
-        setRoomSnapshotsByRoomId((currentSnapshots) =>
-          rememberRoomSnapshot(currentSnapshots, roomSnapshot),
-        );
-        writeCachedRoomSnapshot(activeAccount.account_key, roomSnapshot);
-        if (!anchoredEventId) {
-          void refreshRoomCollections().catch(() => {});
-        }
-
-        if (cancelled) {
-          return;
-        }
-      } catch {
-        if (!cancelled) {
-          setGenericErrorFeedback(
-            setFeedbackMessage,
-            "Could not load this conversation.",
-          );
-        }
-      }
-    }
-
-    void loadSelectedRoom();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    activeAccount.account_key,
-    loadSelectedRoomSnapshot,
-    refreshRoomCollections,
-    selectionAccountKey,
-    selectedThreadId,
-    timelineJumpTarget,
-  ]);
-
-  useEffect(() => {
     let cancelled = false;
     let collectionRefreshTimeoutId: number | null = null;
     let timelineRefreshTimeoutId: number | null = null;
@@ -626,95 +452,40 @@ export default function useAppShellState({
     let pendingAmbiguousRoomListUpdate = false;
 
     async function refreshSelectedRoomAfterSync(roomId: string) {
-      const roomSnapshot = await loadSelectedRoomSnapshot(roomId, null);
-      if (cancelled || selectedThreadIdRef.current !== roomId) {
+      const session = timelineModelRef.current?.session;
+      if (
+        !session ||
+        session.roomId !== roomId ||
+        !timelineModelRef.current?.timeline
+      )
         return;
-      }
-
+      const roomSnapshot = await loadSelectedRoomSnapshot(
+        roomId,
+        session.focusedEventId,
+      );
+      if (
+        cancelled ||
+        !acceptTimelineSnapshot(session, roomSnapshot.timeline, "refresh")
+      )
+        return;
       setSelectedRoomSummary(roomSnapshot.summary);
-      if (paginationPresentationRoomIdRef.current === roomId) {
-        deferredTimelineRefreshRef.current = roomSnapshot;
-        return;
-      }
-      setSelectedTimeline((currentTimeline) => {
-        const mergedTimeline = mergeTimelineRefresh(
-          currentTimeline,
-          roomSnapshot.timeline,
-        );
-        const mergedRoomSnapshot = {
-          summary: roomSnapshot.summary,
-          timeline: mergedTimeline,
-        };
-        setRoomSnapshotsByRoomId((currentSnapshots) =>
-          rememberRoomSnapshot(currentSnapshots, mergedRoomSnapshot),
-        );
-        writeCachedRoomSnapshot(activeAccount.account_key, mergedRoomSnapshot);
-        return mergedTimeline;
-      });
       void refreshRoomCollections().catch(() => {});
     }
 
     function applyLiveTimelineUpdate(payload: ShellTimelineUpdatedPayload) {
+      const session = timelineModelRef.current?.session;
       if (
         cancelled ||
-        payload.account_key !== activeAccount.account_key ||
-        activeView !== "messages" ||
-        timelineJumpTarget !== null ||
-        selectedThreadIdRef.current !== payload.room_id
-      ) {
+        !session ||
+        payload.account_key !== session.accountKey ||
+        payload.room_id !== session.roomId
+      )
         return;
-      }
-
-      const refreshedTimeline = roomTimelineFromUpdatePayload(payload);
-      if (paginationPresentationRoomIdRef.current === payload.room_id) {
-        const matchingThread = roomThreads.find(
-          (thread) => thread.id === payload.room_id,
-        );
-        const summary =
-          selectedRoomSummary?.id === payload.room_id
-            ? selectedRoomSummary
-            : matchingThread
-              ? fallbackRoomSummaryFromThread(matchingThread)
-              : null;
-        if (summary) {
-          deferredTimelineRefreshRef.current = {
-            summary,
-            timeline: refreshedTimeline,
-          };
-          return;
-        }
-      }
-      setSelectedTimeline((currentTimeline) => {
-        const mergedTimeline = mergeTimelineRefresh(
-          currentTimeline,
-          refreshedTimeline,
-        );
-        const selectedRoomSummaryForPayload =
-          selectedRoomSummary?.id === payload.room_id
-            ? selectedRoomSummary
-            : null;
-        const selectedThreadForPayload =
-          roomThreads.find((thread) => thread.id === payload.room_id) ?? null;
-        if (selectedRoomSummaryForPayload || selectedThreadForPayload) {
-          let summary: RoomSummary;
-          if (selectedRoomSummaryForPayload) {
-            summary = selectedRoomSummaryForPayload;
-          } else if (selectedThreadForPayload) {
-            summary = fallbackRoomSummaryFromThread(selectedThreadForPayload);
-          } else {
-            return mergedTimeline;
-          }
-          const roomSnapshot = {
-            summary,
-            timeline: mergedTimeline,
-          };
-          setRoomSnapshotsByRoomId((currentSnapshots) =>
-            rememberRoomSnapshot(currentSnapshots, roomSnapshot),
-          );
-          writeCachedRoomSnapshot(activeAccount.account_key, roomSnapshot);
-        }
-        return mergedTimeline;
-      });
+      acceptTimelineSnapshot(
+        session,
+        roomTimelineFromUpdatePayload(payload),
+        "update",
+      );
     }
 
     const unlistenPromise = listen<ShellSyncUpdatedPayload>(
@@ -782,6 +553,7 @@ export default function useAppShellState({
         applyLiveTimelineUpdate(event.payload);
       },
     );
+    timelineListenerReadyRef.current = unlistenTimelinePromise.then(() => {});
 
     return () => {
       cancelled = true;
@@ -799,8 +571,85 @@ export default function useAppShellState({
     activeView,
     loadSelectedRoomSnapshot,
     refreshRoomCollections,
-    roomThreads,
-    selectedRoomSummary,
+    selectedThreadId,
+    timelineJumpTarget,
+    timelineModelRef,
+    acceptTimelineSnapshot,
+  ]);
+
+  useEffect(() => {
+    if (selectionAccountKey !== activeAccount.account_key) {
+      return;
+    }
+
+    if (activeView !== "messages") {
+      closeTimeline();
+      return;
+    }
+    if (!selectedThreadId) {
+      setSelectedRoomSummary(null);
+      closeTimeline();
+      setTimelineJumpTarget(null);
+      setComposerValue("");
+      return;
+    }
+
+    let cancelled = false;
+    const roomId = selectedThreadId;
+    const anchoredEventId = timelineAnchorForRoom(roomId, timelineJumpTarget);
+    const session = beginTimeline({
+      accountKey: activeAccount.account_key,
+      roomId,
+      focusedEventId: anchoredEventId,
+    });
+
+    async function loadSelectedRoom() {
+      try {
+        await timelineListenerReadyRef.current;
+        if (cancelled) return;
+        const roomSnapshot = await loadSelectedRoomSnapshot(
+          roomId,
+          anchoredEventId,
+        );
+        if (cancelled || selectedThreadIdRef.current !== roomId) {
+          return;
+        }
+
+        if (!acceptTimelineSnapshot(session, roomSnapshot.timeline, "initial"))
+          return;
+        setSelectedRoomSummary(roomSnapshot.summary);
+        if (!anchoredEventId) {
+          void refreshRoomCollections().catch(() => {});
+        }
+
+        if (cancelled) {
+          return;
+        }
+      } catch {
+        if (!cancelled) {
+          setGenericErrorFeedback(
+            setFeedbackMessage,
+            "Could not load this conversation.",
+          );
+        }
+      }
+    }
+
+    void loadSelectedRoom();
+
+    return () => {
+      cancelled = true;
+      closeTimeline();
+    };
+  }, [
+    activeView,
+    beginTimeline,
+    closeTimeline,
+    acceptTimelineSnapshot,
+    activeAccount.account_key,
+    loadSelectedRoomSnapshot,
+    refreshRoomCollections,
+    selectionAccountKey,
     selectedThreadId,
     timelineJumpTarget,
   ]);
@@ -897,7 +746,10 @@ export default function useAppShellState({
   const selectedRoomSummaryForSelectedThread =
     selectedRoomSummary?.id === selectedThreadId ? selectedRoomSummary : null;
   const selectedTimelineForSelectedThread =
-    selectedTimeline?.roomId === selectedThreadId ? selectedTimeline : null;
+    selectedTimeline?.roomId === selectedThreadId &&
+    selectedTimeline.timelineIdentity.accountKey === activeAccount.account_key
+      ? selectedTimeline
+      : null;
   const selectedPaginationContext = paginationContextForTimeline(
     activeAccount.account_key,
     selectedTimelineForSelectedThread,
@@ -991,19 +843,13 @@ export default function useAppShellState({
 
   const openRoomAtLatest = useCallback(
     (roomId: string) => {
-      const cachedRoomSnapshot =
-        roomSnapshotsByRoomId[roomId] ??
-        readCachedRoomSnapshot(activeAccount.account_key, roomId);
-      if (cachedRoomSnapshot) {
-        setSelectedRoomSummary(cachedRoomSnapshot.summary);
-        setSelectedTimeline(cachedRoomSnapshot.timeline);
-      } else {
-        const thread = roomThreads.find((candidate) => candidate.id === roomId);
-        setSelectedRoomSummary(
-          thread ? fallbackRoomSummaryFromThread(thread) : null,
-        );
-        setSelectedTimeline(emptyRoomTimeline(roomId));
-      }
+      const session = timelineModelRef.current?.session;
+      if (session?.roomId === roomId && session.focusedEventId === null) return;
+      closeTimeline();
+      const thread = roomThreads.find((candidate) => candidate.id === roomId);
+      setSelectedRoomSummary(
+        thread ? fallbackRoomSummaryFromThread(thread) : null,
+      );
 
       setTimelineJumpTarget(null);
       setComposerValue(composerDraftsByRoomId[roomId]?.body ?? "");
@@ -1013,46 +859,35 @@ export default function useAppShellState({
     [
       activeAccount.account_key,
       composerDraftsByRoomId,
-      roomSnapshotsByRoomId,
+      closeTimeline,
+      timelineModelRef,
       roomThreads,
     ],
   );
 
   const openRoomAtEvent = useCallback(
     (roomId: string, eventId: string) => {
+      closeTimeline();
       setTimelineJumpTarget({ roomId, eventId });
       setComposerValue(composerDraftsByRoomId[roomId]?.body ?? "");
       setSelectedThreadId(roomId);
       setActiveView("messages");
     },
-    [composerDraftsByRoomId],
+    [closeTimeline, composerDraftsByRoomId],
   );
 
   const reloadSelectedTimeline = useCallback(
     async (roomId: string) => {
-      const roomSnapshot = await loadSelectedRoomSnapshot(roomId, null);
-      if (selectedThreadIdRef.current !== roomId) {
-        return;
-      }
-
-      setSelectedRoomSummary(roomSnapshot.summary);
-      setSelectedTimeline((currentTimeline) => {
-        const mergedTimeline = mergeTimelineRefresh(
-          currentTimeline,
-          roomSnapshot.timeline,
-        );
-        const mergedRoomSnapshot = {
-          summary: roomSnapshot.summary,
-          timeline: mergedTimeline,
-        };
-        setRoomSnapshotsByRoomId((currentSnapshots) =>
-          rememberRoomSnapshot(currentSnapshots, mergedRoomSnapshot),
-        );
-        writeCachedRoomSnapshot(activeAccount.account_key, mergedRoomSnapshot);
-        return mergedTimeline;
-      });
+      const session = timelineModelRef.current?.session;
+      if (!session || session.roomId !== roomId) return;
+      const roomSnapshot = await loadSelectedRoomSnapshot(
+        roomId,
+        session.focusedEventId,
+      );
+      if (acceptTimelineSnapshot(session, roomSnapshot.timeline, "refresh"))
+        setSelectedRoomSummary(roomSnapshot.summary);
     },
-    [activeAccount.account_key, loadSelectedRoomSnapshot],
+    [acceptTimelineSnapshot, loadSelectedRoomSnapshot, timelineModelRef],
   );
 
   const switchAccount = useCallback(
@@ -1072,7 +907,7 @@ export default function useAppShellState({
         setIsAccountCenterOpen(false);
         setFeedbackMessage(null);
         setSelectedRoomSummary(null);
-        setSelectedTimeline(null);
+        closeTimeline();
         setGlobalSearchQuery("");
         setGlobalSearchResults([]);
         setGlobalSearchNotice(null);
@@ -1087,7 +922,7 @@ export default function useAppShellState({
         setSwitchingAccountKey(null);
       }
     },
-    [onActiveAccountChange],
+    [closeTimeline, onActiveAccountChange],
   );
 
   const sendMessage = useCallback(async () => {
@@ -1296,16 +1131,19 @@ export default function useAppShellState({
       return;
     }
 
+    const session = timelineModelRef.current?.session;
+    if (!session) return;
     const requestId = createPaginationRequestId();
     updatePaginationState(paginationContext, {
       status: "loading",
       requestId,
       startedAt: Date.now(),
     });
-    paginationPresentationRoomIdRef.current = paginationContext.roomId;
+    const instanceId = selectedTimeline.timelineIdentity.instanceId;
 
     let timeoutDidFire = false;
     const timeoutId = window.setTimeout(() => {
+      if (timelineModelRef.current?.session !== session) return;
       timeoutDidFire = true;
       logPaginationDiagnostic("pagination.ui.timeout_reset", {
         accountKey: paginationContext.accountKey,
@@ -1350,189 +1188,16 @@ export default function useAppShellState({
         roomId: paginationContext.roomId,
         timelineContext: paginationContext.timelineContext,
         requestId,
-        receivedItemCount: paginationResponse.items.length,
+        returnedItemCount: paginationResponse.returnedItemCount,
         backendDuplicateCount: paginationResponse.duplicateCount,
         backendNewItemCount: paginationResponse.newItemCount,
         continuationAttemptCount: paginationResponse.continuationAttemptCount,
         timeoutDidFire,
       });
 
-      if (paginationResponse.items.length === 0) {
-        logPaginationDiagnostic("pagination.ui.empty_result", {
-          accountKey: paginationContext.accountKey,
-          roomId: paginationContext.roomId,
-          timelineContext: paginationContext.timelineContext,
-          requestId,
-          receivedItemCount: 0,
-          reason: paginationResponse.reason,
-        });
-        if (paginationResponse.tokenChanged) {
-          setSelectedTimeline((currentTimeline) => {
-            if (
-              !currentTimeline ||
-              currentTimeline.roomId !== paginationResponse.roomId
-            ) {
-              return currentTimeline;
-            }
+      if (timelineModelRef.current?.session !== session) return;
+      updateTimelineStatus(session, instanceId, paginationResponse);
 
-            const cursorAdvancedTimeline = {
-              ...currentTimeline,
-              nextBefore: paginationResponse.nextBefore,
-            };
-            const roomSnapshot = {
-              summary: selectedRoomSummaryForSelectedThread ?? {
-                id: cursorAdvancedTimeline.roomId,
-                title: selectedThread?.title ?? "",
-                participantLabel: selectedThread?.participantLabel ?? "",
-                homeserverLabel: selectedThread?.homeserverLabel ?? "",
-                topic: "",
-                isDirect: selectedThread?.isDirect ?? false,
-                canSendMessages: true,
-              },
-              timeline: cursorAdvancedTimeline,
-            };
-            setRoomSnapshotsByRoomId((currentSnapshots) =>
-              rememberRoomSnapshot(currentSnapshots, roomSnapshot),
-            );
-            writeCachedRoomSnapshot(activeAccount.account_key, roomSnapshot);
-            logPaginationDiagnostic("pagination.ui.merge.done", {
-              accountKey: paginationContext.accountKey,
-              roomId: paginationContext.roomId,
-              timelineContext: paginationContext.timelineContext,
-              requestId,
-              receivedItemCount: 0,
-              mergedItemCount: 0,
-              duplicateCount: paginationResponse.duplicateCount,
-              nextBeforeAdvanced: true,
-            });
-            return cursorAdvancedTimeline;
-          });
-        }
-        const retryCount = paginationRetryCountsRef.current[stateKey] ?? 0;
-        const cursorAdvanceCount = retryCount + 1;
-        if (
-          paginationCanAutomaticallyContinue(
-            paginationResponse,
-            cursorAdvanceCount,
-          )
-        ) {
-          const retryDelayMilliseconds =
-            paginationBackoffDelayMilliseconds(retryCount);
-          paginationRetryCountsRef.current[stateKey] = cursorAdvanceCount;
-          updatePaginationState(paginationContext, {
-            status: "cooldown",
-            retryAt: Date.now() + retryDelayMilliseconds,
-            retryCount,
-          });
-          paginationRetryTimeoutsRef.current[stateKey] = window.setTimeout(
-            () => {
-              delete paginationRetryTimeoutsRef.current[stateKey];
-              if (selectedThreadIdRef.current !== paginationContext.roomId) {
-                return;
-              }
-              updatePaginationState(paginationContext, idlePaginationState);
-              void loadOlderMessagesRef.current?.();
-            },
-            retryDelayMilliseconds,
-          );
-        } else {
-          paginationRetryCountsRef.current[stateKey] = 0;
-          updatePaginationState(paginationContext, idlePaginationState);
-        }
-        return;
-      }
-
-      setSelectedTimeline((currentTimeline) => {
-        logPaginationDiagnostic("pagination.ui.merge.start", {
-          accountKey: paginationContext.accountKey,
-          roomId: paginationContext.roomId,
-          timelineContext: paginationContext.timelineContext,
-          requestId,
-          receivedItemCount: paginationResponse.items.length,
-        });
-        if (
-          !currentTimeline ||
-          currentTimeline.roomId !== paginationResponse.roomId
-        ) {
-          const replacementTimeline = {
-            roomId: paginationResponse.roomId,
-            items: paginationResponse.items,
-            nextBefore: paginationResponse.nextBefore,
-            focusedEventId: selectedTimeline.focusedEventId,
-            redactedEventIds: selectedTimeline.redactedEventIds,
-          };
-          const roomSnapshot = {
-            summary: selectedRoomSummaryForSelectedThread ?? {
-              id: replacementTimeline.roomId,
-              title: selectedThread?.title ?? "",
-              participantLabel: selectedThread?.participantLabel ?? "",
-              homeserverLabel: selectedThread?.homeserverLabel ?? "",
-              topic: "",
-              isDirect: selectedThread?.isDirect ?? false,
-              canSendMessages: true,
-            },
-            timeline: replacementTimeline,
-          };
-          setRoomSnapshotsByRoomId((currentSnapshots) =>
-            rememberRoomSnapshot(currentSnapshots, roomSnapshot),
-          );
-          writeCachedRoomSnapshot(activeAccount.account_key, roomSnapshot);
-          logPaginationDiagnostic("pagination.ui.merge.done", {
-            accountKey: paginationContext.accountKey,
-            roomId: paginationContext.roomId,
-            timelineContext: paginationContext.timelineContext,
-            requestId,
-            mergedItemCount: replacementTimeline.items.length,
-            duplicateCount: 0,
-          });
-          return replacementTimeline;
-        }
-
-        const prependResult = prependTimelinePage(
-          currentTimeline,
-          paginationResponse.items,
-          paginationResponse.nextBefore,
-          paginationResponse.tokenChanged,
-        );
-        if (prependResult.insertedCount === 0) {
-          logPaginationDiagnostic("pagination.ui.duplicate_only", {
-            accountKey: paginationContext.accountKey,
-            roomId: paginationContext.roomId,
-            timelineContext: paginationContext.timelineContext,
-            requestId,
-            receivedItemCount: paginationResponse.items.length,
-            duplicateCount: prependResult.duplicateCount,
-          });
-        }
-
-        const mergedTimeline = prependResult.timeline;
-        const roomSnapshot = {
-          summary: selectedRoomSummaryForSelectedThread ?? {
-            id: mergedTimeline.roomId,
-            title: selectedThread?.title ?? "",
-            participantLabel: selectedThread?.participantLabel ?? "",
-            homeserverLabel: selectedThread?.homeserverLabel ?? "",
-            topic: "",
-            isDirect: selectedThread?.isDirect ?? false,
-            canSendMessages: true,
-          },
-          timeline: mergedTimeline,
-        };
-        setRoomSnapshotsByRoomId((currentSnapshots) =>
-          rememberRoomSnapshot(currentSnapshots, roomSnapshot),
-        );
-        writeCachedRoomSnapshot(activeAccount.account_key, roomSnapshot);
-        logPaginationDiagnostic("pagination.ui.merge.done", {
-          accountKey: paginationContext.accountKey,
-          roomId: paginationContext.roomId,
-          timelineContext: paginationContext.timelineContext,
-          requestId,
-          receivedItemCount: paginationResponse.items.length,
-          mergedItemCount: prependResult.insertedCount,
-          duplicateCount: prependResult.duplicateCount,
-        });
-        return mergedTimeline;
-      });
       const retryCount = paginationRetryCountsRef.current[stateKey] ?? 0;
       const cursorAdvanceCount = retryCount + 1;
       if (
@@ -1555,7 +1220,7 @@ export default function useAppShellState({
         }
         paginationRetryTimeoutsRef.current[stateKey] = window.setTimeout(() => {
           delete paginationRetryTimeoutsRef.current[stateKey];
-          if (selectedThreadIdRef.current !== paginationContext.roomId) {
+          if (timelineModelRef.current?.session !== session) {
             return;
           }
           updatePaginationState(paginationContext, idlePaginationState);
@@ -1567,6 +1232,7 @@ export default function useAppShellState({
       }
     } catch (error) {
       window.clearTimeout(timeoutId);
+      if (timelineModelRef.current?.session !== session) return;
       const message = error instanceof Error ? error.message : String(error);
       logPaginationDiagnostic("pagination.ui.command.error", {
         accountKey: paginationContext.accountKey,
@@ -1584,43 +1250,14 @@ export default function useAppShellState({
           ? "Older messages are temporarily rate limited. Please wait and try again."
           : "Could not load older messages.",
       );
-    } finally {
-      const paginationPresentationIsCurrent =
-        paginationPresentationRoomIdRef.current === paginationContext.roomId;
-      if (paginationPresentationIsCurrent) {
-        paginationPresentationRoomIdRef.current = null;
-        const deferredRefresh = deferredTimelineRefreshRef.current;
-        deferredTimelineRefreshRef.current = null;
-        const deferredRefreshStillApplies =
-          deferredRefresh &&
-          selectedThreadIdRef.current === paginationContext.roomId;
-        if (deferredRefreshStillApplies) {
-          setSelectedRoomSummary(deferredRefresh.summary);
-          setSelectedTimeline((currentTimeline) => {
-            const mergedTimeline = mergeTimelineRefresh(
-              currentTimeline,
-              deferredRefresh.timeline,
-            );
-            const roomSnapshot = {
-              summary: deferredRefresh.summary,
-              timeline: mergedTimeline,
-            };
-            setRoomSnapshotsByRoomId((currentSnapshots) =>
-              rememberRoomSnapshot(currentSnapshots, roomSnapshot),
-            );
-            writeCachedRoomSnapshot(activeAccount.account_key, roomSnapshot);
-            return mergedTimeline;
-          });
-        }
-      }
     }
   }, [
     activeAccount.account_key,
-    selectedRoomSummaryForSelectedThread,
-    selectedThread,
     selectedThreadId,
     selectedTimeline,
     updatePaginationState,
+    timelineModelRef,
+    updateTimelineStatus,
   ]);
 
   loadOlderMessagesRef.current = loadOlderMessages;
@@ -1741,7 +1378,10 @@ export default function useAppShellState({
     visibleThreads,
     closeGlobalSearch: () => setIsGlobalSearchOpen(false),
     closeDiscovery,
-    closeThread: () => setSelectedThreadId(null),
+    closeThread: () => {
+      closeTimeline();
+      setSelectedThreadId(null);
+    },
     beginEditMessage,
     beginReplyToMessage,
     cancelComposerMode,

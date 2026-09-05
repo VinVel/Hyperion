@@ -183,7 +183,23 @@ type BackendRoomTimelineThumbnailState = {
   blurhash?: string | null;
 };
 
+export type BackendTimelineIdentity = {
+  account_key: string;
+  room_id: string;
+  instance_id: string;
+  focused_event_id: string | null;
+};
+
+export type TimelineIdentity = {
+  accountKey: string;
+  roomId: string;
+  instanceId: string;
+  focusedEventId: string | null;
+};
+
 export type BackendRoomTimeline = {
+  timeline_identity: BackendTimelineIdentity;
+  revision: number;
   room_id: string;
   items: BackendRoomTimelineItem[];
   next_before?: string | null;
@@ -277,6 +293,8 @@ export type RoomTimelineReplyPreview = {
 };
 
 export type RoomTimeline = {
+  timelineIdentity: TimelineIdentity;
+  revision: number;
   roomId: string;
   items: RoomTimelineItem[];
   nextBefore: string | null;
@@ -287,7 +305,6 @@ export type RoomTimeline = {
 
 export type RoomTimelinePaginationResponse = {
   roomId: string;
-  items: RoomTimelineItem[];
   nextBefore: string | null;
   requestId: string;
   hadNewItems: boolean;
@@ -338,6 +355,13 @@ export function mapRoomTimeline(
   backendTimeline: BackendRoomTimeline,
 ): RoomTimeline {
   return {
+    timelineIdentity: {
+      accountKey: backendTimeline.timeline_identity.account_key,
+      roomId: backendTimeline.timeline_identity.room_id,
+      instanceId: backendTimeline.timeline_identity.instance_id,
+      focusedEventId: backendTimeline.timeline_identity.focused_event_id,
+    },
+    revision: backendTimeline.revision,
     roomId: backendTimeline.room_id,
     items: (backendTimeline.items ?? []).map(mapRoomTimelineItem),
     nextBefore: backendTimeline.next_before ?? null,
@@ -352,7 +376,6 @@ export function mapRoomTimelinePaginationResponse(
 ): RoomTimelinePaginationResponse {
   return {
     roomId: response.room_id,
-    items: (response.items ?? []).map(mapRoomTimelineItem),
     nextBefore: response.next_before ?? null,
     requestId: response.request_id,
     hadNewItems: response.had_new_items,
@@ -367,7 +390,7 @@ export function mapRoomTimelinePaginationResponse(
 }
 
 // Virtuoso requires a stable high index so prepend operations can preserve the viewport.
-const timelineInitialItemIndex = 100_000;
+export const timelineInitialItemIndex = 100_000;
 
 function mapRoomTimelineItem(item: BackendRoomTimelineItem): RoomTimelineItem {
   const capabilities = item.presentation.capabilities ?? {

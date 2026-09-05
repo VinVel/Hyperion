@@ -14,7 +14,7 @@
  */
 
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { writeCachedJson } from "./cache";
+import { removeLegacyTimelineSnapshots, writeCachedJson } from "./cache";
 
 describe("cached JSON writes", () => {
   afterEach(() => {
@@ -34,4 +34,44 @@ describe("cached JSON writes", () => {
     expect(() => writeCachedJson("timeline", { items: [] })).not.toThrow();
     expect(writeCachedJson("timeline", { items: [] })).toBe(false);
   });
+});
+
+test("legacy timeline cleanup preserves drafts, preferences, and collection caches", () => {
+  const values = new Map([
+    ["hyperion.appShell.roomSnapshots.account.!room", "messages"],
+    ["hyperion.appShell.roomSnapshots.other.!room", "messages"],
+    ["hyperion.appShell.roomThreads.account", "threads"],
+    ["hyperion.appShell.spaces.account", "spaces"],
+    ["hyperion.appShell.drafts.account", "draft"],
+    ["theme", "dark"],
+    ["hyperion.appShell.roomSnapshotsUnrelated", "keep"],
+  ]);
+  const storage = {
+    get length() {
+      return values.size;
+    },
+    key: (index: number) => [...values.keys()][index] ?? null,
+    removeItem: (key: string) => values.delete(key),
+  };
+  removeLegacyTimelineSnapshots(storage);
+  expect([...values.values()]).toEqual([
+    "threads",
+    "spaces",
+    "draft",
+    "dark",
+    "keep",
+  ]);
+});
+
+test("legacy cleanup tolerates a WebView that blocks storage access", () => {
+  vi.stubGlobal("window", {
+    get localStorage() {
+      throw new Error("storage is unavailable");
+    },
+  });
+  try {
+    expect(() => removeLegacyTimelineSnapshots()).not.toThrow();
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

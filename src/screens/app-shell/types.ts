@@ -20,6 +20,7 @@ import {
 } from "../conversations";
 import type {
   BackendRoomTimelineItem,
+  BackendTimelineIdentity,
   RoomSummary,
   RoomTimeline,
   AccountSummary,
@@ -36,6 +37,9 @@ export type ShellSyncUpdatedPayload = {
   updated_at_unix_ms: number;
 };
 export type ShellTimelineUpdatedPayload = {
+  timeline_identity: BackendTimelineIdentity;
+  revision: number;
+  focused_event_id: string | null;
   account_key: string;
   room_id: string;
   items: BackendRoomTimelineItem[];

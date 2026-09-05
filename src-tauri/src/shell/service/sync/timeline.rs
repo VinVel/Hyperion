@@ -197,17 +197,6 @@ impl ShellSyncCoordinator {
             .live_redacted_event_ids(account_key, room)
             .await
     }
-    pub(in crate::shell::service) async fn live_timeline_item_count(
-        &self,
-        account_key: &str,
-        room: &Room,
-    ) -> Result<usize, String> {
-        emit_timeline_room_diagnostic("timeline.live.count", account_key, room);
-        self.timeline_service
-            .registry()
-            .live_timeline_item_count(account_key, room)
-            .await
-    }
     pub(in crate::shell::service) async fn focused_redacted_event_ids(
         &self,
         account_key: &str,

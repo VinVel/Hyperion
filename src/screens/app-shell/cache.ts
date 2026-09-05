@@ -13,12 +13,30 @@
  * Project home: hyperion.velcore.net
  */
 
-import {
-  accountScopedStorageKey,
-  cachedRoomThreadsStoragePrefix,
-  cachedSpacesStoragePrefix,
-  cachedRoomSnapshotsStoragePrefix,
-} from "./useAppShellState";
+// Collection caches remain independent of the SDK-owned visible timeline.
+const cachedRoomThreadsStoragePrefix = "hyperion.appShell.roomThreads";
+const cachedSpacesStoragePrefix = "hyperion.appShell.spaces";
+// Only this legacy namespace stored durable frontend timeline events.
+const legacyRoomSnapshotsStoragePrefix = "hyperion.appShell.roomSnapshots.";
+
+function accountScopedStorageKey(prefix: string, accountKey: string): string {
+  return `${prefix}.${accountKey}`;
+}
+
+export function removeLegacyTimelineSnapshots(
+  storage?: Pick<Storage, "length" | "key" | "removeItem">,
+): void {
+  try {
+    const timelineStorage = storage ?? window.localStorage;
+    for (let index = timelineStorage.length - 1; index >= 0; index--) {
+      const key = timelineStorage.key(index);
+      if (key?.startsWith(legacyRoomSnapshotsStoragePrefix))
+        timelineStorage.removeItem(key);
+    }
+  } catch {
+    // Storage can be unavailable in a WebView; the timeline does not read it.
+  }
+}
 
 export function readCachedJson<T>(storageKey: string, fallback: T): T {
   try {
@@ -48,13 +66,4 @@ export function cachedRoomThreadsKey(accountKey: string): string {
 }
 export function cachedSpacesKey(accountKey: string): string {
   return accountScopedStorageKey(cachedSpacesStoragePrefix, accountKey);
-}
-export function cachedRoomSnapshotKey(
-  accountKey: string,
-  roomId: string,
-): string {
-  return accountScopedStorageKey(
-    cachedRoomSnapshotsStoragePrefix,
-    `${accountKey}.${roomId}`,
-  );
 }

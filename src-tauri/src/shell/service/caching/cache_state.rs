@@ -157,14 +157,6 @@ impl ShellCacheState {
         let _ = (store_dir, summaries);
     }
 
-    pub(in crate::shell::service) fn cached_room_timeline(
-        _account_key: &str,
-        _store_dir: &std::path::Path,
-        _room_id: &str,
-    ) -> Option<(Vec<crate::shell::types::RoomTimelineItem>, Option<String>)> {
-        None
-    }
-
     pub(in crate::shell::service) fn cached_room_timeline_item(
         _account_key: &str,
         _store_dir: &std::path::Path,
@@ -174,34 +166,6 @@ impl ShellCacheState {
         None
     }
 
-    pub(in crate::shell) fn merge_refreshed_timeline(
-        account_key: &str,
-        store_dir: &std::path::Path,
-        room_id: &str,
-        items: &[crate::shell::types::RoomTimelineItem],
-        next_before: Option<&str>,
-        redacted_event_ids: &[String],
-    ) {
-        let _ = (
-            account_key,
-            store_dir,
-            room_id,
-            items,
-            next_before,
-            redacted_event_ids,
-        );
-    }
-
-    pub(in crate::shell::service) fn prepend_cached_timeline_items(
-        account_key: &str,
-        store_dir: &std::path::Path,
-        room_id: &str,
-        items: &[crate::shell::types::RoomTimelineItem],
-        next_before: Option<&str>,
-    ) {
-        let _ = (account_key, store_dir, room_id, items, next_before);
-    }
-
     pub(in crate::shell::service) fn remembered_timeline_item_count(
         account_key: &str,
         store_dir: &std::path::Path,
@@ -209,23 +173,5 @@ impl ShellCacheState {
     ) -> Option<usize> {
         let _ = (account_key, store_dir, room_id);
         None
-    }
-
-    pub(in crate::shell::service) fn remember_timeline_item_count_after_pagination(
-        account_key: &str,
-        store_dir: &std::path::Path,
-        room_id: &str,
-        before: Option<&str>,
-        page_limit: u16,
-        returned_item_count: usize,
-    ) {
-        let _ = (
-            account_key,
-            store_dir,
-            room_id,
-            before,
-            page_limit,
-            returned_item_count,
-        );
     }
 }

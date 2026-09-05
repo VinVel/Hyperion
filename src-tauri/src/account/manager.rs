@@ -653,6 +653,12 @@ impl AccountManager {
             // on Windows while the app-level index handles searchable metadata.
             .search_index_store(SearchIndexStoreKind::InMemory);
 
+        // The pinned SDK no longer supplies its Android WebPKI workaround.
+        // Use our TLS setup before discovery, since the default platform
+        // verifier requires Android initialization that Hyperion does not provide.
+        #[cfg(target_os = "android")]
+        let client_builder = client_builder.http_client(crate::utils::http::matrix_http_client()?);
+
         let client = client_builder
             .build()
             .await

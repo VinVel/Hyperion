@@ -22,6 +22,26 @@ use rustls::{ClientConfig, RootCertStore, client::WebPkiServerVerifier};
 
 #[cfg(target_os = "android")]
 pub fn external_http_client() -> Result<HttpClient, String> {
+    android_http_client_builder()?
+        .build()
+        .map_err(|error| format!("Failed to build Android HTTP client: {error}"))
+}
+
+#[cfg(target_os = "android")]
+pub fn matrix_http_client() -> Result<HttpClient, String> {
+    // Preserve the SDK's defaults for discovery and other requests that do not
+    // get a per-request timeout from the Matrix request configuration.
+    const MATRIX_REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+    android_http_client_builder()?
+        .user_agent("matrix-rust-sdk")
+        .timeout(MATRIX_REQUEST_TIMEOUT)
+        .build()
+        .map_err(|error| format!("Failed to build Android Matrix HTTP client: {error}"))
+}
+
+#[cfg(target_os = "android")]
+fn android_http_client_builder() -> Result<reqwest::ClientBuilder, String> {
     let mut root_store = RootCertStore::empty();
     root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
 
@@ -37,10 +57,7 @@ pub fn external_http_client() -> Result<HttpClient, String> {
         .with_webpki_verifier(verifier)
         .with_no_client_auth();
 
-    HttpClient::builder()
-        .tls_backend_preconfigured(tls_config)
-        .build()
-        .map_err(|error| format!("Failed to build Android HTTP client: {error}"))
+    Ok(HttpClient::builder().tls_backend_preconfigured(tls_config))
 }
 
 #[cfg(not(target_os = "android"))]

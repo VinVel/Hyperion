@@ -621,8 +621,9 @@ fn http_error_is_offline(error: &HttpError) -> bool {
         }
         HttpError::RefreshToken(
             RefreshTokenError::RefreshTokenRequired | RefreshTokenError::OAuth(_),
-        ) => false,
-        HttpError::Api(_) | HttpError::IntoHttp(_) => false,
+        )
+        | HttpError::Api(_)
+        | HttpError::IntoHttp(_) => false,
     }
 }
 
@@ -940,6 +941,8 @@ mod tests {
 
     #[test]
     fn classifies_transport_error_as_offline() {
+        // Unit tests bypass run(), which installs the provider required by the SDK.
+        let _already_configured = rustls::crypto::aws_lc_rs::default_provider().install_default();
         let listener = TcpListener::bind("127.0.0.1:0").expect("test listener should bind");
         let address = listener
             .local_addr()

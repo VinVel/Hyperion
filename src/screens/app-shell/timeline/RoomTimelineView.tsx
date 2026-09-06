@@ -13,6 +13,8 @@
  * Project home: hyperion.velcore.net
  */
 
+import { waitForRenderedTimeline } from "./paginationRendering";
+import type { PaginationViewport } from "../paginationBatch";
 import {
   memo,
   useCallback,
@@ -70,7 +72,7 @@ type RoomTimelineViewProps = {
   timeline: RoomTimeline | null;
   onBeginEditMessage: (eventId: string, body: string) => void;
   onBeginReplyToMessage: (eventId: string) => void;
-  onLoadOlderMessages: () => void;
+  onLoadOlderMessages: (viewport: PaginationViewport) => Promise<void>;
   onRedactMessage: (eventId: string) => void;
   onToggleReaction: (eventId: string, reactionKey: string) => void;
 };
@@ -167,6 +169,18 @@ function RoomTimelineView({
   );
   const [activeInfoEventId, setActiveInfoEventId] = useState<string | null>(
     null,
+  );
+  const renderedTimelineRef = useRef(timeline);
+  const paginationGestureRef = useRef<AbortController | null>(null);
+  useLayoutEffect(() => {
+    renderedTimelineRef.current = timeline;
+  }, [timeline]);
+  useEffect(
+    () => () => {
+      paginationGestureRef.current?.abort();
+      paginationGestureRef.current = null;
+    },
+    [timeline?.timelineIdentity.instanceId],
   );
   const timelineItems = timeline?.items ?? [];
   const roomId = timeline?.roomId ?? null;
@@ -338,7 +352,33 @@ function RoomTimelineView({
       ) {
         return;
       }
-      onLoadOlderMessages();
+      if (!scroller || paginationGestureRef.current) return;
+      const controller = new AbortController();
+      paginationGestureRef.current = controller;
+      const instanceId =
+        renderedTimelineRef.current?.timelineIdentity.instanceId;
+      function leaveOldestEdge() {
+        if (scroller && scroller.scrollTop > 0) controller.abort();
+      }
+      scroller.addEventListener("scroll", leaveOldestEdge, {
+        passive: true,
+        signal: controller.signal,
+      });
+      void onLoadOlderMessages({
+        items: renderedTimelineRef.current?.items.map((item) => item.id) ?? [],
+        signal: controller.signal,
+        settle: (revision, signal) =>
+          waitForRenderedTimeline(
+            () => renderedTimelineRef.current,
+            instanceId,
+            revision,
+            signal,
+          ),
+      }).finally(() => {
+        scroller.removeEventListener("scroll", leaveOldestEdge);
+        if (paginationGestureRef.current === controller)
+          paginationGestureRef.current = null;
+      });
     },
     [
       isLoadingOlderMessages,

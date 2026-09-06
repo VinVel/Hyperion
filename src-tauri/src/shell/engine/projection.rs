@@ -15,6 +15,10 @@
 
 use eyeball_im::{Vector, VectorDiff};
 
+use super::{
+    errors::pagination_error,
+    pagination::{PaginationGate, spawn_guarded},
+};
 use crate::shell::{
     service::{emit_shell_room_updated, emit_shell_timeline_updated},
     types::{RoomTimeline, RoomTimelineIdentity, apply_timeline_presentation},
@@ -116,6 +120,8 @@ pub struct TimelineInstance {
     timeline: Arc<Timeline>,
     state: Arc<Mutex<SubscriptionState>>,
     subscription: JoinHandle<()>,
+    pagination: PaginationGate,
+    barriers: tokio::sync::mpsc::UnboundedSender<tokio::sync::oneshot::Sender<u64>>,
 }
 
 impl TimelineInstance {
@@ -142,28 +148,103 @@ impl TimelineInstance {
             publications,
         }));
         let task_state = state.clone();
+        let (barriers, mut barrier_requests) =
+            tokio::sync::mpsc::unbounded_channel::<tokio::sync::oneshot::Sender<u64>>();
         let subscription = tauri::async_runtime::spawn(async move {
-            while let Some(diffs) = stream.next().await {
-                if diffs.is_empty() {
-                    continue;
+            loop {
+                // Drain queued SDK batches before acknowledging a completion boundary.
+                // This revision describes subscription consumption, not React rendering.
+                tokio::select! {
+                    biased;
+                    batch = stream.next() => {
+                        let Some(diffs) = batch else { break; };
+                        if diffs.is_empty() { continue; }
+                        // Applying the entire SDK batch and publishing share the invalidation lock.
+                        // A removed instance cannot emit after invalidate() returns.
+                        let mut state = task_state.lock().expect("timeline subscription lock poisoned");
+                        if !state.valid { break; }
+                        state.projection.apply(diffs);
+                        state.publish();
+                    }
+                    request = barrier_requests.recv() => {
+                        let Some(reply) = request else { break; };
+                        let state = task_state.lock().expect("timeline subscription lock poisoned");
+                        if !state.valid { break; }
+                        state.publish();
+                        let _ignored = reply.send(state.projection.revision);
+                    }
                 }
-                // Applying the entire SDK batch and publishing share the invalidation lock.
-                // A removed instance cannot emit after invalidate() returns.
-                let mut state = task_state
-                    .lock()
-                    .expect("timeline subscription lock poisoned");
-                if !state.valid {
-                    break;
-                }
-                state.projection.apply(diffs);
-                state.publish();
             }
         });
         Self {
             timeline,
             state,
             subscription,
+            pagination: PaginationGate::default(),
+            barriers,
         }
+    }
+
+    pub(in crate::shell) async fn paginate_backwards(&self, limit: u16) -> Result<bool, String> {
+        let permit = self.pagination.admit()?;
+        let timeline = self.timeline.clone();
+        spawn_guarded(permit, async move {
+            timeline
+                .paginate_backwards(limit)
+                .await
+                .map_err(|error| pagination_error(&error))
+        })
+        .await
+        .map_err(|error| format!("Timeline pagination task failed: {error}"))?
+    }
+
+    pub(in crate::shell) fn matches_active(&self, identity: &RoomTimelineIdentity) -> bool {
+        let state = self
+            .state
+            .lock()
+            .expect("timeline subscription lock poisoned");
+        state.valid
+            && state.identity == *identity
+            && state
+                .publications
+                .lock()
+                .expect("timeline publication lock poisoned")
+                .accepts(identity)
+    }
+
+    pub(in crate::shell) async fn paginate_visible(
+        self: &Arc<Self>,
+        identity: &RoomTimelineIdentity,
+        limit: u16,
+    ) -> Result<(bool, u64), String> {
+        let permit = self.pagination.admit()?;
+        if !self.matches_active(identity) {
+            return Err(String::from("Timeline pagination request is obsolete"));
+        }
+        let instance = self.clone();
+        let identity = identity.clone();
+        spawn_guarded(permit, async move {
+            // Revalidate after scheduling, before starting any SDK work.
+            if !instance.matches_active(&identity) {
+                return Err(String::from("Timeline pagination request is obsolete"));
+            }
+            let reached_start = instance
+                .timeline
+                .paginate_backwards(limit)
+                .await
+                .map_err(|error| pagination_error(&error))?;
+            let (send, receive) = tokio::sync::oneshot::channel();
+            instance
+                .barriers
+                .send(send)
+                .map_err(|_error| String::from("Timeline subscription closed"))?;
+            let revision = receive
+                .await
+                .map_err(|_error| String::from("Timeline subscription closed"))?;
+            Ok((reached_start, revision))
+        })
+        .await
+        .map_err(|error| format!("Timeline pagination task failed: {error}"))?
     }
 
     pub(super) fn publish_to(&self, app: tauri::AppHandle) {

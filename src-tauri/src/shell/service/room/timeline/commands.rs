@@ -13,11 +13,6 @@
  * Project home: hyperion.velcore.net
  */
 
-use std::{
-    collections::{HashSet, hash_map::DefaultHasher},
-    hash::{Hash, Hasher},
-};
-
 use matrix_sdk::{Room, ruma::EventId};
 
 use crate::{
@@ -42,32 +37,6 @@ use crate::{
 };
 
 use super::super::{resolve_room, room_title};
-
-// A command performs one SDK page. Cursor-advancing empty pages are retried by
-// the focused UI with bounded backoff, rather than issuing a burst here.
-const MAX_PAGINATION_CONTINUATION_ATTEMPTS: usize = 1;
-
-struct PaginationPageResult {
-    accepted_items: Vec<RoomTimelineItem>,
-    duplicate_item_count: usize,
-    final_next_before: Option<String>,
-    last_attempt_index: Option<usize>,
-    returned_item_count: usize,
-    continuation_attempt_count: usize,
-    initial_token_hash: String,
-}
-
-struct PaginationAttemptResult {
-    items: Vec<RoomTimelineItem>,
-    next_before: Option<String>,
-}
-
-struct PaginationAttemptRecord<'a> {
-    account_key: &'a str,
-    room_id: &'a str,
-    request: &'a PaginateRoomTimelineRequest,
-    known_event_ids: &'a HashSet<&'a str>,
-}
 
 impl ShellManager {
     pub async fn get_room_event_raw(
@@ -130,166 +99,33 @@ impl ShellManager {
 
     pub async fn paginate_room_timeline_backwards(
         &self,
-        app: &tauri::AppHandle,
-        account_manager: &AccountManager,
         active_account: &ActiveAccount,
         request: PaginateRoomTimelineRequest,
     ) -> Result<RoomTimelinePaginationResponse, String> {
-        emit_pagination_diagnostic(
-            "pagination.command.enter",
-            &[
-                ("room_id", request.room_id.as_str()),
-                ("request_id", request.request_id.as_str()),
-                (
-                    "context_type",
-                    pagination_context_type(request.before.as_deref()),
-                ),
-                (
-                    "token_before_hash",
-                    token_hash(request.before.as_deref()).as_str(),
-                ),
-            ],
-        );
         let account = active_account.snapshot();
-
-        self.sync_coordinator
-            .ensure_account_running(app, account_manager, account.clone())
+        if request.timeline_identity.account_key != account.account_key
+            || request.timeline_identity.room_id != request.room_id
+        {
+            return Err(String::from("Timeline pagination request is obsolete"));
+        }
+        // A command performs one SDK page. Cursor-advancing empty pages are retried by
+        // the focused UI with bounded backoff, rather than issuing a burst here.
+        // Compatibility tokens and known_event_ids are not pagination authority.
+        let (reached_start, snapshot) = self
+            .sync_coordinator
+            .paginate_visible(
+                &request.timeline_identity,
+                request.limit.unwrap_or(DEFAULT_TIMELINE_LIMIT).max(1),
+            )
             .await?;
-
         let room = resolve_room(&account.client, &request.room_id)?;
-        self.prepare_room_timeline_load(account, &room);
-        let page_result = self
-            .load_explicit_pagination_pages(app, account, &room, &request)
+        self.index_loaded_timeline_items(account, &room, &snapshot.items)
             .await?;
-        self.index_loaded_timeline_items(account, &room, &page_result.accepted_items)
-            .await?;
-
-        let response = pagination_response(room.room_id().as_str(), request, page_result);
-        emit_pagination_return_payload(account.account_key.as_str(), &response);
-        Ok(response)
-    }
-
-    async fn load_explicit_pagination_pages(
-        &self,
-        app: &tauri::AppHandle,
-        account: &AccountClientSnapshot,
-        room: &Room,
-        request: &PaginateRoomTimelineRequest,
-    ) -> Result<PaginationPageResult, String> {
-        let page_limit = request.limit.unwrap_or(DEFAULT_TIMELINE_LIMIT);
-        let known_event_ids = request
-            .known_event_ids
-            .iter()
-            .map(String::as_str)
-            .collect::<HashSet<&str>>();
-        let mut current_before = request.before.clone();
-        let token_before_hash = token_hash(current_before.as_deref());
-        let mut result = PaginationPageResult {
-            accepted_items: Vec::new(),
-            duplicate_item_count: 0,
-            final_next_before: current_before.clone(),
-            last_attempt_index: None,
-            returned_item_count: 0,
-            continuation_attempt_count: 0,
-            initial_token_hash: token_before_hash,
-        };
-
-        emit_pagination_start(
-            account.account_key.as_str(),
+        Ok(pagination_response(
             request,
-            current_before.as_deref(),
-            result.initial_token_hash.as_str(),
-        );
-
-        for attempt_index in 0..MAX_PAGINATION_CONTINUATION_ATTEMPTS {
-            result.last_attempt_index = Some(attempt_index);
-            emit_pagination_diagnostic(
-                "pagination.backend.request",
-                &[
-                    ("account_key", account.account_key.as_str()),
-                    ("room_id", request.room_id.as_str()),
-                    ("request_id", request.request_id.as_str()),
-                    ("attempt_index", attempt_index.to_string().as_str()),
-                    (
-                        "token_before_hash",
-                        token_hash(current_before.as_deref()).as_str(),
-                    ),
-                ],
-            );
-
-            let attempt = self
-                .load_explicit_pagination_attempt(
-                    app,
-                    account,
-                    room,
-                    request,
-                    current_before.clone(),
-                    page_limit,
-                )
-                .await
-                .inspect_err(|error| {
-                    emit_pagination_diagnostic(
-                        "pagination.error",
-                        &[
-                            ("account_key", account.account_key.as_str()),
-                            ("room_id", request.room_id.as_str()),
-                            ("request_id", request.request_id.as_str()),
-                            ("message", error.as_str()),
-                        ],
-                    );
-                })?;
-            let PaginationAttemptResult { items, next_before } = attempt;
-            let should_continue = record_pagination_attempt_result(
-                &PaginationAttemptRecord {
-                    account_key: account.account_key.as_str(),
-                    room_id: room.room_id().as_str(),
-                    request,
-                    known_event_ids: &known_event_ids,
-                },
-                &mut result,
-                &mut current_before,
-                items,
-                next_before.as_deref(),
-            );
-            if !should_continue {
-                break;
-            }
-        }
-
-        Ok(result)
-    }
-
-    async fn load_explicit_pagination_attempt(
-        &self,
-        app: &tauri::AppHandle,
-        account: &AccountClientSnapshot,
-        room: &Room,
-        request: &PaginateRoomTimelineRequest,
-        current_before: Option<String>,
-        page_limit: u16,
-    ) -> Result<PaginationAttemptResult, String> {
-        if current_before.is_none() {
-            let (items, hit_start) = self
-                .sync_coordinator
-                .paginate_live_timeline_backwards(&account.account_key, room, page_limit, 1)
-                .await?;
-            let next_before = if hit_start {
-                None
-            } else {
-                Some(timeline_page_token(2))
-            };
-            return Ok(PaginationAttemptResult { items, next_before });
-        }
-
-        let request_for_attempt = GetRoomTimelineRequest {
-            room_id: request.room_id.clone(),
-            before: current_before,
-            limit: Some(page_limit),
-        };
-        let (items, next_before) = self
-            .load_room_timeline_items(app, account, room, &request_for_attempt)
-            .await?;
-        Ok(PaginationAttemptResult { items, next_before })
+            reached_start,
+            snapshot.revision,
+        ))
     }
 
     pub async fn get_room_event_context(
@@ -576,206 +412,39 @@ fn reply_preview_from_timeline_item(
     }
 }
 
-fn pagination_context_type(before: Option<&str>) -> &'static str {
-    match before {
-        Some(token) if token.starts_with("timeline-ui-event:") => "focused",
-        _ => "live",
-    }
-}
-
-fn token_hash(token: Option<&str>) -> String {
-    let Some(token) = token else {
-        return String::from("none");
-    };
-
-    let mut hasher = DefaultHasher::new();
-    token.hash(&mut hasher);
-    format!("{:016x}", hasher.finish())
-}
-
 fn pagination_response(
-    room_id: &str,
     request: PaginateRoomTimelineRequest,
-    page_result: PaginationPageResult,
+    reached_start: bool,
+    revision: u64,
 ) -> RoomTimelinePaginationResponse {
-    let final_token_hash = token_hash(page_result.final_next_before.as_deref());
-    let token_changed = page_result.initial_token_hash != final_token_hash;
-    let reason = pagination_result_reason(&page_result).map(ToOwned::to_owned);
-
-    RoomTimelinePaginationResponse {
-        room_id: room_id.to_owned(),
-        had_new_items: !page_result.accepted_items.is_empty(),
-        new_item_count: page_result.accepted_items.len(),
-        returned_item_count: page_result.returned_item_count,
-        duplicate_item_count: page_result.duplicate_item_count,
-        continuation_attempt_count: page_result.continuation_attempt_count,
-        token_changed,
-        reached_start: page_result.final_next_before.is_none(),
-        next_before: page_result.final_next_before,
-        request_id: request.request_id,
-        items: page_result.accepted_items,
-        reason,
-    }
-}
-
-fn pagination_result_reason(page_result: &PaginationPageResult) -> Option<&'static str> {
-    if !page_result.accepted_items.is_empty() {
-        return None;
-    }
-
-    if page_result.duplicate_item_count > 0 {
-        return Some("duplicate_only");
-    }
-
-    Some("empty_result")
-}
-
-fn record_pagination_attempt_result(
-    record: &PaginationAttemptRecord<'_>,
-    result: &mut PaginationPageResult,
-    current_before: &mut Option<String>,
-    mut items: Vec<RoomTimelineItem>,
-    next_before: Option<&str>,
-) -> bool {
-    let attempt_returned_item_count = items.len();
-    result.returned_item_count += attempt_returned_item_count;
-    apply_timeline_presentation(&mut items, record.room_id);
-    let returned_items = items;
-    let visible_items = returned_items
-        .iter()
-        .filter(|item| !record.known_event_ids.contains(item.event_id()))
-        .cloned()
-        .collect::<Vec<RoomTimelineItem>>();
-    result.duplicate_item_count += attempt_returned_item_count.saturating_sub(visible_items.len());
-    emit_pagination_backend_response(
-        record.account_key,
-        record.request,
-        result.returned_item_count,
-        visible_items.len(),
-        next_before,
-    );
-
-    if let Some(next_before) = next_before {
-        result.final_next_before = Some(next_before.to_owned());
-        *current_before = Some(next_before.to_owned());
-    }
-
-    if !visible_items.is_empty() {
-        result.accepted_items = visible_items;
-        return false;
-    }
-
-    if next_before.is_none() {
-        return false;
-    }
-
-    result.continuation_attempt_count += 1;
-    true
-}
-
-fn emit_pagination_return_payload(account_key: &str, response: &RoomTimelinePaginationResponse) {
-    emit_pagination_diagnostic(
-        "pagination.return_payload",
-        &[
-            ("account_key", account_key),
-            ("room_id", response.room_id.as_str()),
-            ("request_id", response.request_id.as_str()),
-            (
-                "returned_item_count",
-                response.returned_item_count.to_string().as_str(),
-            ),
-            (
-                "returned_new_item_count",
-                response.new_item_count.to_string().as_str(),
-            ),
-            (
-                "duplicate_item_count",
-                response.duplicate_item_count.to_string().as_str(),
-            ),
-        ],
-    );
-}
-
-fn emit_pagination_start(
-    account_key: &str,
-    request: &PaginateRoomTimelineRequest,
-    current_before: Option<&str>,
-    token_before_hash: &str,
-) {
-    emit_pagination_diagnostic(
-        "pagination.start",
-        &[
-            ("account_key", account_key),
-            ("room_id", request.room_id.as_str()),
-            ("request_id", request.request_id.as_str()),
-            ("context_type", pagination_context_type(current_before)),
-            ("token_before_hash", token_before_hash),
-        ],
-    );
-}
-
-fn emit_pagination_backend_response(
-    account_key: &str,
-    request: &PaginateRoomTimelineRequest,
-    returned_item_count: usize,
-    new_item_count: usize,
-    next_before: Option<&str>,
-) {
-    emit_pagination_diagnostic(
-        "pagination.backend.response",
-        &[
-            ("account_key", account_key),
-            ("room_id", request.room_id.as_str()),
-            ("request_id", request.request_id.as_str()),
-            (
-                "returned_item_count",
-                returned_item_count.to_string().as_str(),
-            ),
-            (
-                "returned_new_item_count",
-                new_item_count.to_string().as_str(),
-            ),
-            ("has_next_token", next_before.is_some().to_string().as_str()),
-            ("token_after_hash", token_hash(next_before).as_str()),
-        ],
-    );
-}
-
-fn emit_pagination_diagnostic(label: &'static str, fields: &[(&str, &str)]) {
-    if !tracing::enabled!(target: "hyperion", tracing::Level::DEBUG) {
-        return;
-    }
-
-    #[cfg(debug_assertions)]
-    let Some(rendered_fields) =
-        crate::utils::tracing::changed_diagnostic_fields("timeline.pagination", label, fields)
-    else {
-        return;
+    // These fields remain wire-compatible. No page traversal, row selection, or
+    // server-cursor progress is inferred from them; the SDK owns that state.
+    drop(request.known_event_ids);
+    let next_before = if reached_start {
+        None
+    } else {
+        Some(
+            match request.timeline_identity.focused_event_id.as_deref() {
+                Some(event) => focused_timeline_page_token(event, 1),
+                None => timeline_page_token(1),
+            },
+        )
     };
-    #[cfg(debug_assertions)]
-    tracing::debug!(
-        target: "hyperion",
-        event_name = label,
-        component = "shell.timeline",
-        operation = "paginate_backwards",
-        diagnostic_details = %rendered_fields,
-        "{label}: {rendered_fields}"
-    );
-
-    #[cfg(not(debug_assertions))]
-    {
-        if crate::utils::tracing::changed_diagnostic_fields("timeline.pagination", label, fields)
-            .is_none()
-        {
-            return;
-        }
-        tracing::debug!(
-            target: "hyperion",
-            event_name = label,
-            component = "shell.timeline",
-            operation = "paginate_backwards",
-            "{label}"
-        );
+    RoomTimelinePaginationResponse {
+        timeline_identity: request.timeline_identity,
+        revision,
+        room_id: request.room_id,
+        items: Vec::new(),
+        token_changed: request.before != next_before,
+        next_before,
+        request_id: request.request_id,
+        had_new_items: false,
+        returned_item_count: 0,
+        new_item_count: 0,
+        duplicate_item_count: 0,
+        continuation_attempt_count: 0,
+        reached_start,
+        reason: None,
     }
 }
 
@@ -789,7 +458,7 @@ mod tests {
         },
     };
 
-    use super::{PaginationPageResult, pagination_response, reply_preview_from_focused_items};
+    use super::{pagination_response, reply_preview_from_focused_items};
 
     #[test]
     fn reply_preview_resolution_reports_inaccessible_target() {
@@ -828,59 +497,27 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_only_pagination_response_advances_to_final_continuation_token() {
-        let start_token = timeline_page_token(1);
-        let final_token = timeline_page_token(4);
-        let page_result = PaginationPageResult {
-            accepted_items: Vec::new(),
-            duplicate_item_count: 90,
-            final_next_before: Some(final_token.clone()),
-            last_attempt_index: Some(2),
-            returned_item_count: 90,
-            continuation_attempt_count: 3,
-            initial_token_hash: super::token_hash(Some(start_token.as_str())),
-        };
-        let request = PaginateRoomTimelineRequest {
-            room_id: String::from("!room:example.org"),
-            before: Some(start_token),
-            limit: Some(30),
-            request_id: String::from("request-1"),
-            known_event_ids: Vec::new(),
-        };
-
-        let response = pagination_response("!room:example.org", request, page_result);
-
-        assert!(!response.had_new_items);
-        assert!(response.token_changed);
-        assert_eq!(response.next_before.as_deref(), Some(final_token.as_str()));
-        assert_eq!(response.reason.as_deref(), Some("duplicate_only"));
-        assert!(!response.reached_start);
-    }
-
-    #[test]
-    fn terminal_pagination_response_is_distinct_from_an_empty_advanced_cursor() {
-        let page_result = PaginationPageResult {
-            accepted_items: Vec::new(),
-            duplicate_item_count: 0,
-            final_next_before: None,
-            last_attempt_index: Some(0),
-            returned_item_count: 0,
-            continuation_attempt_count: 0,
-            initial_token_hash: super::token_hash(Some("timeline-ui-page:4")),
-        };
-        let request = PaginateRoomTimelineRequest {
-            room_id: String::from("!room:example.org"),
-            before: Some(String::from("timeline-ui-page:4")),
-            limit: Some(30),
-            request_id: String::from("request-terminal"),
-            known_event_ids: Vec::new(),
-        };
-
-        let response = pagination_response("!room:example.org", request, page_result);
-
-        assert!(response.reached_start);
-        assert!(response.token_changed);
-        assert_eq!(response.next_before, None);
+    fn completion_uses_sdk_terminal_status_even_without_visible_items() {
+        for reached_start in [false, true] {
+            let request = PaginateRoomTimelineRequest {
+                timeline_identity: crate::shell::types::RoomTimelineIdentity {
+                    account_key: "account".into(),
+                    room_id: "room".into(),
+                    instance_id: "instance".into(),
+                    focused_event_id: None,
+                },
+                room_id: "room".into(),
+                before: Some(timeline_page_token(1)),
+                limit: None,
+                request_id: "request".into(),
+                known_event_ids: vec!["ignored".into()],
+            };
+            let response = pagination_response(request, reached_start, 7);
+            assert_eq!(response.reached_start, reached_start);
+            assert_eq!(response.next_before.is_none(), reached_start);
+            assert!(response.items.is_empty());
+            assert_eq!(response.revision, 7);
+        }
     }
 
     fn test_timeline_item(event_id: &str, body: &str) -> RoomTimelineItem {

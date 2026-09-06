@@ -64,6 +64,7 @@ pub struct GetRoomTimelineRequest {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct PaginateRoomTimelineRequest {
+    pub timeline_identity: RoomTimelineIdentity,
     pub room_id: String,
     pub before: Option<String>,
     pub limit: Option<u16>,
@@ -481,7 +482,7 @@ fn matrix_to_path_segment(value: &str) -> String {
         .collect::<String>()
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RoomTimelineIdentity {
     pub account_key: String,
     pub room_id: String,
@@ -502,6 +503,8 @@ pub struct RoomTimeline {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RoomTimelinePaginationResponse {
+    pub timeline_identity: RoomTimelineIdentity,
+    pub revision: u64,
     pub room_id: String,
     pub items: Vec<RoomTimelineItem>,
     pub next_before: Option<String>,

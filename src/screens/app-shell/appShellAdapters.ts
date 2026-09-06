@@ -208,6 +208,8 @@ export type BackendRoomTimeline = {
 };
 
 export type BackendRoomTimelinePaginationResponse = {
+  timeline_identity: BackendTimelineIdentity;
+  revision: number;
   room_id: string;
   items: BackendRoomTimelineItem[];
   next_before?: string | null;
@@ -304,6 +306,8 @@ export type RoomTimeline = {
 };
 
 export type RoomTimelinePaginationResponse = {
+  timelineIdentity: TimelineIdentity;
+  revision: number;
   roomId: string;
   nextBefore: string | null;
   requestId: string;
@@ -375,6 +379,13 @@ export function mapRoomTimelinePaginationResponse(
   response: BackendRoomTimelinePaginationResponse,
 ): RoomTimelinePaginationResponse {
   return {
+    timelineIdentity: {
+      accountKey: response.timeline_identity.account_key,
+      roomId: response.timeline_identity.room_id,
+      instanceId: response.timeline_identity.instance_id,
+      focusedEventId: response.timeline_identity.focused_event_id ?? null,
+    },
+    revision: response.revision,
     roomId: response.room_id,
     nextBefore: response.next_before ?? null,
     requestId: response.request_id,

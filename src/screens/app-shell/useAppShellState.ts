@@ -49,14 +49,12 @@ import {
   timelineAnchorForRoom,
 } from "./timeline/helpers";
 import { useTimelineModel } from "./timeline/useTimelineModel";
+import { PaginationBatch, type PaginationViewport } from "./paginationBatch";
 import { logPaginationDiagnostic } from "./paginationDiagnostics";
 import {
   createPaginationRequestId,
   idlePaginationState,
-  paginationBackoffDelayMilliseconds,
-  paginationCanAutomaticallyContinue,
   paginationContextForTimeline,
-  paginationErrorIsRateLimited,
   paginationIsLoading,
   paginationStateKey,
   type PaginationContext,
@@ -97,7 +95,7 @@ const roomEventContextLimit = 8;
 // Timeline pages are intentionally small enough to keep refreshes responsive.
 const roomTimelinePageSize = 30;
 // Pagination click loading is guarded so a broken request cannot strand the UI.
-const paginationLoadingTimeoutMilliseconds = 3_000;
+// The guard now lasts until completion; failures make the next gesture retryable.
 // Global search waits briefly so every keystroke does not call the backend.
 const globalSearchDebounceMilliseconds = 150;
 // Each search group is capped to keep the overlay compact.
@@ -232,9 +230,12 @@ export default function useAppShellState({
   const timelineListenerReadyRef = useRef<Promise<void>>(Promise.resolve());
   const sendMessageInFlightRef = useRef(false);
   const paginationStatesByKeyRef = useRef<Record<string, PaginationState>>({});
-  const loadOlderMessagesRef = useRef<(() => Promise<void>) | null>(null);
-  const paginationRetryCountsRef = useRef<Record<string, number>>({});
-  const paginationRetryTimeoutsRef = useRef<Record<string, number>>({});
+  const paginationBackoffsRef = useRef<Record<string, number>>({});
+  const paginationBatchRef = useRef<{
+    session: object;
+    instanceId: string;
+    batch: PaginationBatch;
+  } | null>(null);
   const composerDraftsByRoomIdRef = useRef<Record<string, RoomComposerDraft>>(
     {},
   );
@@ -407,12 +408,10 @@ export default function useAppShellState({
     updateComposerDrafts(() => ({}));
     setTypingUsersByRoomId({});
     paginationStatesByKeyRef.current = {};
-    paginationRetryCountsRef.current = {};
-    for (const timeoutId of Object.values(paginationRetryTimeoutsRef.current)) {
-      window.clearTimeout(timeoutId);
-    }
-    paginationRetryTimeoutsRef.current = {};
+    paginationBatchRef.current?.batch.dispose();
+    paginationBatchRef.current = null;
     setPaginationStatesByKey({});
+    paginationBackoffsRef.current = {};
   }, [activeAccount.account_key, closeTimeline, updateComposerDrafts]);
 
   useEffect(() => {
@@ -1095,172 +1094,130 @@ export default function useAppShellState({
     [selectedThreadId],
   );
 
-  const loadOlderMessages = useCallback(async () => {
-    const paginationContext = paginationContextForTimeline(
-      activeAccount.account_key,
-      selectedTimeline,
-    );
-    if (!selectedThreadId || !selectedTimeline || !paginationContext) {
-      logPaginationDiagnostic("pagination.ui.command.error", {
-        accountKey: activeAccount.account_key,
-        roomId: selectedThreadId,
-        timelineContext: "unknown",
-        reason: !selectedThreadId
-          ? "missing_selected_room"
-          : "missing_timeline",
-      });
-      return;
-    }
-
-    const stateKey = paginationStateKey(paginationContext);
-    const currentPaginationState =
-      paginationStatesByKeyRef.current[stateKey] ?? idlePaginationState;
-    if (paginationIsLoading(currentPaginationState)) {
-      logPaginationDiagnostic("pagination.ui.click_ignored", {
-        accountKey: paginationContext.accountKey,
-        roomId: paginationContext.roomId,
-        timelineContext: paginationContext.timelineContext,
-        currentStatus: currentPaginationState.status,
-        loading: true,
-        requestId:
-          currentPaginationState.status === "loading"
-            ? currentPaginationState.requestId
-            : undefined,
-        reason: "loading",
-      });
-      return;
-    }
-
-    const session = timelineModelRef.current?.session;
-    if (!session) return;
-    const requestId = createPaginationRequestId();
-    updatePaginationState(paginationContext, {
-      status: "loading",
-      requestId,
-      startedAt: Date.now(),
-    });
-    const instanceId = selectedTimeline.timelineIdentity.instanceId;
-
-    let timeoutDidFire = false;
-    const timeoutId = window.setTimeout(() => {
-      if (timelineModelRef.current?.session !== session) return;
-      timeoutDidFire = true;
-      logPaginationDiagnostic("pagination.ui.timeout_reset", {
-        accountKey: paginationContext.accountKey,
-        roomId: paginationContext.roomId,
-        timelineContext: paginationContext.timelineContext,
-        currentStatus: "loading",
-        nextStatus: "idle",
-        requestId,
-        loading: false,
-      });
-      updatePaginationState(paginationContext, idlePaginationState);
-    }, paginationLoadingTimeoutMilliseconds);
-
-    try {
-      logPaginationDiagnostic("pagination.ui.command.invoke", {
-        accountKey: paginationContext.accountKey,
-        roomId: paginationContext.roomId,
-        timelineContext: paginationContext.timelineContext,
-        currentStatus: "loading",
-        requestId,
-        loading: true,
-      });
-      const backendResponse =
-        await invoke<BackendRoomTimelinePaginationResponse>(
-          "paginate_room_timeline_backwards",
-          {
-            request: {
-              room_id: selectedThreadId,
-              before: selectedTimeline.nextBefore,
-              limit: roomTimelinePageSize,
-              request_id: requestId,
-              known_event_ids: selectedTimeline.items.map((item) => item.id),
-            },
-          },
-        );
-      const paginationResponse =
-        mapRoomTimelinePaginationResponse(backendResponse);
-
-      window.clearTimeout(timeoutId);
-      logPaginationDiagnostic("pagination.ui.command.success", {
-        accountKey: paginationContext.accountKey,
-        roomId: paginationContext.roomId,
-        timelineContext: paginationContext.timelineContext,
-        requestId,
-        returnedItemCount: paginationResponse.returnedItemCount,
-        backendDuplicateCount: paginationResponse.duplicateCount,
-        backendNewItemCount: paginationResponse.newItemCount,
-        continuationAttemptCount: paginationResponse.continuationAttemptCount,
-        timeoutDidFire,
-      });
-
-      if (timelineModelRef.current?.session !== session) return;
-      updateTimelineStatus(session, instanceId, paginationResponse);
-
-      const retryCount = paginationRetryCountsRef.current[stateKey] ?? 0;
-      const cursorAdvanceCount = retryCount + 1;
-      if (
-        paginationCanAutomaticallyContinue(
-          paginationResponse,
-          cursorAdvanceCount,
-        )
-      ) {
-        const retryDelayMilliseconds =
-          paginationBackoffDelayMilliseconds(retryCount);
-        paginationRetryCountsRef.current[stateKey] = cursorAdvanceCount;
-        updatePaginationState(paginationContext, {
-          status: "cooldown",
-          retryAt: Date.now() + retryDelayMilliseconds,
-          retryCount,
-        });
-        const priorTimeoutId = paginationRetryTimeoutsRef.current[stateKey];
-        if (priorTimeoutId !== undefined) {
-          window.clearTimeout(priorTimeoutId);
-        }
-        paginationRetryTimeoutsRef.current[stateKey] = window.setTimeout(() => {
-          delete paginationRetryTimeoutsRef.current[stateKey];
-          if (timelineModelRef.current?.session !== session) {
-            return;
-          }
-          updatePaginationState(paginationContext, idlePaginationState);
-          void loadOlderMessagesRef.current?.();
-        }, retryDelayMilliseconds);
-      } else {
-        paginationRetryCountsRef.current[stateKey] = 0;
-        updatePaginationState(paginationContext, idlePaginationState);
-      }
-    } catch (error) {
-      window.clearTimeout(timeoutId);
-      if (timelineModelRef.current?.session !== session) return;
-      const message = error instanceof Error ? error.message : String(error);
-      logPaginationDiagnostic("pagination.ui.command.error", {
-        accountKey: paginationContext.accountKey,
-        roomId: paginationContext.roomId,
-        timelineContext: paginationContext.timelineContext,
-        currentStatus: "loading",
-        nextStatus: "error",
-        requestId,
-        message,
-      });
-      updatePaginationState(paginationContext, { status: "error", message });
-      setGenericErrorFeedback(
-        setFeedbackMessage,
-        paginationErrorIsRateLimited(error)
-          ? "Older messages are temporarily rate limited. Please wait and try again."
-          : "Could not load older messages.",
+  const loadOlderMessages = useCallback(
+    async (viewport: PaginationViewport) => {
+      const model = timelineModelRef.current;
+      const timeline = model?.timeline;
+      const context = paginationContextForTimeline(
+        activeAccount.account_key,
+        timeline ?? null,
       );
-    }
-  }, [
-    activeAccount.account_key,
-    selectedThreadId,
-    selectedTimeline,
-    updatePaginationState,
-    timelineModelRef,
-    updateTimelineStatus,
-  ]);
+      if (!model || !timeline || !context || !timeline.nextBefore) return;
+      const { session } = model;
+      const identity = timeline.timelineIdentity;
+      const isCurrent = () =>
+        timelineModelRef.current?.session === session &&
+        timelineModelRef.current.timeline?.timelineIdentity.instanceId ===
+          identity.instanceId;
+      let owner = paginationBatchRef.current;
+      if (
+        !owner ||
+        owner.session !== session ||
+        owner.instanceId !== identity.instanceId
+      ) {
+        if (owner) {
+          paginationBackoffsRef.current[owner.instanceId] =
+            owner.batch.backoffCount;
+          owner.batch.dispose();
+        }
+        const batch = new PaginationBatch({
+          request: async () => {
+            if (!isCurrent()) throw new Error("Timeline changed");
+            const requestId = createPaginationRequestId();
+            const response = mapRoomTimelinePaginationResponse(
+              await invoke<BackendRoomTimelinePaginationResponse>(
+                "paginate_room_timeline_backwards",
+                {
+                  request: {
+                    timeline_identity: {
+                      account_key: identity.accountKey,
+                      room_id: identity.roomId,
+                      instance_id: identity.instanceId,
+                      focused_event_id: identity.focusedEventId,
+                    },
+                    room_id: identity.roomId,
+                    before: timelineModelRef.current?.timeline?.nextBefore,
+                    limit: roomTimelinePageSize,
+                    request_id: requestId,
+                  },
+                },
+              ),
+            );
+            if (!isCurrent()) {
+              batch.dispose();
+              return response;
+            }
+            if (
+              response.requestId !== requestId ||
+              response.timelineIdentity.instanceId !== identity.instanceId ||
+              response.timelineIdentity.accountKey !== identity.accountKey ||
+              response.timelineIdentity.roomId !== identity.roomId ||
+              response.timelineIdentity.focusedEventId !==
+                identity.focusedEventId ||
+              !Number.isSafeInteger(response.revision) ||
+              response.revision < 0
+            ) {
+              throw new Error("Obsolete timeline pagination response");
+            }
+            updateTimelineStatus(session, identity.instanceId, response);
+            return response;
+          },
+          state: (loading) => {
+            if (!isCurrent()) return;
+            updatePaginationState(
+              context,
+              loading
+                ? {
+                    status: "loading",
+                    requestId: createPaginationRequestId(),
+                    startedAt: Date.now(),
+                  }
+                : idlePaginationState,
+            );
+          },
+          error: (error) => {
+            if (!isCurrent()) return;
+            const message =
+              error instanceof Error ? error.message : String(error);
+            setGenericErrorFeedback(setFeedbackMessage, message);
+          },
+        });
+        batch.backoffCount =
+          paginationBackoffsRef.current[identity.instanceId] ?? 0;
+        owner = { session, instanceId: identity.instanceId, batch };
+        paginationBatchRef.current = owner;
+      }
+      await owner.batch.start(viewport);
+    },
+    [
+      activeAccount.account_key,
+      timelineModelRef,
+      updatePaginationState,
+      updateTimelineStatus,
+    ],
+  );
 
-  loadOlderMessagesRef.current = loadOlderMessages;
+  // Dispose pending waits on every view lifecycle change, including A → B → A.
+  // The Rust operation continues independently and owns its guard until settled.
+  useEffect(
+    () => () => {
+      const owner = paginationBatchRef.current;
+      if (owner) {
+        paginationBackoffsRef.current[owner.instanceId] =
+          owner.batch.backoffCount;
+        owner.batch.dispose();
+      }
+      paginationBatchRef.current = null;
+      paginationStatesByKeyRef.current = {};
+      setPaginationStatesByKey({});
+    },
+    [
+      activeAccount.account_key,
+      selectedThreadId,
+      activeView,
+      selectedTimeline?.timelineIdentity.instanceId,
+    ],
+  );
 
   const openMessagesView = useCallback(() => {
     setActiveView("messages");

@@ -17,10 +17,7 @@ import { describe, expect, test } from "vitest";
 import {
   idlePaginationState,
   paginationBackoffDelayMilliseconds,
-  paginationCanAutomaticallyContinue,
-  paginationCanAdvanceCursor,
   paginationCanLoadAtTimelineStart,
-  paginationErrorIsRateLimited,
   paginationIsLoading,
   paginationStateKey,
   timelineContextKey,
@@ -33,11 +30,13 @@ describe("pagination state helpers", () => {
       accountKey: "account-a",
       roomId: "!room-a:example.org",
       timelineContext: "live",
+      instanceId: "instance",
     });
     const roomBKey = paginationStateKey({
       accountKey: "account-a",
       roomId: "!room-b:example.org",
       timelineContext: "live",
+      instanceId: "instance",
     });
 
     expect(roomAKey).not.toBe(roomBKey);
@@ -64,44 +63,10 @@ describe("pagination state helpers", () => {
     expect(timelineContextKey("$event")).toBe("focused:$event");
   });
 
-  test("empty and duplicate-only pages with an advanced cursor retry with bounded backoff", () => {
-    expect(
-      paginationCanAutomaticallyContinue(
-        {
-          hadNewItems: false,
-          nextBefore: "timeline-ui-page:2",
-          reachedStart: false,
-          tokenChanged: true,
-        },
-        1,
-      ),
-    ).toBe(true);
-    expect(
-      paginationCanAutomaticallyContinue(
-        {
-          hadNewItems: false,
-          nextBefore: null,
-          reachedStart: true,
-          tokenChanged: true,
-        },
-        1,
-      ),
-    ).toBe(false);
-    expect(
-      paginationCanAutomaticallyContinue(
-        {
-          hadNewItems: true,
-          nextBefore: "timeline-ui-page:2",
-          reachedStart: false,
-          tokenChanged: true,
-        },
-        1,
-      ),
-    ).toBe(false);
-
+  test("backoff is exponential and capped", () => {
     expect(paginationBackoffDelayMilliseconds(0)).toBe(500);
-    expect(paginationBackoffDelayMilliseconds(1)).toBe(1_000);
-    expect(paginationBackoffDelayMilliseconds(10)).toBe(8_000);
+    expect(paginationBackoffDelayMilliseconds(1)).toBe(1000);
+    expect(paginationBackoffDelayMilliseconds(Number.MAX_VALUE)).toBe(8000);
   });
 
   test("top-boundary pagination requires an upward attempt at the clamped start", () => {
@@ -130,29 +95,5 @@ describe("pagination state helpers", () => {
     expect(paginationCanLoadAtTimelineStart(false, null, true, true)).toBe(
       false,
     );
-  });
-
-  test("a top-boundary pagination session caps cursor advances", () => {
-    expect(paginationCanAdvanceCursor(0)).toBe(true);
-    expect(paginationCanAdvanceCursor(2)).toBe(true);
-    expect(paginationCanAdvanceCursor(3)).toBe(false);
-    expect(
-      paginationCanAutomaticallyContinue(
-        {
-          hadNewItems: false,
-          nextBefore: "timeline-ui-page:4",
-          reachedStart: false,
-          tokenChanged: true,
-        },
-        3,
-      ),
-    ).toBe(false);
-  });
-
-  test("rate-limited pagination errors are distinguished for feedback", () => {
-    expect(
-      paginationErrorIsRateLimited("Matrix error M_LIMIT_EXCEEDED (429)"),
-    ).toBe(true);
-    expect(paginationErrorIsRateLimited("network connection lost")).toBe(false);
   });
 });

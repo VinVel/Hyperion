@@ -13,6 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
+import type { PaginationViewport } from "./paginationBatch";
 import { MessageSquareMore, SendHorizontal } from "lucide-react";
 import { type KeyboardEvent } from "react";
 import {
@@ -49,7 +50,7 @@ type AppShellMessagesViewProps = {
   onCancelComposerMode: () => void;
   onCloseThread: () => void;
   onComposerChange: (value: string) => void;
-  onLoadOlderMessages: () => void;
+  onLoadOlderMessages: (viewport: PaginationViewport) => Promise<void>;
   onOpenThread: (roomId: string) => void;
   onRedactMessage: (eventId: string) => void;
   onSelectSort: (sort: RoomThreadSort) => void;

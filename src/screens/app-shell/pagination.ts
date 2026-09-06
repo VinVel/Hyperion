@@ -25,6 +25,7 @@ export type PaginationContext = {
   accountKey: string;
   roomId: string;
   timelineContext: string;
+  instanceId: string;
 };
 
 export const idlePaginationState: PaginationState = { status: "idle" };
@@ -32,53 +33,17 @@ export const idlePaginationState: PaginationState = { status: "idle" };
 // Retry delays keep a cursor-advancing empty page from creating a tight request loop.
 const paginationRetryBaseDelayMilliseconds = 500;
 const paginationRetryMaximumDelayMilliseconds = 8_000;
-// A single top-boundary request may traverse a few empty SDK pages, but never
-// enough to turn one user gesture into an unbounded homeserver request burst.
-const paginationMaximumCursorAdvancesPerRequest = 3;
-
-type PaginationContinuation = {
-  hadNewItems: boolean;
-  nextBefore: string | null;
-  reachedStart: boolean;
-  tokenChanged: boolean;
-};
+// Saturation keeps 500ms exponential waits at the eight-second maximum.
+export const paginationMaximumBackoffCount = 4;
 
 export function paginationBackoffDelayMilliseconds(retryCount: number): number {
-  const exponent = Math.max(0, retryCount);
+  const exponent = Math.min(
+    paginationMaximumBackoffCount,
+    Math.max(0, retryCount),
+  );
   return Math.min(
     paginationRetryBaseDelayMilliseconds * 2 ** exponent,
     paginationRetryMaximumDelayMilliseconds,
-  );
-}
-
-export function paginationCanAutomaticallyContinue(
-  response: PaginationContinuation,
-  cursorAdvanceCount: number,
-): boolean {
-  return (
-    !response.hadNewItems &&
-    response.tokenChanged &&
-    !response.reachedStart &&
-    response.nextBefore !== null &&
-    paginationCanAdvanceCursor(cursorAdvanceCount)
-  );
-}
-
-export function paginationCanAdvanceCursor(
-  cursorAdvanceCount: number,
-): boolean {
-  return cursorAdvanceCount < paginationMaximumCursorAdvancesPerRequest;
-}
-
-export function paginationErrorIsRateLimited(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  const normalizedMessage = message.toLocaleLowerCase();
-  return (
-    normalizedMessage.includes("m_limit_exceeded") ||
-    normalizedMessage.includes("too many requests") ||
-    normalizedMessage.includes("rate limit") ||
-    normalizedMessage.includes("rate_limit") ||
-    normalizedMessage.includes("429")
   );
 }
 
@@ -94,7 +59,12 @@ export function paginationCanLoadAtTimelineStart(
 }
 
 export function paginationStateKey(context: PaginationContext): string {
-  return `${context.accountKey}::${context.roomId}::${context.timelineContext}`;
+  return JSON.stringify([
+    context.accountKey,
+    context.roomId,
+    context.timelineContext,
+    context.instanceId,
+  ]);
 }
 
 export function timelineContextKey(focusedEventId: string | null): string {
@@ -114,6 +84,7 @@ export function paginationContextForTimeline(
 
   return {
     accountKey,
+    instanceId: timeline.timelineIdentity.instanceId,
     roomId: timeline.roomId,
     timelineContext: timelineContextKey(timeline.focusedEventId),
   };

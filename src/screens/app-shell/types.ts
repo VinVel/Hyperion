@@ -13,6 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
+import type { PaginationViewport } from "./paginationBatch";
 import {
   mapRoomThreadSummary,
   type RoomThreadKindFilter,
@@ -135,5 +136,5 @@ export type UseAppShellStateResult = {
     targetView?: AuthenticatedShellView,
     eventId?: string,
   ) => void;
-  loadOlderMessages: () => Promise<void>;
+  loadOlderMessages: (viewport: PaginationViewport) => Promise<void>;
 };

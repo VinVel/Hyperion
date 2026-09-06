@@ -297,7 +297,7 @@ async fn paginate_room_timeline_backwards(
         Box::pin(async {
             let active_account = account_manager.require_active_account(&app).await?;
             shell_manager
-                .paginate_room_timeline_backwards(&app, &account_manager, &active_account, request)
+                .paginate_room_timeline_backwards(&active_account, request)
                 .await
         }),
     )

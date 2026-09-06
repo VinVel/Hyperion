@@ -95,6 +95,16 @@ impl ShellSyncCoordinator {
             .open_timeline_view(app, account_key, room, focused_event)
             .await
     }
+    pub(in crate::shell::service) async fn paginate_visible(
+        &self,
+        identity: &crate::shell::types::RoomTimelineIdentity,
+        limit: u16,
+    ) -> Result<(bool, crate::shell::types::RoomTimeline), String> {
+        self.timeline_service
+            .registry()
+            .paginate_visible(identity, limit)
+            .await
+    }
     pub(in crate::shell::service) async fn focused_timeline_items(
         &self,
         account_key: &str,

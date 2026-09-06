@@ -13,6 +13,8 @@
  * Project home: hyperion.velcore.net
  */
 
+mod errors;
+mod pagination;
 mod projection;
 
 use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
@@ -198,6 +200,29 @@ impl ShellTimelineRegistry {
         }
         timeline.publish_to(app.clone());
         Ok(timeline)
+    }
+
+    pub(in crate::shell) async fn paginate_visible(
+        &self,
+        identity: &super::types::RoomTimelineIdentity,
+        limit: u16,
+    ) -> Result<(bool, crate::shell::types::RoomTimeline), String> {
+        // Lookup only: stale input cannot create or reopen an SDK timeline.
+        let timeline = {
+            let timelines = if identity.focused_event_id.is_some() {
+                self.focused_timelines.lock().await
+            } else {
+                self.live_timelines.lock().await
+            };
+            timelines
+                .values()
+                .find(|timeline| timeline.matches_active(identity))
+                .cloned()
+        }
+        .ok_or_else(|| String::from("Timeline pagination request is obsolete"))?;
+        let (reached_start, _consumed_revision) =
+            timeline.paginate_visible(identity, limit).await?;
+        Ok((reached_start, timeline.snapshot(None)?))
     }
 
     pub async fn ensure_live_timeline_window(
@@ -1074,6 +1099,22 @@ impl TimelineItemIdentifierExt for matrix_sdk_ui::timeline::TimelineEventItemId 
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn stale_visible_requests_do_not_create_timeline_instances() {
+        let registry = super::ShellTimelineRegistry::new();
+        for focused_event_id in [None, Some("$anchor".to_owned())] {
+            let identity = crate::shell::types::RoomTimelineIdentity {
+                account_key: "account".into(),
+                room_id: "room".into(),
+                instance_id: "obsolete".into(),
+                focused_event_id,
+            };
+            assert!(registry.paginate_visible(&identity, 30).await.is_err());
+        }
+        assert!(registry.live_timelines.lock().await.is_empty());
+        assert!(registry.focused_timelines.lock().await.is_empty());
+    }
+
     use super::*;
 
     #[test]

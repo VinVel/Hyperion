@@ -142,7 +142,6 @@ export function applyTimelinePaginationStatus(
     !current ||
     current.timelineIdentity.instanceId !== instanceId ||
     status.roomId !== current.roomId ||
-    !status.tokenChanged ||
     current.nextBefore === status.nextBefore
   )
     return model;

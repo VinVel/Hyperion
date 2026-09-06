@@ -21,6 +21,7 @@ import {
   type HTMLAttributes,
   type RefObject,
 } from "react";
+import { createWheelPaginationIntent } from "./wheelPagination";
 import { attachTimelineTouchPagination } from "./touchPagination";
 import { classNames } from "../../../components/ui/classNames";
 import { useScrollAreaOverlay } from "../../../components/ui";
@@ -61,9 +62,16 @@ const TimelineScroller = forwardRef<HTMLDivElement, TimelineScrollerProps>(
       }
       const activeScroller: HTMLDivElement = scrollerElement;
 
+      const wheelPaginationIntent = createWheelPaginationIntent();
       function handleWheel(event: WheelEvent) {
         const deltaY = wheelDeltaPixels(event, activeScroller);
-        if (deltaY < 0 && activeScroller.scrollTop <= 0) {
+        if (
+          wheelPaginationIntent(
+            event.timeStamp,
+            deltaY,
+            activeScroller.scrollTop <= 0,
+          )
+        ) {
           topScrollIntentRef.current?.();
         }
 

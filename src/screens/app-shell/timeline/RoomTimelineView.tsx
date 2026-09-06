@@ -13,6 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
+import { createTimelineScrollSeek } from "./scrollSeek";
 import { waitForRenderedTimeline } from "./paginationRendering";
 import type { PaginationViewport } from "../paginationBatch";
 import {
@@ -124,16 +125,6 @@ const timelineRenderOverscan = {
 // Virtuoso needs headroom to retain the visual anchor while pages prepend.
 const timelineInitialItemIndex = 100_000;
 
-// Tune these values per platform; WebKitGTK benefits from a higher entry speed.
-const timelineScrollSeekEnterVelocity = 1_000;
-const timelineScrollSeekExitVelocity = 50;
-const timelineScrollSeekConfiguration = {
-  enter: (velocity: number) =>
-    Math.abs(velocity) > timelineScrollSeekEnterVelocity,
-  exit: (velocity: number) =>
-    Math.abs(velocity) < timelineScrollSeekExitVelocity,
-} as const;
-
 function RoomTimelineView({
   isLoadingOlderMessages,
   timeline,
@@ -143,6 +134,14 @@ function RoomTimelineView({
   onRedactMessage,
   onToggleReaction,
 }: RoomTimelineViewProps) {
+  const scrollSeek = useMemo(createTimelineScrollSeek, []);
+  useLayoutEffect(() => {
+    scrollSeek.reset();
+  }, [
+    scrollSeek,
+    timeline?.firstItemIndex,
+    timeline?.timelineIdentity.instanceId,
+  ]);
   const timelineRootRef = useRef<HTMLDivElement | null>(null);
   useTimelineBookmark(timelineRootRef, timeline, bottomAnchorTolerancePixels);
   const virtuosoRef = useRef<VirtuosoHandle | null>(null);
@@ -660,7 +659,7 @@ function RoomTimelineView({
         }}
         isScrolling={handleVirtuosoScrollingChange}
         overscan={timelineRenderOverscan}
-        scrollSeekConfiguration={timelineScrollSeekConfiguration}
+        scrollSeekConfiguration={scrollSeek.configuration}
         itemContent={(_index, item) => (
           <TimelineMessageRow
             item={item}

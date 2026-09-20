@@ -50,6 +50,7 @@ type AppShellMessagesViewProps = {
   onCancelComposerMode: () => void;
   onCloseThread: () => void;
   onComposerChange: (value: string) => void;
+  onJumpToLatest: () => void;
   onLoadOlderMessages: (viewport: PaginationViewport) => Promise<void>;
   onOpenThread: (roomId: string) => void;
   onRedactMessage: (eventId: string) => void;
@@ -78,6 +79,7 @@ export default function AppShellMessagesView({
   onCancelComposerMode,
   onCloseThread,
   onComposerChange,
+  onJumpToLatest,
   onLoadOlderMessages,
   onOpenThread,
   onRedactMessage,
@@ -157,6 +159,7 @@ export default function AppShellMessagesView({
               timeline={selectedTimeline}
               onBeginEditMessage={onBeginEditMessage}
               onBeginReplyToMessage={onBeginReplyToMessage}
+              onJumpToLatest={onJumpToLatest}
               onLoadOlderMessages={onLoadOlderMessages}
               onRedactMessage={onRedactMessage}
               onToggleReaction={onToggleReaction}

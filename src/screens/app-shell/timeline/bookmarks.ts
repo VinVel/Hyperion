@@ -16,6 +16,7 @@
 import type { TimelineSession } from "./model";
 
 export type TimelineBookmark = {
+  nearby?: import("./viewport").ViewportAnchor[];
   eventId: string;
   offsetPixels: number;
   wasAtBottom: boolean;
@@ -37,12 +38,21 @@ export function saveTimelineBookmark(
   selection: TimelineSession,
   bookmark: TimelineBookmark,
 ): void {
-  timelineBookmarks.set(bookmarkKey(selection), { ...bookmark });
+  timelineBookmarks.set(bookmarkKey(selection), cloneBookmark(bookmark));
 }
 
 export function readTimelineBookmark(
   selection: TimelineSession,
 ): TimelineBookmark | null {
   const bookmark = timelineBookmarks.get(bookmarkKey(selection));
-  return bookmark ? { ...bookmark } : null;
+  return bookmark ? cloneBookmark(bookmark) : null;
+}
+
+function cloneBookmark(bookmark: TimelineBookmark): TimelineBookmark {
+  return {
+    ...bookmark,
+    ...(bookmark.nearby
+      ? { nearby: bookmark.nearby.map((anchor) => ({ ...anchor })) }
+      : {}),
+  };
 }

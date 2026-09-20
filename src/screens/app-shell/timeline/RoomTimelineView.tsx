@@ -66,23 +66,19 @@ import {
   useTimelineRowDebug,
 } from "./timelineDebug";
 import "./RoomTimelineView.css";
-import { useTimelineBookmark } from "./useTimelineBookmark";
+import { initialViewportLocation } from "./viewport";
+import { readTimelineBookmark } from "./bookmarks";
+import TimelineViewport from "./TimelineViewport";
 
 type RoomTimelineViewProps = {
   isLoadingOlderMessages: boolean;
   timeline: RoomTimeline | null;
   onBeginEditMessage: (eventId: string, body: string) => void;
   onBeginReplyToMessage: (eventId: string) => void;
+  onJumpToLatest?: () => void;
   onLoadOlderMessages: (viewport: PaginationViewport) => Promise<void>;
   onRedactMessage: (eventId: string) => void;
   onToggleReaction: (eventId: string, reactionKey: string) => void;
-};
-
-type TimelineScrollSnapshot = {
-  scrollTop: number;
-  scrollHeight: number;
-  clientHeight: number;
-  wasAtBottom: boolean;
 };
 
 type StableTimelineEventTarget = {
@@ -96,7 +92,7 @@ type StableTimelineEventTarget = {
 const bottomAnchorTolerancePixels = 8;
 
 // Keep action anchors briefly because reaction/edit updates can arrive async.
-const actionScrollAnchorLifetimeMilliseconds = 1_500;
+// TimelineViewport now preserves them through measured SDK snapshot updates.
 
 const replyResolutionRetryDelayMilliseconds = 1_000;
 
@@ -106,8 +102,12 @@ const replyNavigationHighlightMilliseconds = 1_400;
 // Reply navigation uses an absolute viewport anchor when the target is outside view.
 const replyNavigationAnchorRatio = 0.28;
 
+// Use the pre-update reading intent; newly measured rows can temporarily make
+// Virtuoso report that a reader who was following is no longer at the bottom.
+const followLiveBottom = () => "auto" as const;
+
 // Bottom restores wait for Virtuoso and browser layout to publish final row sizes.
-const bottomAnchorRestoreFrameCount = 2;
+// followOutput starts live-bottom following; the viewport tracks its measured size.
 
 // Touch/pen long press opens message actions without relying on hover.
 const messageActionLongPressMilliseconds = 450;
@@ -125,15 +125,38 @@ const timelineRenderOverscan = {
 // Virtuoso needs headroom to retain the visual anchor while pages prepend.
 const timelineInitialItemIndex = 100_000;
 
+function TimelineEmptyPlaceholder() {
+  return (
+    <div className="room-timeline-empty">
+      <Typography variant="label">No messages yet</Typography>
+      <Typography variant="body">
+        No text messages are available in this room yet.
+      </Typography>
+    </div>
+  );
+}
+
 function RoomTimelineView({
   isLoadingOlderMessages,
   timeline,
   onBeginEditMessage,
   onBeginReplyToMessage,
+  onJumpToLatest,
   onLoadOlderMessages,
   onRedactMessage,
   onToggleReaction,
 }: RoomTimelineViewProps) {
+  const [initialBookmark] = useState(
+    () =>
+      timeline?.readingPosition?.bookmark ??
+      (timeline ? readTimelineBookmark(timeline.timelineIdentity) : null),
+  );
+  // Virtuoso's resize-follow paths treat a callback as enabled even when it
+  // returns false. Historical reading must supply the literal disabled value.
+  const [followsLiveBottom, setFollowsLiveBottom] = useState(
+    !timeline?.focusedEventId &&
+      (!initialBookmark || initialBookmark.wasAtBottom),
+  );
   const scrollSeek = useMemo(createTimelineScrollSeek, []);
   useLayoutEffect(() => {
     scrollSeek.reset();
@@ -143,18 +166,10 @@ function RoomTimelineView({
     timeline?.timelineIdentity.instanceId,
   ]);
   const timelineRootRef = useRef<HTMLDivElement | null>(null);
-  useTimelineBookmark(timelineRootRef, timeline, bottomAnchorTolerancePixels);
   const virtuosoRef = useRef<VirtuosoHandle | null>(null);
-  const pendingActionScrollSnapshotRef = useRef<TimelineScrollSnapshot | null>(
-    null,
-  );
-  const actionScrollAnchorTimeoutRef = useRef<number | null>(null);
+  const viewportRef = useRef<TimelineViewport | null>(null);
   const navigationHighlightTimeoutRef = useRef<number | null>(null);
   const navigationSequenceRef = useRef(0);
-  const previousFocusedEventIdRef = useRef<string | null>(null);
-  const isAtBottomRef = useRef(true);
-  const isUserScrollInteractionActiveRef = useRef(false);
-  const isVirtuosoScrollingRef = useRef(false);
   const resolvingReplyKeysRef = useRef<Set<string>>(new Set());
   const retryingReplyKeysRef = useRef<Set<string>>(new Set());
   const previousTimelineItemsRef = useRef<RoomTimelineItem[]>([]);
@@ -190,17 +205,7 @@ function RoomTimelineView({
   const timelineTraceIsEnabled = isTracingLevelEnabled("trace");
 
   function runTimelineAction(action: () => void) {
-    const snapshot = captureTimelineScroll(timelineRootRef.current);
-    pendingActionScrollSnapshotRef.current = snapshot;
-    if (actionScrollAnchorTimeoutRef.current !== null) {
-      window.clearTimeout(actionScrollAnchorTimeoutRef.current);
-    }
-    actionScrollAnchorTimeoutRef.current = window.setTimeout(() => {
-      pendingActionScrollSnapshotRef.current = null;
-      actionScrollAnchorTimeoutRef.current = null;
-    }, actionScrollAnchorLifetimeMilliseconds);
     action();
-    restoreTimelineScroll(timelineRootRef.current, snapshot);
   }
 
   useLayoutEffect(() => {
@@ -210,42 +215,17 @@ function RoomTimelineView({
         timelineItems,
       );
       logTimelineGeometry(
-        "layout-effect-before-bottom-restore",
+        "presentation-update",
         timelineRootRef.current,
         timelineItems,
         bottomAnchorTolerancePixels,
       );
     }
-
-    if (pendingActionScrollSnapshotRef.current) {
-      restoreTimelineScroll(
-        timelineRootRef.current,
-        pendingActionScrollSnapshotRef.current,
-      );
-      previousTimelineItemsRef.current = timelineItems;
-      return;
-    }
-
-    if (
-      !focusedEventId &&
-      (isAtBottomRef.current ||
-        timelineScrollerIsAtBottom(timelineRootRef.current))
-    ) {
-      scrollToTimelineBottom(
-        timelineRootRef.current,
-        virtuosoRef.current,
-        timelineTraceIsEnabled,
-      );
-    }
-
     previousTimelineItemsRef.current = timelineItems;
-  }, [focusedEventId, roomId, timelineTraceIsEnabled, timelineItems]);
+  }, [timelineItems, timelineTraceIsEnabled]);
 
   useEffect(() => {
     return () => {
-      if (actionScrollAnchorTimeoutRef.current !== null) {
-        window.clearTimeout(actionScrollAnchorTimeoutRef.current);
-      }
       if (navigationHighlightTimeoutRef.current !== null) {
         window.clearTimeout(navigationHighlightTimeoutRef.current);
       }
@@ -301,38 +281,10 @@ function RoomTimelineView({
       document.removeEventListener("pointerdown", handleOutsideInfoClick, true);
   }, [activeInfoEventId]);
 
-  const followTimelineOutput = useCallback(
-    (wasAtBottom: boolean) => {
-      const userControlsScroll = isUserScrollInteractionActiveRef.current;
-      const bottomAnchorIsStable =
-        wasAtBottom ||
-        isAtBottomRef.current ||
-        timelineScrollerIsAtBottom(timelineRootRef.current);
-      if (timelineTraceIsEnabled) {
-        logTimelineDebug("follow-output", {
-          wasAtBottom,
-          isAtBottomRef: isAtBottomRef.current,
-          bottomAnchorIsStable,
-          focusedEventId,
-          userControlsScroll,
-          rawMetrics: rawTimelineScrollerMetrics(
-            timelineRootRef.current,
-            bottomAnchorTolerancePixels,
-          ),
-        });
-      }
-      if (!bottomAnchorIsStable || userControlsScroll || focusedEventId) {
-        return false;
-      }
-
-      return "auto";
-    },
-    [focusedEventId, timelineTraceIsEnabled],
-  );
-
   const virtuosoComponents = useMemo(
     () => ({
       Scroller: TimelineScroller,
+      EmptyPlaceholder: TimelineEmptyPlaceholder,
       ScrollSeekPlaceholder: TimelineScrollSeekPlaceholder,
     }),
     [],
@@ -372,6 +324,7 @@ function RoomTimelineView({
             instanceId,
             revision,
             signal,
+            () => !viewportRef.current?.isSettling,
           ),
       }).finally(() => {
         scroller.removeEventListener("scroll", leaveOldestEdge);
@@ -381,6 +334,7 @@ function RoomTimelineView({
     },
     [
       isLoadingOlderMessages,
+      onJumpToLatest,
       onLoadOlderMessages,
       timeline?.nextBefore,
       timelineItems.length,
@@ -395,7 +349,6 @@ function RoomTimelineView({
   );
 
   function handleVirtuosoScrollingChange(isScrolling: boolean) {
-    isVirtuosoScrollingRef.current = isScrolling;
     if (timelineTraceIsEnabled) {
       logTimelineDebug("virtuoso-scrolling-change", {
         isScrolling,
@@ -405,12 +358,10 @@ function RoomTimelineView({
         ),
       });
     }
-    if (!isScrolling) {
-      isUserScrollInteractionActiveRef.current = false;
-    }
   }
 
   function scrollToTimelineEvent(eventId: string) {
+    viewportRef.current?.releaseFollow();
     const targetIndex = timelineItems.findIndex((item) => item.id === eventId);
     if (targetIndex < 0) {
       return;
@@ -559,29 +510,6 @@ function RoomTimelineView({
   }
 
   useEffect(() => {
-    if (
-      !focusedEventId ||
-      previousFocusedEventIdRef.current === focusedEventId
-    ) {
-      return;
-    }
-
-    previousFocusedEventIdRef.current = focusedEventId;
-    const focusedIndex = timelineItems.findIndex(
-      (item) => item.id === focusedEventId,
-    );
-    if (focusedIndex < 0) {
-      return;
-    }
-
-    virtuosoRef.current?.scrollToIndex({
-      index: focusedIndex,
-      align: "center",
-      behavior: "auto",
-    });
-  }, [focusedEventId, timelineItems]);
-
-  useEffect(() => {
     if (!roomId) {
       return;
     }
@@ -602,93 +530,94 @@ function RoomTimelineView({
     }
   }, [roomId, resolvedReplyPreviews, timelineItems]);
 
-  if (!timelineItems.length) {
-    return (
-      <div className="room-timeline-empty">
-        <Typography variant="label">No messages yet</Typography>
-        <Typography variant="body">
-          No text messages are available in this room yet.
-        </Typography>
-      </div>
-    );
-  }
+  if (!timeline) return <TimelineEmptyPlaceholder />;
 
   return (
-    <div className="room-timeline-host" ref={timelineRootRef}>
-      {isLoadingOlderMessages ? (
-        <div
-          aria-label="Loading older messages"
-          className="room-timeline-pagination-loader"
-          role="status"
-        >
-          <LoaderCircle aria-hidden="true" />
-        </div>
-      ) : null}
-      <Virtuoso
-        key={timeline?.roomId ?? "room-timeline"}
-        ref={virtuosoRef}
-        className="room-timeline"
-        components={virtuosoComponents}
-        context={scrollerContext}
-        atBottomThreshold={bottomAnchorTolerancePixels}
-        computeItemKey={(_index, item) => item.id}
-        data={timelineItems}
-        firstItemIndex={timeline?.firstItemIndex ?? timelineInitialItemIndex}
-        atBottomStateChange={(isAtBottom) => {
-          isAtBottomRef.current = isAtBottom;
-          if (timelineTraceIsEnabled) {
-            logTimelineDebug("at-bottom-state-change", {
-              isAtBottom,
-              rawMetrics: rawTimelineScrollerMetrics(
+    <TimelineViewport
+      ref={viewportRef}
+      onRestorationFailure={() => paginationGestureRef.current?.abort()}
+      onFollowingChange={setFollowsLiveBottom}
+      onJumpToLatest={onJumpToLatest}
+      onRestoringChange={scrollSeek.suspend}
+      timeline={timeline}
+      rootRef={timelineRootRef}
+      virtuosoRef={virtuosoRef}
+    >
+      <div className="room-timeline-host" ref={timelineRootRef}>
+        {isLoadingOlderMessages ? (
+          <div
+            aria-label="Loading older messages"
+            className="room-timeline-pagination-loader"
+            role="status"
+          >
+            <LoaderCircle aria-hidden="true" />
+          </div>
+        ) : null}
+        <Virtuoso
+          key={timeline?.roomId ?? "room-timeline"}
+          ref={virtuosoRef}
+          className="room-timeline"
+          components={virtuosoComponents}
+          context={scrollerContext}
+          atBottomThreshold={bottomAnchorTolerancePixels}
+          computeItemKey={(_index, item) => item.id}
+          data={timelineItems}
+          firstItemIndex={timeline?.firstItemIndex ?? timelineInitialItemIndex}
+          atBottomStateChange={(isAtBottom) => {
+            if (timelineTraceIsEnabled) {
+              logTimelineDebug("at-bottom-state-change", {
+                isAtBottom,
+                rawMetrics: rawTimelineScrollerMetrics(
+                  timelineRootRef.current,
+                  bottomAnchorTolerancePixels,
+                ),
+              });
+              logTimelineGeometry(
+                "at-bottom-state-change",
                 timelineRootRef.current,
+                timelineItems,
                 bottomAnchorTolerancePixels,
-              ),
-            });
-            logTimelineGeometry(
-              "at-bottom-state-change",
-              timelineRootRef.current,
-              timelineItems,
-              bottomAnchorTolerancePixels,
-            );
-          }
-        }}
-        followOutput={followTimelineOutput}
-        initialTopMostItemIndex={{
-          index: timelineItems.length - 1,
-          align: "end",
-        }}
-        isScrolling={handleVirtuosoScrollingChange}
-        overscan={timelineRenderOverscan}
-        scrollSeekConfiguration={scrollSeek.configuration}
-        itemContent={(_index, item) => (
-          <TimelineMessageRow
-            item={item}
-            actionsAreOpen={activeActionEventId === item.id}
-            traceEnabled={timelineTraceIsEnabled}
-            isFocused={
-              focusedEventId === item.id ||
-              navigationHighlightedEventId === item.id
+              );
             }
-            onBeginEditMessage={onBeginEditMessage}
-            onBeginReplyToMessage={onBeginReplyToMessage}
-            onCloseMessageActions={() => setActiveActionEventId(null)}
-            onRedactMessage={onRedactMessage}
-            onRunTimelineAction={runTimelineAction}
-            onScrollToTimelineEvent={scrollToTimelineEvent}
-            onOpenMessageActions={setActiveActionEventId}
-            onOpenMessageInfo={setActiveInfoEventId}
-            onToggleReaction={onToggleReaction}
-            replyPreview={replyPreviewForItem(item)}
-          />
-        )}
-      />
-      {activeInfoItem ? (
-        <TimelineInfoSurface
-          item={activeInfoItem}
-          onClose={() => setActiveInfoEventId(null)}
+          }}
+          followOutput={followsLiveBottom ? followLiveBottom : false}
+          initialTopMostItemIndex={initialViewportLocation(
+            timeline,
+            initialBookmark,
+          )}
+          isScrolling={handleVirtuosoScrollingChange}
+          overscan={timelineRenderOverscan}
+          scrollSeekConfiguration={scrollSeek.configuration}
+          itemContent={(_index, item) => (
+            <TimelineMessageRow
+              item={item}
+              actionsAreOpen={activeActionEventId === item.id}
+              traceEnabled={timelineTraceIsEnabled}
+              isFocused={
+                focusedEventId === item.id ||
+                navigationHighlightedEventId === item.id
+              }
+              onBeginEditMessage={onBeginEditMessage}
+              onBeginReplyToMessage={onBeginReplyToMessage}
+              onCloseMessageActions={() => setActiveActionEventId(null)}
+              onRedactMessage={onRedactMessage}
+              onRunTimelineAction={runTimelineAction}
+              onScrollToTimelineEvent={scrollToTimelineEvent}
+              onOpenMessageActions={setActiveActionEventId}
+              onOpenMessageInfo={setActiveInfoEventId}
+              onToggleReaction={onToggleReaction}
+              replyPreview={replyPreviewForItem(item)}
+            />
+          )}
         />
-      ) : null}
-    </div>
+        {activeInfoItem ? (
+          <TimelineInfoSurface
+            item={activeInfoItem}
+            onClose={() => setActiveInfoEventId(null)}
+          />
+        ) : null}
+      </div>
+    </TimelineViewport>
   );
 }
 
@@ -997,96 +926,6 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
   );
 });
 
-function captureTimelineScroll(
-  root: HTMLDivElement | null,
-): TimelineScrollSnapshot | null {
-  const scroller = timelineScroller(root);
-  if (!scroller) {
-    return null;
-  }
-
-  const distanceFromBottom =
-    scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
-  return {
-    scrollTop: scroller.scrollTop,
-    scrollHeight: scroller.scrollHeight,
-    clientHeight: scroller.clientHeight,
-    wasAtBottom: distanceFromBottom <= bottomAnchorTolerancePixels,
-  };
-}
-
-function restoreTimelineScroll(
-  root: HTMLDivElement | null,
-  snapshot: TimelineScrollSnapshot | null,
-): void {
-  if (!snapshot) {
-    return;
-  }
-
-  const scrollSnapshot = snapshot;
-
-  function restore() {
-    const scroller = timelineScroller(root);
-    if (!scroller) {
-      return;
-    }
-
-    if (scrollSnapshot.wasAtBottom) {
-      scroller.scrollTop = timelineMaximumScrollTop(scroller);
-      return;
-    }
-
-    const maxScrollTop = timelineMaximumScrollTop(scroller);
-    const prependedHeightDelta = Math.max(
-      0,
-      scroller.scrollHeight - scrollSnapshot.scrollHeight,
-    );
-    scroller.scrollTop = Math.min(
-      scrollSnapshot.scrollTop + prependedHeightDelta,
-      maxScrollTop,
-    );
-  }
-
-  requestAnimationFrame(() => {
-    restore();
-    requestAnimationFrame(restore);
-  });
-}
-
-function scrollToTimelineBottom(
-  root: HTMLDivElement | null,
-  virtuoso: VirtuosoHandle | null,
-  traceEnabled = false,
-): void {
-  if (traceEnabled) {
-    logTimelineDebug("scroll-to-bottom-before", {
-      rawMetrics: rawTimelineScrollerMetrics(root, bottomAnchorTolerancePixels),
-    });
-  }
-
-  virtuoso?.scrollToIndex({
-    index: "LAST",
-    align: "end",
-    behavior: "auto",
-  });
-  runAfterAnimationFrames(bottomAnchorRestoreFrameCount, () => {
-    const scroller = timelineScroller(root);
-    if (!scroller) {
-      return;
-    }
-
-    scroller.scrollTop = timelineMaximumScrollTop(scroller);
-    if (traceEnabled) {
-      logTimelineDebug("scroll-to-bottom-after", {
-        rawMetrics: rawTimelineScrollerMetrics(
-          root,
-          bottomAnchorTolerancePixels,
-        ),
-      });
-    }
-  });
-}
-
 function scrollMountedTimelineEventToAnchor(
   target: StableTimelineEventTarget,
 ): void {
@@ -1106,23 +945,8 @@ function scrollMountedTimelineEventToAnchor(
   });
 }
 
-function timelineScrollerIsAtBottom(root: HTMLDivElement | null): boolean {
-  const scroller = timelineScroller(root);
-  if (!scroller) {
-    return false;
-  }
-
-  const distanceFromBottom =
-    scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
-  return distanceFromBottom <= bottomAnchorTolerancePixels;
-}
-
 function timelineScroller(root: HTMLDivElement | null): HTMLDivElement | null {
   return root?.querySelector<HTMLDivElement>(".room-timeline-scroller") ?? null;
-}
-
-function timelineMaximumScrollTop(scroller: HTMLDivElement): number {
-  return Math.max(0, scroller.scrollHeight - scroller.clientHeight);
 }
 
 function preventActionButtonFocus(
@@ -1157,20 +981,6 @@ function waitForAnimationFrame(): Promise<void> {
   });
 }
 
-function runAfterAnimationFrames(
-  frameCount: number,
-  callback: () => void,
-): void {
-  if (frameCount <= 0) {
-    callback();
-    return;
-  }
-
-  requestAnimationFrame(() => {
-    runAfterAnimationFrames(frameCount - 1, callback);
-  });
-}
-
 function failedReplyPreview(eventId: string): RoomTimelineReplyPreview {
   return {
     eventId,
@@ -1191,4 +1001,13 @@ function timelineAvatarLabel(item: RoomTimelineItem): string {
   return displayName.slice(0, 2).toUpperCase();
 }
 
-export default memo(RoomTimelineView);
+function RoomTimelineInstance(props: RoomTimelineViewProps) {
+  return (
+    <RoomTimelineView
+      key={props.timeline?.timelineIdentity.instanceId ?? "closed"}
+      {...props}
+    />
+  );
+}
+
+export default memo(RoomTimelineInstance);

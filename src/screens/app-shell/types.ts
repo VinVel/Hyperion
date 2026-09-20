@@ -136,5 +136,6 @@ export type UseAppShellStateResult = {
     targetView?: AuthenticatedShellView,
     eventId?: string,
   ) => void;
+  jumpToLatest: () => void;
   loadOlderMessages: (viewport: PaginationViewport) => Promise<void>;
 };

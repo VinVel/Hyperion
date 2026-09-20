@@ -19,6 +19,7 @@ const timelineScrollSeekExitVelocity = 50;
 
 export function createTimelineScrollSeek() {
   let discardNextDelta = false;
+  let suspended = false;
 
   function discardStaleDelta(velocity: number): boolean {
     if (!discardNextDelta) return false;
@@ -30,14 +31,20 @@ export function createTimelineScrollSeek() {
   }
 
   return {
+    suspend(value: boolean) {
+      suspended = value;
+      discardNextDelta = true;
+    },
     reset() {
       discardNextDelta = true;
     },
     configuration: {
       enter: (velocity: number) =>
+        !suspended &&
         !discardStaleDelta(velocity) &&
         Math.abs(velocity) > timelineScrollSeekEnterVelocity,
       exit: (velocity: number) =>
+        suspended ||
         discardStaleDelta(velocity) ||
         Math.abs(velocity) < timelineScrollSeekExitVelocity,
     },

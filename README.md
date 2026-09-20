@@ -95,3 +95,28 @@ sudo dnf install webkit2gtk4.1-devel \
   libxdo-devel
 sudo dnf group install "c-development"
 ```
+
+### Timeline viewport regression fixture
+
+In development, open `http://localhost:1420/__timeline` after starting `pnpm dev`.
+This route uses the production timeline renderer, Virtuoso, and the snapshot
+presentation model with deterministic messages; it does not connect to Matrix.
+The fixture is excluded from production builds.
+
+On Linux with a graphical session, Python 3, WebKitWebDriver, and WebKitGTK's
+MiniBrowser installed, run:
+
+```bash
+python3 tests/viewport_webkit.py
+```
+
+Use `--browser-binary` if MiniBrowser is installed elsewhere. The runner checks
+wide and narrow windows and writes measurements to
+`/tmp/hyperion-viewport-webkit.json`. It checks settled anchor drift and samples
+the displayed viewport after animation-frame layout, including a reader moving
+away during delayed pagination. Touch-list events are dispatched to the real
+scroller because WebKitWebDriver does not support native touch pointer actions;
+physical touch and platform-specific gesture behavior still require device
+testing. Keyboard intent is tested separately with DOM key events. The runner
+also attempts native WebDriver keyboard input and reports when the installed
+driver does not support it.

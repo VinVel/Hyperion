@@ -162,6 +162,7 @@ export default function AppShell({
                 onBeginReplyToMessage={shell.beginReplyToMessage}
                 onCancelComposerMode={shell.cancelComposerMode}
                 onComposerChange={shell.setComposerValue}
+                onJumpToLatest={shell.jumpToLatest}
                 onLoadOlderMessages={shell.loadOlderMessages}
                 onOpenThread={shell.selectThread}
                 onRedactMessage={shell.redactMessage}

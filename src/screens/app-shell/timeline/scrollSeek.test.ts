@@ -43,3 +43,14 @@ test("a prepend also exits existing placeholder mode and consumes only one delta
   expect(seek.configuration.exit(5000)).toBe(true);
   expect(seek.configuration.enter(1500)).toBe(true);
 });
+
+test("measured programmatic restoration cannot enter placeholder mode", () => {
+  const seek = createTimelineScrollSeek();
+  seek.suspend(true);
+  expect(seek.configuration.enter(5000)).toBe(false);
+  expect(seek.configuration.enter(5000)).toBe(false);
+  expect(seek.configuration.exit(5000)).toBe(true);
+  seek.suspend(false);
+  expect(seek.configuration.enter(5000)).toBe(false);
+  expect(seek.configuration.enter(1500)).toBe(true);
+});

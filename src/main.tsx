@@ -54,25 +54,30 @@ function reportThemeStorageError(error: unknown) {
   });
 }
 
-void initializeTracing().finally(() => {
-  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-    <React.StrictMode>
-      <ThemeProvider
-        onStorageError={reportThemeStorageError}
-        preferences={themePreferences}
-      >
-        <ToastProvider>
-          <AppWindowFrame
-            iconSrc="/Hyperion-icon.svg"
-            titlebarLabel="Hyperion window controls"
-            windowController={windowController}
-          >
-            <AppErrorBoundary onError={reportUiError}>
-              <App />
-            </AppErrorBoundary>
-          </AppWindowFrame>
-        </ToastProvider>
-      </ThemeProvider>
-    </React.StrictMode>,
+if (import.meta.env.DEV && location.pathname === "/__timeline") {
+  void import("./screens/app-shell/timeline/viewportFixture").then(
+    ({ mountTimelineFixture }) => mountTimelineFixture(),
   );
-});
+} else
+  void initializeTracing().finally(() => {
+    ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+      <React.StrictMode>
+        <ThemeProvider
+          onStorageError={reportThemeStorageError}
+          preferences={themePreferences}
+        >
+          <ToastProvider>
+            <AppWindowFrame
+              iconSrc="/Hyperion-icon.svg"
+              titlebarLabel="Hyperion window controls"
+              windowController={windowController}
+            >
+              <AppErrorBoundary onError={reportUiError}>
+                <App />
+              </AppErrorBoundary>
+            </AppWindowFrame>
+          </ToastProvider>
+        </ThemeProvider>
+      </React.StrictMode>,
+    );
+  });

@@ -295,6 +295,8 @@ export type RoomTimelineReplyPreview = {
 };
 
 export type RoomTimeline = {
+  /** Session-only presentation data; never part of the IPC payload. */
+  readingPosition?: import("./timeline/restoration").ReadingPosition;
   timelineIdentity: TimelineIdentity;
   revision: number;
   roomId: string;

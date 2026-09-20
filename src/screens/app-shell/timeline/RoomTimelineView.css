@@ -46,7 +46,7 @@
 
 .room-timeline-pagination-loader {
   position: absolute;
-  z-index: 1;
+  z-index: 2;
   top: var(--spacing-gap-small);
   left: 50%;
   display: grid;
@@ -513,4 +513,18 @@
     flex: 0 0 var(--room-timeline-action-button-size);
     aspect-ratio: 1;
   }
+}
+
+/* A structural replacement keeps its previous painted viewport until measured. */
+.room-timeline-frozen {
+  position: absolute;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--surface);
+}
+
+/* Keep initial restoration measurable without painting a different reading position. */
+.room-timeline-restoring-initial .room-timeline-scroller {
+  visibility: hidden;
 }

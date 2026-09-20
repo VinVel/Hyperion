@@ -108,3 +108,24 @@ test("a recreated timeline cannot satisfy the prior instance's completion", asyn
   await vi.advanceTimersByTimeAsync(16);
   expect(await wait).toBeNull();
 });
+
+test("continuation waits for measured viewport restoration as well as the revision", async () => {
+  const f = fixture();
+  let settled = false;
+  let finished = false;
+  const wait = waitForRenderedTimeline(
+    f.read,
+    "instance",
+    1,
+    f.controller.signal,
+    () => settled,
+  ).then((items) => {
+    finished = true;
+    return items;
+  });
+  await vi.advanceTimersByTimeAsync(4000);
+  expect(finished).toBe(false);
+  settled = true;
+  await vi.advanceTimersByTimeAsync(32);
+  expect(await wait).toEqual(["oldest"]);
+});

@@ -23,6 +23,7 @@ export function waitForRenderedTimeline(
   instanceId: string | undefined,
   revision: number,
   signal: AbortSignal,
+  isPresentationSettled: () => boolean = () => true,
 ): Promise<string[] | null> {
   return new Promise((resolve) => {
     let frame = 0;
@@ -41,11 +42,12 @@ export function waitForRenderedTimeline(
         finish(null);
         return;
       }
-      if (rendered.revision >= revision && previous === rendered) {
+      const settled = isPresentationSettled();
+      if (settled && rendered.revision >= revision && previous === rendered) {
         finish(rendered.items.map((item) => item.id));
         return;
       }
-      previous = rendered.revision >= revision ? rendered : null;
+      previous = settled && rendered.revision >= revision ? rendered : null;
       frame = requestAnimationFrame(measure);
     }
     if (signal.aborted) {

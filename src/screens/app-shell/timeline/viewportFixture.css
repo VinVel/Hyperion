@@ -1,0 +1,30 @@
+/*
+ * Copyright (c) 2026 VinVel
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, version 3 only.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * Project home: hyperion.velcore.net
+ */
+
+.timeline-fixture {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+.timeline-fixture h1 {
+  font-size: var(--typography-font-size-body);
+}
+.timeline-fixture-viewport {
+  flex: 1;
+  min-height: 0; /* Keep the fixture scroller bounded by the window. */
+}
+body {
+  margin: 0;
+}

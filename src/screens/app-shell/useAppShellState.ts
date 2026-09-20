@@ -13,6 +13,8 @@
  * Project home: hyperion.velcore.net
  */
 
+import { resolveReadingPosition } from "./timeline/restoration";
+import { notifyFeedback } from "../../components/ui/Toast";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -191,6 +193,9 @@ export default function useAppShellState({
     acceptTimelineSnapshot,
     updateTimelineStatus,
   } = useTimelineModel();
+  const reopenReadingPositionRef = useRef<((latest: boolean) => void) | null>(
+    null,
+  );
   const [timelineJumpTarget, setTimelineJumpTarget] =
     useState<TimelineJumpTarget | null>(null);
   const [composerValue, setComposerValue] = useState("");
@@ -596,25 +601,64 @@ export default function useAppShellState({
     let cancelled = false;
     const roomId = selectedThreadId;
     const anchoredEventId = timelineAnchorForRoom(roomId, timelineJumpTarget);
-    const session = beginTimeline({
+    const selection = {
       accountKey: activeAccount.account_key,
       roomId,
       focusedEventId: anchoredEventId,
-    });
+    };
 
-    async function loadSelectedRoom() {
+    async function loadSelectedRoom(skipBookmark = false) {
+      if (cancelled) return;
+      let session = beginTimeline({
+        ...selection,
+        focusedEventId: skipBookmark ? null : anchoredEventId,
+      });
+      const isCurrent = () =>
+        !cancelled &&
+        selectedThreadIdRef.current === roomId &&
+        timelineModelRef.current?.session === session;
       try {
         await timelineListenerReadyRef.current;
-        if (cancelled) return;
+        if (!isCurrent()) return;
         const roomSnapshot = await loadSelectedRoomSnapshot(
           roomId,
-          anchoredEventId,
+          skipBookmark ? null : anchoredEventId,
         );
-        if (cancelled || selectedThreadIdRef.current !== roomId) {
+        if (!isCurrent()) {
           return;
         }
 
-        if (!acceptTimelineSnapshot(session, roomSnapshot.timeline, "initial"))
+        const restoredTimeline = skipBookmark
+          ? {
+              ...roomSnapshot.timeline,
+              readingPosition: {
+                selection: session,
+                bookmark: {
+                  eventId:
+                    roomSnapshot.timeline.items[
+                      roomSnapshot.timeline.items.length - 1
+                    ]?.id ?? "",
+                  offsetPixels: 0,
+                  wasAtBottom: true,
+                },
+              },
+            }
+          : await resolveReadingPosition(
+              session,
+              roomSnapshot.timeline,
+              async (eventId) => {
+                // Bind the focused session before requesting context so subscription
+                // updates that beat the command reply are buffered for this instance.
+                session = beginTimeline({
+                  ...selection,
+                  focusedEventId: eventId,
+                });
+                return (await loadSelectedRoomSnapshot(roomId, eventId))
+                  .timeline;
+              },
+            );
+        if (!isCurrent()) return;
+        if (!acceptTimelineSnapshot(session, restoredTimeline, "initial"))
           return;
         setSelectedRoomSummary(roomSnapshot.summary);
         if (!anchoredEventId) {
@@ -625,19 +669,38 @@ export default function useAppShellState({
           return;
         }
       } catch {
-        if (!cancelled) {
-          setGenericErrorFeedback(
-            setFeedbackMessage,
-            "Could not load this conversation.",
-          );
+        if (isCurrent()) {
+          notifyFeedback({
+            tone: "error",
+            text: "Could not restore this conversation's reading position.",
+            actions: [
+              {
+                label: "Retry",
+                onSelect: () => {
+                  if (!cancelled) void loadSelectedRoom();
+                },
+              },
+              {
+                label: "Jump to latest",
+                onSelect: () => {
+                  if (!isCurrent()) return;
+                  void loadSelectedRoom(true);
+                },
+              },
+            ],
+          });
         }
       }
     }
 
+    reopenReadingPositionRef.current = (latest) => {
+      void loadSelectedRoom(latest);
+    };
     void loadSelectedRoom();
 
     return () => {
       cancelled = true;
+      reopenReadingPositionRef.current = null;
       closeTimeline();
     };
   }, [
@@ -1327,6 +1390,7 @@ export default function useAppShellState({
     selectedSpace,
     selectedThread,
     selectedTimeline: selectedTimelineForSelectedThread,
+    jumpToLatest: () => reopenReadingPositionRef.current?.(true),
     switchableAccounts,
     switchingAccountKey,
     threadKindFilter,

@@ -85,11 +85,13 @@ export function applyTimelineSnapshot(
   const items = unchanged ? current.items : reusedItems;
   // Preserve the existing Virtuoso prepend bookkeeping while all rows now
   // come from complete SDK snapshots. Structural restoration is handled in 5D.
+  // The viewport boundary now handles those structural restorations.
   const prependCount = purePrependCount(current, snapshot);
   return {
     ...model,
     timeline: {
       ...snapshot,
+      readingPosition: current.readingPosition,
       items,
       nextBefore: current.nextBefore,
       firstItemIndex:

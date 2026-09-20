@@ -40,3 +40,23 @@ test("session bookmarks contain only viewport data and are isolated by account, 
   bookmark.eventId = "$changed";
   expect(readTimelineBookmark(selection)?.eventId).toBe("$event");
 });
+
+test("neighbor offsets are copied and cannot mutate another room return", () => {
+  const selection = {
+    accountKey: "neighbors",
+    roomId: "room",
+    focusedEventId: null,
+  };
+  const nearby = [{ eventId: "next", offsetPixels: 50 }];
+  saveTimelineBookmark(selection, {
+    eventId: "first",
+    offsetPixels: -5,
+    wasAtBottom: false,
+    nearby,
+  });
+  nearby[0].offsetPixels = 999;
+  const restored = readTimelineBookmark(selection)!;
+  expect(restored.nearby?.[0].offsetPixels).toBe(50);
+  restored.nearby![0].offsetPixels = 300;
+  expect(readTimelineBookmark(selection)?.nearby?.[0].offsetPixels).toBe(50);
+});

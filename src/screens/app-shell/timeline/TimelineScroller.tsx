@@ -21,6 +21,7 @@ import {
   type HTMLAttributes,
   type RefObject,
 } from "react";
+import { keyboardPaginationIntent } from "./keyboardPagination";
 import { createWheelPaginationIntent } from "./wheelPagination";
 import { attachTimelineTouchPagination } from "./touchPagination";
 import { classNames } from "../../../components/ui/classNames";
@@ -96,6 +97,24 @@ const TimelineScroller = forwardRef<HTMLDivElement, TimelineScrollerProps>(
         activeScroller.scrollTop += Math.sign(deltaY) * maximumDelta;
       }
 
+      function handleKeyDown(event: KeyboardEvent) {
+        const interactiveTarget =
+          event.target instanceof Element &&
+          Boolean(
+            event.target.closest(
+              "input, textarea, select, button, a, [contenteditable=true]",
+            ),
+          );
+        if (
+          keyboardPaginationIntent(
+            event,
+            activeScroller.scrollTop <= 0,
+            interactiveTarget,
+          )
+        )
+          topScrollIntentRef.current?.();
+      }
+      activeScroller.addEventListener("keydown", handleKeyDown);
       activeScroller.addEventListener("wheel", handleWheel, { passive: false });
       const detachTouchPagination = attachTimelineTouchPagination(
         activeScroller,
@@ -103,6 +122,7 @@ const TimelineScroller = forwardRef<HTMLDivElement, TimelineScrollerProps>(
       );
       return () => {
         detachTouchPagination();
+        activeScroller.removeEventListener("keydown", handleKeyDown);
         activeScroller.removeEventListener("wheel", handleWheel);
       };
     }, []);
@@ -115,6 +135,8 @@ const TimelineScroller = forwardRef<HTMLDivElement, TimelineScrollerProps>(
       >
         <div
           {...props}
+          tabIndex={0}
+          aria-label="Conversation messages"
           className={classNames(
             "ui-scroll-area__viewport",
             "room-timeline-scroller",

@@ -17,7 +17,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    // SAFETY: This runs before Tauri or any application threads are started.
+    // SAFETY: This runs before the application or any worker threads are started.
     #[cfg(target_os = "linux")]
     unsafe {
         std::env::set_var("__NV_DISABLE_EXPLICIT_SYNC", "1");

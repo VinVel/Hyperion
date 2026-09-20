@@ -21,10 +21,10 @@ use std::{
     time::Duration,
 };
 
+use crate::host::AppHandle;
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use matrix_sdk::{Client, authentication::matrix::MatrixSession};
 use rand::{TryRng, rngs::SysRng};
-use tauri::{AppHandle, Manager};
 
 use super::{
     AccountManager, AccountStorageLocation, ManagedAccount, REPLACEMENT_STORE_ID_RANDOM_BYTES,

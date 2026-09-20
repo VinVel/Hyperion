@@ -19,10 +19,10 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use crate::host::AppHandle;
 use matrix_sdk::{Client, SqliteStoreConfig, search_index::SearchIndexStoreKind};
 use matrix_sdk_crypto::CollectStrategy;
-use tauri::AppHandle;
-use tauri::async_runtime::Mutex as AsyncMutex;
+use tokio::sync::Mutex as AsyncMutex;
 
 use super::secure_storage;
 use super::types::{

@@ -15,7 +15,7 @@
 
 use std::{collections::HashSet, path::Path, sync::Arc};
 
-use tauri::async_runtime::Mutex as AsyncMutex;
+use tokio::sync::Mutex as AsyncMutex;
 
 use super::{
     database::{open_search_connection, search_paths_for_store},

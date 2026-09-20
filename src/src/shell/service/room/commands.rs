@@ -25,6 +25,7 @@ use matrix_sdk::{
 
 use crate::{
     account::{AccountManager, ActiveAccount},
+    host::AppHandle,
     shell::{
         service::{
             RECENT_TIMELINE_WARM_ROOM_COUNT, ShellCacheState, ShellManager, ShellRoomListKind,
@@ -50,7 +51,7 @@ use super::{
 impl ShellManager {
     pub async fn list_room_threads(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account_manager: &AccountManager,
         active_account: &ActiveAccount,
         request: ListRoomThreadsRequest,
@@ -153,7 +154,7 @@ impl ShellManager {
 
     pub async fn get_room_summary(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account_manager: &AccountManager,
         active_account: &ActiveAccount,
         request: GetRoomSummaryRequest,
@@ -194,7 +195,7 @@ impl ShellManager {
 
     pub async fn send_room_message(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account_manager: &AccountManager,
         active_account: &ActiveAccount,
         request: SendRoomMessageRequest,
@@ -369,7 +370,7 @@ impl ShellManager {
 
     pub async fn set_room_typing(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         active_account: &ActiveAccount,
         request: SetRoomTypingRequest,
     ) -> Result<(), String> {
@@ -385,7 +386,7 @@ impl ShellManager {
 
     pub async fn list_spaces(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account_manager: &AccountManager,
         active_account: &ActiveAccount,
         request: ListSpacesRequest,

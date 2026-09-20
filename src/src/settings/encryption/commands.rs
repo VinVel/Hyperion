@@ -13,6 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
+use crate::host::{AppHandle, FilePath, OpenOptions};
 use matrix_sdk::{
     Client,
     encryption::CrossSigningResetAuthType,
@@ -24,9 +25,6 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
 };
-use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_dialog::{DialogExt, FilePath};
-use tauri_plugin_fs::{FsExt, OpenOptions};
 
 use crate::{
     account::{AccountClientSnapshot, AccountManager},
@@ -50,10 +48,9 @@ const ROOM_KEY_EXPORT_FILE_NAME: &str = "hyperion-room-keys.txt";
 const ROOM_KEY_TRANSFER_DIRECTORY_NAME: &str = "room-key-transfer";
 pub const ENCRYPTION_OVERVIEW_UPDATED_EVENT: &str = "hyperion://encryption-overview-updated";
 
-#[tauri::command]
 pub async fn get_encryption_overview(
     app: AppHandle,
-    account_manager: tauri::State<'_, AccountManager>,
+    account_manager: crate::host::State<'_, AccountManager>,
 ) -> Result<EncryptionOverview, String> {
     crate::utils::tracing::report_command_future(
         "get_encryption_overview",
@@ -166,7 +163,7 @@ async fn refreshed_encryption_overview(
 }
 
 fn schedule_encryption_overview_refresh(app: AppHandle, account: AccountClientSnapshot) {
-    tauri::async_runtime::spawn(async move {
+    tokio::spawn(async move {
         let overview = match refreshed_encryption_overview(&account).await {
             Ok(overview) => overview,
             Err(error) => {
@@ -205,10 +202,9 @@ fn schedule_encryption_overview_refresh(app: AppHandle, account: AccountClientSn
     });
 }
 
-#[tauri::command]
 pub async fn enable_server_key_storage(
     app: AppHandle,
-    account_manager: tauri::State<'_, AccountManager>,
+    account_manager: crate::host::State<'_, AccountManager>,
 ) -> Result<(), String> {
     crate::utils::tracing::report_command_future(
         "enable_server_key_storage",
@@ -238,10 +234,9 @@ pub async fn enable_server_key_storage(
     .await
 }
 
-#[tauri::command]
 pub async fn disable_server_key_storage(
     app: AppHandle,
-    account_manager: tauri::State<'_, AccountManager>,
+    account_manager: crate::host::State<'_, AccountManager>,
 ) -> Result<(), String> {
     crate::utils::tracing::report_command_future(
         "disable_server_key_storage",
@@ -271,10 +266,9 @@ pub async fn disable_server_key_storage(
     .await
 }
 
-#[tauri::command]
 pub async fn create_recovery_key(
     app: AppHandle,
-    account_manager: tauri::State<'_, AccountManager>,
+    account_manager: crate::host::State<'_, AccountManager>,
 ) -> Result<GeneratedRecoveryKey, String> {
     crate::utils::tracing::report_command_future(
         "create_recovery_key",
@@ -291,10 +285,9 @@ pub async fn create_recovery_key(
     .await
 }
 
-#[tauri::command]
 pub async fn rotate_recovery_key(
     app: AppHandle,
-    account_manager: tauri::State<'_, AccountManager>,
+    account_manager: crate::host::State<'_, AccountManager>,
 ) -> Result<GeneratedRecoveryKey, String> {
     crate::utils::tracing::report_command_future(
         "rotate_recovery_key",
@@ -316,10 +309,9 @@ pub async fn rotate_recovery_key(
     .await
 }
 
-#[tauri::command]
 pub async fn delete_recovery(
     app: AppHandle,
-    account_manager: tauri::State<'_, AccountManager>,
+    account_manager: crate::host::State<'_, AccountManager>,
 ) -> Result<(), String> {
     crate::utils::tracing::report_command_future("delete_recovery", "settings.encryption", async {
         let active_account = account_manager.require_active_account(&app).await?;
@@ -346,10 +338,9 @@ pub async fn delete_recovery(
     .await
 }
 
-#[tauri::command]
 pub async fn recover_with_recovery_key(
     app: AppHandle,
-    account_manager: tauri::State<'_, AccountManager>,
+    account_manager: crate::host::State<'_, AccountManager>,
     request: RecoveryKeyRequest,
 ) -> Result<(), String> {
     crate::utils::tracing::report_command_future(
@@ -384,10 +375,9 @@ pub async fn recover_with_recovery_key(
     .await
 }
 
-#[tauri::command]
 pub async fn export_room_keys(
     app: AppHandle,
-    account_manager: tauri::State<'_, AccountManager>,
+    account_manager: crate::host::State<'_, AccountManager>,
     request: RoomKeyFileRequest,
 ) -> Result<Option<String>, String> {
     crate::utils::tracing::report_command_future("export_room_keys", "settings.encryption", async {
@@ -414,10 +404,9 @@ pub async fn export_room_keys(
     .await
 }
 
-#[tauri::command]
 pub async fn import_room_keys(
     app: AppHandle,
-    account_manager: tauri::State<'_, AccountManager>,
+    account_manager: crate::host::State<'_, AccountManager>,
     request: RoomKeyFileRequest,
 ) -> Result<Option<RoomKeyImportSummary>, String> {
     crate::utils::tracing::report_command_future("import_room_keys", "settings.encryption", async {
@@ -446,10 +435,9 @@ pub async fn import_room_keys(
     .await
 }
 
-#[tauri::command]
 pub async fn reset_crypto_identity(
     app: AppHandle,
-    account_manager: tauri::State<'_, AccountManager>,
+    account_manager: crate::host::State<'_, AccountManager>,
 ) -> Result<CryptoIdentityResetOutcome, String> {
     crate::utils::tracing::report_command_future(
         "reset_crypto_identity",
@@ -483,11 +471,10 @@ pub async fn reset_crypto_identity(
     .await
 }
 
-#[tauri::command]
 pub async fn set_verified_devices_only(
     app: AppHandle,
-    account_manager: tauri::State<'_, AccountManager>,
-    shell_manager: tauri::State<'_, ShellManager>,
+    account_manager: crate::host::State<'_, AccountManager>,
+    shell_manager: crate::host::State<'_, ShellManager>,
     enabled: bool,
 ) -> Result<(), String> {
     crate::utils::tracing::report_command_future(
@@ -520,11 +507,10 @@ pub async fn set_verified_devices_only(
     .await
 }
 
-#[tauri::command]
 pub async fn set_share_encrypted_history_on_invite(
     app: AppHandle,
-    account_manager: tauri::State<'_, AccountManager>,
-    shell_manager: tauri::State<'_, ShellManager>,
+    account_manager: crate::host::State<'_, AccountManager>,
+    shell_manager: crate::host::State<'_, ShellManager>,
     enabled: bool,
 ) -> Result<(), String> {
     crate::utils::tracing::report_command_future(
@@ -591,7 +577,7 @@ impl RoomKeySelectedFile {
     fn to_display_string(&self) -> String {
         match self {
             Self::LocalPath(path) => path.to_string_lossy().into_owned(),
-            Self::DocumentUri(file_path) => file_path.to_string(),
+            Self::DocumentUri(path) => path.to_string(),
         }
     }
 }

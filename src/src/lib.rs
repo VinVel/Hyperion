@@ -14,6 +14,7 @@
  */
 
 mod account;
+mod host;
 mod settings;
 mod shell;
 mod utils;
@@ -60,17 +61,8 @@ use shell::{
     },
 };
 
-use tauri::{AppHandle, RunEvent, State};
+use crate::host::{AppHandle, State};
 
-use tauri_plugin_dialog as dialog;
-use tauri_plugin_fs as fs;
-
-#[cfg(mobile)]
-use tauri_plugin_app_events as app_events;
-#[cfg(mobile)]
-use tauri_plugin_mobile_webview_overlay as mobile_overlay_webview;
-
-#[tauri::command]
 async fn login_account(
     app: AppHandle,
     manager: State<'_, AccountManager>,
@@ -87,7 +79,6 @@ async fn login_account(
     .await
 }
 
-#[tauri::command]
 async fn list_accounts(
     app: AppHandle,
     manager: State<'_, AccountManager>,
@@ -96,7 +87,6 @@ async fn list_accounts(
         .await
 }
 
-#[tauri::command]
 async fn switch_active_account(
     app: AppHandle,
     manager: State<'_, AccountManager>,
@@ -112,7 +102,6 @@ async fn switch_active_account(
     .await
 }
 
-#[tauri::command]
 async fn active_account(
     app: AppHandle,
     manager: State<'_, AccountManager>,
@@ -121,7 +110,6 @@ async fn active_account(
         .await
 }
 
-#[tauri::command]
 async fn sign_out_active_account(
     app: AppHandle,
     manager: State<'_, AccountManager>,
@@ -147,7 +135,6 @@ async fn sign_out_active_account(
     .await
 }
 
-#[tauri::command]
 async fn validate_active_account(
     app: AppHandle,
     manager: State<'_, AccountManager>,
@@ -160,7 +147,6 @@ async fn validate_active_account(
     .await
 }
 
-#[tauri::command]
 async fn list_registration_homeservers(
     manager: State<'_, AccountManager>,
 ) -> Result<HomeserverDirectory, String> {
@@ -172,7 +158,6 @@ async fn list_registration_homeservers(
     .await
 }
 
-#[tauri::command]
 async fn register_account(
     app: AppHandle,
     manager: State<'_, AccountManager>,
@@ -186,7 +171,6 @@ async fn register_account(
     .await
 }
 
-#[tauri::command]
 async fn list_room_threads(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
@@ -207,7 +191,6 @@ async fn list_room_threads(
     .await
 }
 
-#[tauri::command]
 async fn get_room_summary(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
@@ -223,7 +206,6 @@ async fn get_room_summary(
     .await
 }
 
-#[tauri::command]
 async fn get_room_timeline(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
@@ -243,7 +225,6 @@ async fn get_room_timeline(
     .await
 }
 
-#[tauri::command]
 async fn get_room_event_context(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
@@ -263,7 +244,6 @@ async fn get_room_event_context(
     .await
 }
 
-#[tauri::command]
 async fn paginate_room_timeline_backwards(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
@@ -283,7 +263,6 @@ async fn paginate_room_timeline_backwards(
     .await
 }
 
-#[tauri::command]
 async fn resolve_room_reply_preview(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
@@ -303,7 +282,6 @@ async fn resolve_room_reply_preview(
     .await
 }
 
-#[tauri::command]
 async fn send_room_message(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
@@ -323,7 +301,6 @@ async fn send_room_message(
     .await
 }
 
-#[tauri::command]
 async fn edit_room_message(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
@@ -343,7 +320,6 @@ async fn edit_room_message(
     .await
 }
 
-#[tauri::command]
 async fn redact_room_message(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
@@ -363,7 +339,6 @@ async fn redact_room_message(
     .await
 }
 
-#[tauri::command]
 async fn reply_to_room_message(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
@@ -383,7 +358,6 @@ async fn reply_to_room_message(
     .await
 }
 
-#[tauri::command]
 async fn toggle_room_reaction(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
@@ -403,7 +377,6 @@ async fn toggle_room_reaction(
     .await
 }
 
-#[tauri::command]
 async fn set_room_typing(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
@@ -419,7 +392,6 @@ async fn set_room_typing(
     .await
 }
 
-#[tauri::command]
 async fn list_spaces(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
@@ -440,7 +412,6 @@ async fn list_spaces(
     .await
 }
 
-#[tauri::command]
 async fn global_search(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
@@ -463,7 +434,6 @@ async fn global_search(
     .await
 }
 
-#[tauri::command]
 async fn search_discovery_entities(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
@@ -479,7 +449,6 @@ async fn search_discovery_entities(
     .await
 }
 
-#[tauri::command]
 async fn join_discovery_room(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
@@ -495,7 +464,6 @@ async fn join_discovery_room(
     .await
 }
 
-#[tauri::command]
 async fn invite_user_to_room(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
@@ -511,7 +479,6 @@ async fn invite_user_to_room(
     .await
 }
 
-#[tauri::command]
 async fn list_invite_targets(
     app: AppHandle,
     account_manager: State<'_, AccountManager>,
@@ -524,28 +491,6 @@ async fn list_invite_targets(
     .await
 }
 
-#[tauri::command]
-#[cfg(mobile)]
-async fn open_mobile_overlay_webview(
-    app: AppHandle,
-    url: String,
-    title: Option<String>,
-    user_agent: Option<String>,
-) -> Result<(), String> {
-    let resolved_user_agent = user_agent
-        .as_deref()
-        .filter(|value| !value.is_empty())
-        .unwrap_or(mobile_overlay_webview::default_desktop_user_agent());
-
-    utils::tracing::report_command_result(
-        "open_mobile_overlay_webview",
-        "mobile.webview",
-        mobile_overlay_webview::open_url(&app, &url, title.as_deref(), Some(resolved_user_agent))
-            .map_err(|error| error.to_string()),
-    )
-}
-
-#[tauri::command]
 #[allow(clippy::needless_pass_by_value)]
 fn get_theme_preset(
     app: AppHandle,
@@ -559,7 +504,6 @@ fn get_theme_preset(
     )
 }
 
-#[tauri::command]
 #[allow(clippy::needless_pass_by_value)]
 fn set_theme_preset(
     app: AppHandle,
@@ -574,13 +518,11 @@ fn set_theme_preset(
     )
 }
 
-#[tauri::command]
 #[allow(clippy::needless_pass_by_value)]
 fn get_theme_mode(app: AppHandle) -> Result<String, String> {
     utils::tracing::report_command_result("get_theme_mode", "settings.theme", load_theme_mode(&app))
 }
 
-#[tauri::command]
 #[allow(clippy::needless_pass_by_value)]
 fn set_theme_mode(app: AppHandle, mode: String) -> Result<String, String> {
     utils::tracing::report_command_result(
@@ -590,100 +532,11 @@ fn set_theme_mode(app: AppHandle, mode: String) -> Result<String, String> {
     )
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-/// Runs the Tauri application.
+/// Runs the Qt application backend.
 ///
 /// # Panics
 ///
-/// Panics if Tauri fails to initialize or the application runtime exits with an
-/// unrecoverable error.
+/// The native Qt host still needs to be connected to the backend.
 pub fn run() {
-    // matrix-sdk's Git revision opts into reqwest's explicit-provider mode.
-    // Set the process-wide provider before Tauri starts worker threads or any
-    // Matrix/HTTP client can create a TLS configuration.
-    let _already_configured = rustls::crypto::aws_lc_rs::default_provider().install_default();
-    let _tracing_guard = utils::tracing::initialize();
-
-    tauri::Builder::default()
-        .manage(AccountManager::new())
-        .manage(ShellManager::new())
-        .plugin(dialog::init())
-        .plugin(fs::init())
-        .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_tracing::Builder::new().build())
-        .setup(|app| {
-            #[cfg(mobile)]
-            {
-                app.handle().plugin(app_events::init())?;
-                app.handle().plugin(mobile_overlay_webview::init())?;
-            }
-            #[cfg(not(mobile))]
-            let _app_handle = app.handle();
-            Ok(())
-        })
-        .invoke_handler(tauri::generate_handler![
-            login_account,
-            list_accounts,
-            switch_active_account,
-            active_account,
-            sign_out_active_account,
-            validate_active_account,
-            list_registration_homeservers,
-            register_account,
-            list_room_threads,
-            get_room_summary,
-            get_room_timeline,
-            paginate_room_timeline_backwards,
-            get_room_event_context,
-            resolve_room_reply_preview,
-            send_room_message,
-            edit_room_message,
-            redact_room_message,
-            reply_to_room_message,
-            toggle_room_reaction,
-            set_room_typing,
-            list_spaces,
-            global_search,
-            search_discovery_entities,
-            join_discovery_room,
-            invite_user_to_room,
-            list_invite_targets,
-            #[cfg(mobile)]
-            open_mobile_overlay_webview,
-            get_encryption_overview,
-            enable_server_key_storage,
-            disable_server_key_storage,
-            create_recovery_key,
-            rotate_recovery_key,
-            delete_recovery,
-            recover_with_recovery_key,
-            export_room_keys,
-            import_room_keys,
-            reset_crypto_identity,
-            set_share_encrypted_history_on_invite,
-            set_verified_devices_only,
-            get_session_overview,
-            start_session_verification,
-            accept_session_verification_request,
-            deny_session_verification_request,
-            start_current_session_verification,
-            start_sas_verification,
-            accept_sas_verification,
-            get_sas_verification,
-            confirm_sas_verification,
-            cancel_sas_verification,
-            deauthorize_sessions,
-            get_theme_mode,
-            get_theme_preset,
-            set_theme_mode,
-            set_theme_preset
-        ])
-        .build(tauri::generate_context!())
-        .expect("error while building tauri application")
-        .run(|_app_handle, event| {
-            if matches!(event, RunEvent::Exit) {
-                account::secure_storage::unset_default_store();
-            }
-        });
+    unimplemented!("Qt application host must initialize the backend and IPC bridge")
 }

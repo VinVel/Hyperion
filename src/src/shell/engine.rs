@@ -27,8 +27,7 @@ use matrix_sdk_ui::timeline::{
     EventSendState, ReactionStatus, Timeline, TimelineDetails, TimelineEventFocusThreadMode,
     TimelineEventItemId, TimelineFocus, TimelineItem, TimelineItemKind,
 };
-use tauri::async_runtime::JoinHandle;
-use tauri::async_runtime::Mutex as AsyncMutex;
+use tokio::{sync::Mutex as AsyncMutex, task::JoinHandle};
 
 use super::{
     service::{emit_shell_room_updated, emit_shell_timeline_updated},
@@ -37,6 +36,7 @@ use super::{
         RoomTimelineReplyPreviewState, RoomTimelineSendState,
     },
 };
+use crate::host::AppHandle;
 
 // The SDK room latest event can be updated shortly before the UI Timeline has
 // consumed the same event-cache update. Wait briefly so timeline snapshots do
@@ -59,7 +59,7 @@ pub struct ShellTimelineRegistry {
     // room's normal live edge.
     focused_timelines: Arc<AsyncMutex<HashMap<String, Arc<Timeline>>>>,
     // Timeline subscriptions are the live bridge from matrix-sdk-ui into the
-    // Tauri shell event stream; snapshots alone do not wake the frontend.
+    // Host shell event stream; snapshots alone do not wake the frontend.
     live_timeline_update_handles: Arc<AsyncMutex<HashMap<String, JoinHandle<()>>>>,
 }
 
@@ -141,7 +141,7 @@ impl ShellTimelineRegistry {
 
     pub async fn subscribe_live_timeline_updates(
         &self,
-        app: tauri::AppHandle,
+        app: AppHandle,
         account_key: &str,
         _store_dir: &Path,
         room: &Room,
@@ -161,7 +161,7 @@ impl ShellTimelineRegistry {
         let room_id = room.room_id().to_string();
         let update_handles = self.live_timeline_update_handles.clone();
         let cache_key_for_task = cache_key.clone();
-        let handle = tauri::async_runtime::spawn(async move {
+        let handle = tokio::spawn(async move {
             while let Some(diffs) = timeline_stream.next().await {
                 if diffs.is_empty() {
                     continue;

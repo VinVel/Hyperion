@@ -13,17 +13,13 @@
  * Project home: hyperion.velcore.net
  */
 
+use crate::host::AppHandle;
 #[cfg(any(target_os = "android", target_os = "linux"))]
 use std::collections::HashMap;
-#[cfg(target_os = "android")]
-use std::sync::mpsc;
 use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     sync::{Arc, Mutex, OnceLock},
 };
-#[cfg(target_os = "android")]
-use tauri::Manager;
-use tauri::{AppHandle, Runtime};
 
 // Matrix store encryption keys are grouped under this stable service name for
 // compatibility with existing desktop credentials.
@@ -40,8 +36,8 @@ const LINUX_SECRET_LABEL: &str = "Hyperion";
 const ANDROID_STORE_NAME: &str = "hyperion-matrix-store";
 
 // The native keyring store is shared process-wide, so initialize it once on
-// first use. Android cannot create its store during Tauri setup because the
-// native keyring needs the Activity context that Tauri exposes after startup.
+// first use. Android cannot create its store before the native host exposes
+// the Activity context required by the keyring.
 static DEFAULT_STORE_INITIALIZED: OnceLock<Mutex<bool>> = OnceLock::new();
 
 pub fn unset_default_store() {
@@ -64,9 +60,9 @@ pub fn unset_default_store() {
     }
 }
 
-fn ensure_default_store<R: Runtime>(
-    #[cfg(target_os = "android")] app: &AppHandle<R>,
-    #[cfg(not(target_os = "android"))] _app: &AppHandle<R>,
+fn ensure_default_store(
+    #[cfg(target_os = "android")] app: &AppHandle,
+    #[cfg(not(target_os = "android"))] _app: &AppHandle,
 ) -> Result<(), String> {
     let initialized = DEFAULT_STORE_INITIALIZED.get_or_init(|| Mutex::new(false));
     let mut initialized = initialized.lock().map_err(|_poison_error| {
@@ -96,40 +92,9 @@ fn ensure_default_store<R: Runtime>(
 }
 
 #[cfg(target_os = "android")]
-fn initialize_android_context<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
-    let Some(webview) = app.webviews().into_values().next() else {
-        return Err(String::from(
-            "Secure storage is not available until the Android webview is ready",
-        ));
-    };
-    let (sender, receiver) = mpsc::channel();
-
-    webview
-        .with_webview(move |platform_webview| {
-            platform_webview
-                .jni_handle()
-                .exec(move |env, activity, _webview| {
-                    let result = env
-                        .get_java_vm()
-                        .map_err(|error| format!("Failed to read the Android Java VM: {error}"))
-                        .map(|java_vm| {
-                            let vm = java_vm.get_java_vm_pointer().cast();
-                            let context = activity.as_raw().cast();
-                            // android-native-keyring-store reads this process-global context
-                            // when opening its SharedPreferences/KeyStore vault.
-                            unsafe {
-                                ndk_context::initialize_android_context(vm, context);
-                            }
-                        });
-
-                    drop(sender.send(result));
-                });
-        })
-        .map_err(|error| format!("Failed to access the Android webview: {error}"))?;
-
-    receiver
-        .recv()
-        .map_err(|error| format!("Failed to receive Android secure-storage context: {error}"))?
+fn initialize_android_context(app: &AppHandle) -> Result<(), String> {
+    let _ = app;
+    unimplemented!("Qt Android host must expose the Activity context to secure storage")
 }
 
 #[cfg(target_os = "windows")]
@@ -165,11 +130,11 @@ fn platform_default_store() -> keyring_core::Result<Arc<keyring_core::Credential
     Ok(store)
 }
 
-pub fn get_secret<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<Option<Vec<u8>>, String> {
+pub fn get_secret(app: &AppHandle, key: &str) -> Result<Option<Vec<u8>>, String> {
     run_keyring_operation(|| get_secret_inner(app, key))
 }
 
-fn get_secret_inner<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<Option<Vec<u8>>, String> {
+fn get_secret_inner(app: &AppHandle, key: &str) -> Result<Option<Vec<u8>>, String> {
     ensure_default_store(app).map_err(secure_storage_unavailable)?;
     let entry = open_secret_entry(key)?;
 
@@ -182,11 +147,11 @@ fn get_secret_inner<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<Option<
     }
 }
 
-pub fn set_secret<R: Runtime>(app: &AppHandle<R>, key: &str, value: &[u8]) -> Result<(), String> {
+pub fn set_secret(app: &AppHandle, key: &str, value: &[u8]) -> Result<(), String> {
     run_keyring_operation(|| set_secret_inner(app, key, value))
 }
 
-fn set_secret_inner<R: Runtime>(app: &AppHandle<R>, key: &str, value: &[u8]) -> Result<(), String> {
+fn set_secret_inner(app: &AppHandle, key: &str, value: &[u8]) -> Result<(), String> {
     ensure_default_store(app).map_err(secure_storage_unavailable)?;
     let entry = open_secret_entry(key)?;
 
@@ -195,11 +160,11 @@ fn set_secret_inner<R: Runtime>(app: &AppHandle<R>, key: &str, value: &[u8]) -> 
     })
 }
 
-pub fn delete_secret<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<(), String> {
+pub fn delete_secret(app: &AppHandle, key: &str) -> Result<(), String> {
     run_keyring_operation(|| delete_secret_inner(app, key))
 }
 
-fn delete_secret_inner<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<(), String> {
+fn delete_secret_inner(app: &AppHandle, key: &str) -> Result<(), String> {
     ensure_default_store(app).map_err(secure_storage_unavailable)?;
     let entry = open_secret_entry(key)?;
 

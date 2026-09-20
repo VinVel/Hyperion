@@ -20,17 +20,7 @@ workspace = true
 name = "hyperion_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
-[build-dependencies]
-tauri-build = { workspace = true, features = [] }
-
 [dependencies]
-tauri = { workspace = true, features = ["unstable"] }
-tauri-plugin-opener = { workspace = true }
-tauri-plugin-dialog = { workspace = true }
-tauri-plugin-fs = { workspace = true }
-tauri-plugin-i18n = { workspace = true }
-tauri-plugin-os = { workspace = true }
-tauri-plugin-tracing = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -65,17 +55,12 @@ features = [
 
 [target.'cfg(target_os = "android")'.dependencies]
 android-native-keyring-store = { workspace = true }
-ndk-context = { workspace = true }
 rustls-native-certs = { workspace = true }
-tauri-plugin-app-events = { workspace = true }
-tauri-plugin-mobile-webview-overlay = { workspace = true }
 webpki-roots = { workspace = true }
 tracing-logcat = { workspace = true }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 apple-native-keyring-store = { workspace = true, features = ["protected"] }
-tauri-plugin-app-events = { workspace = true }
-tauri-plugin-mobile-webview-overlay = { workspace = true }
 tracing-oslog = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]

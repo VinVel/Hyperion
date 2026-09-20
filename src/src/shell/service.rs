@@ -83,7 +83,7 @@ impl ShellManager {
 
     pub async fn ensure_active_account_sync(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account_manager: &AccountManager,
     ) -> Result<(), String> {
         let Some(active_account) = account_manager.optional_active_account(app).await? else {
@@ -132,18 +132,18 @@ impl ShellManager {
         self.cache_state.clear_all_served_room_timeline_caches();
     }
 
-    fn mark_room_focused(&self, app: &tauri::AppHandle, account_key: &str, room: &Room) {
+    fn mark_room_focused(&self, app: &AppHandle, account_key: &str, room: &Room) {
         self.sync_coordinator
             .set_focused_room(account_key, room.room_id().as_str());
         self.sync_coordinator
             .subscribe_typing_updates(app.clone(), account_key, room);
     }
 
-    fn ensure_sync_in_background(&self, app: &tauri::AppHandle, account_manager: &AccountManager) {
+    fn ensure_sync_in_background(&self, app: &AppHandle, account_manager: &AccountManager) {
         let shell_manager = self.clone();
         let app = app.clone();
         let account_manager = account_manager.clone();
-        tauri::async_runtime::spawn(async move {
+        tokio::spawn(async move {
             if let Err(error) = shell_manager
                 .ensure_active_account_sync(&app, &account_manager)
                 .await
@@ -227,3 +227,4 @@ impl ShellManager {
             .await;
     }
 }
+use crate::host::AppHandle;

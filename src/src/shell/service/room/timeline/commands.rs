@@ -23,6 +23,7 @@ use matrix_sdk::{Room, ruma::EventId};
 
 use crate::{
     account::{AccountClientSnapshot, AccountManager, ActiveAccount},
+    host::AppHandle,
     shell::{
         service::emit_shell_room_updated,
         service::{
@@ -71,7 +72,7 @@ struct PaginationAttemptRecord<'a> {
 impl ShellManager {
     pub async fn get_room_timeline(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account_manager: &AccountManager,
         active_account: &ActiveAccount,
         request: GetRoomTimelineRequest,
@@ -121,7 +122,7 @@ impl ShellManager {
 
     pub async fn paginate_room_timeline_backwards(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account_manager: &AccountManager,
         active_account: &ActiveAccount,
         request: PaginateRoomTimelineRequest,
@@ -198,7 +199,7 @@ impl ShellManager {
 
     async fn load_explicit_pagination_pages(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account: &AccountClientSnapshot,
         room: &Room,
         request: &PaginateRoomTimelineRequest,
@@ -296,7 +297,7 @@ impl ShellManager {
 
     async fn load_explicit_pagination_attempt(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account: &AccountClientSnapshot,
         room: &Room,
         request: &PaginateRoomTimelineRequest,
@@ -412,7 +413,7 @@ impl ShellManager {
 
     pub async fn get_room_event_context(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account_manager: &AccountManager,
         active_account: &ActiveAccount,
         request: GetRoomEventContextRequest,
@@ -465,7 +466,7 @@ impl ShellManager {
 
     pub async fn resolve_room_reply_preview(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account_manager: &AccountManager,
         active_account: &ActiveAccount,
         request: ResolveRoomReplyPreviewRequest,
@@ -541,7 +542,7 @@ impl ShellManager {
 
     fn cached_timeline_response(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account_manager: &AccountManager,
         account: &AccountClientSnapshot,
         request: &GetRoomTimelineRequest,
@@ -599,14 +600,14 @@ impl ShellManager {
 
     fn refresh_room_timeline_in_background(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account_manager: &AccountManager,
         request: GetRoomTimelineRequest,
     ) {
         let shell_manager = self.clone();
         let app = app.clone();
         let account_manager = account_manager.clone();
-        tauri::async_runtime::spawn(async move {
+        tokio::spawn(async move {
             if let Err(error) = shell_manager
                 .refresh_room_timeline_after_cached_response(&app, &account_manager, request)
                 .await
@@ -624,7 +625,7 @@ impl ShellManager {
 
     async fn refresh_room_timeline_after_cached_response(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account_manager: &AccountManager,
         request: GetRoomTimelineRequest,
     ) -> Result<(), String> {
@@ -672,7 +673,7 @@ impl ShellManager {
 
     async fn load_room_timeline_items(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account: &AccountClientSnapshot,
         room: &Room,
         request: &GetRoomTimelineRequest,

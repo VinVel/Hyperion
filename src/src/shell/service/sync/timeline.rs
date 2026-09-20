@@ -17,6 +17,7 @@ use std::{path::Path, sync::Arc};
 
 use matrix_sdk::{Client, Room, ruma::OwnedEventId};
 
+use crate::host::AppHandle;
 use crate::shell::{
     service::{
         ShellRoomListKind, paging, room::list::snapshot_room_list_for_account,
@@ -163,7 +164,7 @@ impl ShellSyncCoordinator {
     }
     pub(in crate::shell::service) async fn subscribe_live_timeline_updates(
         &self,
-        app: tauri::AppHandle,
+        app: AppHandle,
         account_key: &str,
         store_dir: &Path,
         room: &Room,

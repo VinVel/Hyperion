@@ -1,7 +1,6 @@
 [workspace]
 members = [
-    "src-tauri", 
-    "plugins/*"
+    "src"
     ]
 resolver = "3"
 
@@ -16,17 +15,6 @@ useless_let_if_seq = "warn"
 equatable_if_let = "warn"
 
 [workspace.dependencies]
-tauri-plugin-mobile-webview-overlay = { path = "plugins/tauri-plugin-mobile-webview-overlay" }
-tauri-plugin-app-events = { path = "plugins/tauri-plugin-app-events" }
-tauri-plugin-tracing = { path = "plugins/tauri-plugin-tracing" }
-tauri = { version = "2", default-features = false }
-tauri-build = "2"
-tauri-plugin = "2"
-tauri-plugin-opener = "2"
-tauri-plugin-dialog = "2"
-tauri-plugin-fs = "2"
-tauri-plugin-i18n = "2"
-tauri-plugin-os = "2"
 serde = "1"
 serde_json = "1"
 base64 = "0.22"
@@ -42,7 +30,6 @@ matrix-sdk-crypto = { git = "https://github.com/matrix-org/matrix-rust-sdk", rev
 matrix-sdk = { git = "https://github.com/matrix-org/matrix-rust-sdk", rev = "1c74383", default-features = false }
 matrix-sdk-ui = { git = "https://github.com/matrix-org/matrix-rust-sdk", rev = "1c74383", default-features = false }
 keyring-core = "1.0.0"
-ndk-context = "0.1.1"
 rustls = "0.23.43"
 rustls-native-certs = "0.8.4"
 webpki-roots = "1.0.9"
@@ -58,7 +45,6 @@ memchr = "2.8.3"
 rolling-file = "0.2.0"
 serde_repr = "0.1.21"
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
-tauri-plugin-profiling = "0.1"
 time = { version = "0.3.55", default-features = false, features = [
     "formatting",
     "local-offset",

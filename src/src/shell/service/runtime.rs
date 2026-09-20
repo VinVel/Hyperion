@@ -19,7 +19,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use tauri::async_runtime::JoinHandle;
+use tokio::task::JoinHandle;
 
 use super::{
     RECENT_TIMELINE_REWARM_INTERVAL_MS, RECENT_TIMELINE_WARM_LIMIT,
@@ -85,7 +85,7 @@ impl ShellTimelineService {
 
         let account_key = account_key.to_owned();
         let store_dir = store_dir.to_owned();
-        let handle = tauri::async_runtime::spawn(async move {
+        let handle = tokio::spawn(async move {
             if let Err(error) =
                 warm_room_recent_timeline(&client, &room_id, RECENT_TIMELINE_WARM_LIMIT).await
             {

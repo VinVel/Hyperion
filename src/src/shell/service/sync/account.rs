@@ -15,6 +15,7 @@
 
 use crate::{
     account::{AccountClientSnapshot, AccountManager},
+    host::AppHandle,
     shell::service::caching::remove_legacy_timeline_view_cache,
 };
 
@@ -23,7 +24,7 @@ use super::{coordinator::ShellSyncCoordinator, diagnostics::emit_sync_diagnostic
 impl ShellSyncCoordinator {
     pub(in crate::shell::service) async fn ensure_account_running(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account_manager: &AccountManager,
         account: AccountClientSnapshot,
     ) -> Result<(), String> {

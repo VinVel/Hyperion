@@ -18,10 +18,12 @@ use super::{
 };
 use crate::shell::types::{GlobalSearchRequest, GlobalSearchResponse};
 
+use crate::host::AppHandle;
+
 impl ShellManager {
     pub async fn global_search(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account_manager: &AccountManager,
         active_account: &ActiveAccount,
         request: GlobalSearchRequest,
@@ -41,7 +43,7 @@ impl ShellManager {
 impl ShellSearchService {
     pub(super) async fn global_search(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account_manager: &AccountManager,
         active_account: &ActiveAccount,
         sync_coordinator: &ShellSyncCoordinator,

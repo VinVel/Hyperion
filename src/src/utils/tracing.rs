@@ -38,8 +38,7 @@ const NATIVE_LOG_IDENTIFIER: &str = "net.velcore.hyperion";
 
 /// Debug builds expose complete Hyperion diagnostics and useful Matrix SDK detail by default.
 #[cfg(debug_assertions)]
-const DEBUG_DEFAULT_DIRECTIVES: &str =
-    "hyperion=trace,hyperion_lib=trace,matrix_sdk=debug,tauri_plugin_tracing=debug";
+const DEBUG_DEFAULT_DIRECTIVES: &str = "hyperion=trace,hyperion_lib=trace,matrix_sdk=debug";
 
 /// Release builds only expose explicitly redacted Hyperion application targets.
 #[cfg(not(debug_assertions))]
@@ -59,7 +58,7 @@ pub struct TracingGuard {
     _private: (),
 }
 
-/// Adds one error event at a Tauri command boundary without changing its IPC result.
+/// Adds one error event at a host command boundary without changing its IPC result.
 pub trait CommandResultExt<T> {
     fn report_command_failure(
         self,
@@ -85,7 +84,7 @@ impl<T> CommandResultExt<T> for Result<T, String> {
                 error_code = "command.failed",
                 error_category = "command",
                 error_source = %error,
-                "Tauri command `{command}` failed: {error}"
+                "Host command `{command}` failed: {error}"
             );
         }
 
@@ -99,7 +98,7 @@ impl<T> CommandResultExt<T> for Result<T, String> {
                 operation = command,
                 error_code = "command.failed",
                 error_category = "command",
-                "Tauri command `{command}` failed"
+                "Host command `{command}` failed"
             );
         }
 
@@ -107,7 +106,7 @@ impl<T> CommandResultExt<T> for Result<T, String> {
     }
 }
 
-/// Reports the final result of an asynchronous Tauri command at its existing boundary.
+/// Reports the final result of an asynchronous host command at its existing boundary.
 pub async fn report_command_future<T>(
     command: &'static str,
     component: &'static str,
@@ -116,7 +115,7 @@ pub async fn report_command_future<T>(
     future.await.report_command_failure(command, component)
 }
 
-/// Reports the final result of a synchronous Tauri command at its existing boundary.
+/// Reports the final result of a synchronous host command at its existing boundary.
 pub fn report_command_result<T>(
     command: &'static str,
     component: &'static str,

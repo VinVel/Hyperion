@@ -15,8 +15,9 @@
 
 use std::sync::{Arc, RwLock};
 
+use crate::host::AppHandle;
 use matrix_sdk::Room;
-use tauri::async_runtime::JoinHandle;
+use tokio::task::JoinHandle;
 
 use super::{
     coordinator::ShellSyncCoordinator, diagnostics::emit_sync_diagnostic, emit_shell_typing_updated,
@@ -35,7 +36,7 @@ pub(super) struct AccountTypingState {
 #[derive(Default)]
 pub(super) struct RoomTypingState {
     pub(super) users: Vec<String>,
-    pub(super) app: Option<tauri::AppHandle>,
+    pub(super) app: Option<AppHandle>,
     pub(super) subscription_reserved: bool,
     pub(super) subscription_handle: Option<JoinHandle<()>>,
     pub(super) last_notice_is_typing: Option<bool>,
@@ -44,7 +45,7 @@ pub(super) struct RoomTypingState {
 impl ShellSyncCoordinator {
     pub(super) fn reserve_typing_subscription(
         &self,
-        app: Option<tauri::AppHandle>,
+        app: Option<AppHandle>,
         account_key: &str,
         room_id: &str,
     ) -> bool {
@@ -222,7 +223,7 @@ impl ShellSyncCoordinator {
     }
     pub(in crate::shell::service) fn subscribe_typing_updates(
         &self,
-        app: tauri::AppHandle,
+        app: AppHandle,
         account_key: &str,
         room: &Room,
     ) {
@@ -252,7 +253,7 @@ impl ShellSyncCoordinator {
         let task_room_id = room_id.clone();
         let state = self.typing_ephemeral_state.clone();
         let focused_rooms = self.focused_rooms.clone();
-        let handle = tauri::async_runtime::spawn(async move {
+        let handle = tokio::spawn(async move {
             let _subscription_guard = drop_guard;
 
             while let Ok(typing_user_ids) = subscriber.recv().await {
@@ -313,7 +314,7 @@ impl ShellSyncCoordinator {
 fn update_typing_users(
     state: &Arc<RwLock<TypingEphemeralStore>>,
     focused_rooms: &Arc<RwLock<super::interests::FocusedRoomStore>>,
-    app: &tauri::AppHandle,
+    app: &AppHandle,
     account_key: &str,
     room_id: &str,
     users: Vec<String>,

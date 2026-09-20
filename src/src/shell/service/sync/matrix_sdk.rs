@@ -18,6 +18,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use crate::host::AppHandle;
 use futures_util::{StreamExt, pin_mut};
 use matrix_sdk::{
     Client, Error as MatrixError, HttpError, RefreshTokenError, SessionChange, ruma::RoomId,
@@ -29,7 +30,7 @@ use matrix_sdk_ui::{
     sync_service::{Error as SyncServiceError, State as SyncServiceState, SyncService},
 };
 use serde::Serialize;
-use tauri::{Emitter, async_runtime::JoinHandle};
+use tokio::task::JoinHandle;
 
 use crate::{
     account::{AccountClientSnapshot, AccountManager},
@@ -119,7 +120,7 @@ impl ShellSyncManager {
 
     pub async fn ensure_started_for_account(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account_manager: &AccountManager,
         account: AccountClientSnapshot,
     ) -> Result<(), String> {
@@ -173,7 +174,7 @@ impl ShellSyncManager {
 
     async fn ensure_started(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account_manager: AccountManager,
         account: AccountClientSnapshot,
     ) -> Result<(), String> {
@@ -244,12 +245,12 @@ impl ShellSyncManager {
     }
 
     fn spawn_state_listener_task(
-        app: tauri::AppHandle,
+        app: AppHandle,
         account_key: String,
         sync_service: Arc<SyncService>,
         focused_rooms: Arc<RwLock<HashMap<String, FocusedRoomState>>>,
     ) -> JoinHandle<()> {
-        tauri::async_runtime::spawn(async move {
+        tokio::spawn(async move {
             let mut state = sync_service.state();
 
             while let Some(next_state) = state.next().await {
@@ -267,11 +268,11 @@ impl ShellSyncManager {
     }
 
     fn spawn_room_update_listener_task(
-        app: tauri::AppHandle,
+        app: AppHandle,
         account_key: String,
         client: Client,
     ) -> JoinHandle<()> {
-        tauri::async_runtime::spawn(async move {
+        tokio::spawn(async move {
             let mut room_updates = client.subscribe_to_all_room_updates();
 
             loop {
@@ -293,11 +294,11 @@ impl ShellSyncManager {
     }
 
     fn spawn_room_list_observer_task(
-        app: tauri::AppHandle,
+        app: AppHandle,
         account_key: String,
         sync_service: Arc<SyncService>,
     ) -> JoinHandle<()> {
-        tauri::async_runtime::spawn(async move {
+        tokio::spawn(async move {
             let room_list = match sync_service.room_list_service().all_rooms().await {
                 Ok(room_list) => room_list,
                 Err(error) => {
@@ -330,12 +331,12 @@ impl ShellSyncManager {
     }
 
     fn spawn_session_change_listener_task(
-        app: tauri::AppHandle,
+        app: AppHandle,
         account_manager: AccountManager,
         account: AccountClientSnapshot,
         sync_manager: ShellSyncManager,
     ) -> JoinHandle<()> {
-        tauri::async_runtime::spawn(async move {
+        tokio::spawn(async move {
             let mut session_changes = account.client.subscribe_to_session_changes();
 
             loop {
@@ -433,7 +434,7 @@ impl ShellSyncManager {
             }
         };
 
-        tauri::async_runtime::spawn(async move {
+        tokio::spawn(async move {
             let room_list_service = sync_service.room_list_service();
             room_list_service
                 .subscribe_to_rooms(&[owned_room_id.as_ref()])
@@ -527,7 +528,7 @@ impl ShellSyncManager {
 }
 
 async fn build_shell_sync_service(
-    app: &tauri::AppHandle,
+    app: &AppHandle,
     account: &AccountClientSnapshot,
 ) -> Result<SyncService, String> {
     register_session_verification_event_handler(app, account);
@@ -627,12 +628,7 @@ fn http_error_is_offline(error: &HttpError) -> bool {
     }
 }
 
-fn emit_shell_sync_status(
-    app: &tauri::AppHandle,
-    account_key: &str,
-    state: &str,
-    detail: Option<String>,
-) {
+fn emit_shell_sync_status(app: &AppHandle, account_key: &str, state: &str, detail: Option<String>) {
     let payload = ShellSyncStatusPayload {
         account_key: account_key.to_owned(),
         state: state.to_owned(),
@@ -651,7 +647,7 @@ fn emit_shell_sync_status(
     }
 }
 
-fn emit_session_deauthorized(app: &tauri::AppHandle, account_key: &str) {
+fn emit_session_deauthorized(app: &AppHandle, account_key: &str) {
     let payload = ShellSyncStatusPayload {
         account_key: account_key.to_owned(),
         state: String::from("deauthorized"),
@@ -670,7 +666,7 @@ fn emit_session_deauthorized(app: &tauri::AppHandle, account_key: &str) {
     }
 }
 
-fn emit_session_reauthentication_required(app: &tauri::AppHandle, account_key: &str) {
+fn emit_session_reauthentication_required(app: &AppHandle, account_key: &str) {
     let payload = SessionReauthenticationRequiredPayload {
         account_key: account_key.to_owned(),
         state: "reauthentication_required",
@@ -688,7 +684,7 @@ fn emit_session_reauthentication_required(app: &tauri::AppHandle, account_key: &
 }
 
 pub(in crate::shell) fn emit_shell_room_updated(
-    app: &tauri::AppHandle,
+    app: &AppHandle,
     account_key: &str,
     room_id: &str,
     room_list_may_have_changed: bool,
@@ -712,7 +708,7 @@ pub(in crate::shell) fn emit_shell_room_updated(
 }
 
 pub(in crate::shell) fn emit_shell_timeline_updated(
-    app: &tauri::AppHandle,
+    app: &AppHandle,
     account_key: &str,
     room_id: &str,
     items: Vec<RoomTimelineItem>,
@@ -738,7 +734,7 @@ pub(in crate::shell) fn emit_shell_timeline_updated(
 }
 
 pub(in crate::shell) fn emit_shell_typing_updated(
-    app: &tauri::AppHandle,
+    app: &AppHandle,
     account_key: &str,
     room_id: &str,
     users: Vec<String>,
@@ -761,11 +757,7 @@ pub(in crate::shell) fn emit_shell_typing_updated(
     }
 }
 
-fn emit_shell_room_list_updated(
-    app: &tauri::AppHandle,
-    account_key: &str,
-    changed_room_ids: Vec<String>,
-) {
+fn emit_shell_room_list_updated(app: &AppHandle, account_key: &str, changed_room_ids: Vec<String>) {
     let payload = ShellSyncUpdatedPayload {
         account_key: account_key.to_owned(),
         changed_room_ids,
@@ -818,7 +810,7 @@ fn room_list_item_id(item: &RoomListItem) -> String {
     item.room_id().to_string()
 }
 
-fn emit_shell_sync_updated(app: &tauri::AppHandle, account_key: &str, updates: &RoomUpdates) {
+fn emit_shell_sync_updated(app: &AppHandle, account_key: &str, updates: &RoomUpdates) {
     let payload = ShellSyncUpdatedPayload {
         account_key: account_key.to_owned(),
         changed_room_ids: updates
@@ -949,7 +941,7 @@ mod tests {
             .expect("test listener should report its address");
         drop(listener);
 
-        let transport_error = tauri::async_runtime::block_on(async {
+        let transport_error = tokio::runtime::Handle::current().block_on(async {
             reqwest::Client::new()
                 .get(format!("http://{address}"))
                 .send()

@@ -13,13 +13,13 @@
  * Project home: hyperion.velcore.net
  */
 
+use crate::host::AppHandle;
 use matrix_sdk::{
     Client, Error as MatrixError,
     ruma::api::client::account::register::v3::{
         Request as MatrixRegistrationRequest, Response as MatrixRegistrationResponse,
     },
 };
-use tauri::AppHandle;
 
 use super::{AccountAuthorizationMode, AccountManager};
 use crate::{

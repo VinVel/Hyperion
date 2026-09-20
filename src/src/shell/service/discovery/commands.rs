@@ -74,7 +74,7 @@ impl ShellManager {
 
     pub async fn join_discovery_room(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account_manager: &AccountManager,
         active_account: &ActiveAccount,
         request: JoinDiscoveryRoomRequest,
@@ -168,7 +168,7 @@ impl ShellDiscoveryService {
 
     pub(super) async fn join_discovery_room(
         &self,
-        app: &tauri::AppHandle,
+        app: &AppHandle,
         account_manager: &AccountManager,
         active_account: &ActiveAccount,
         sync_coordinator: &ShellSyncCoordinator,
@@ -264,14 +264,14 @@ async fn joined_space_ids(
 }
 
 fn ensure_sync_in_background(
-    app: &tauri::AppHandle,
+    app: &AppHandle,
     account_manager: &AccountManager,
     sync_coordinator: &ShellSyncCoordinator,
 ) {
     let app = app.clone();
     let account_manager = account_manager.clone();
     let sync_coordinator = sync_coordinator.clone();
-    tauri::async_runtime::spawn(async move {
+    tokio::spawn(async move {
         if let Err(error) =
             ensure_active_account_sync(&app, &account_manager, &sync_coordinator).await
         {
@@ -287,7 +287,7 @@ fn ensure_sync_in_background(
 }
 
 async fn ensure_active_account_sync(
-    app: &tauri::AppHandle,
+    app: &AppHandle,
     account_manager: &AccountManager,
     sync_coordinator: &ShellSyncCoordinator,
 ) -> Result<(), String> {
@@ -917,3 +917,4 @@ mod tests {
         );
     }
 }
+use crate::host::AppHandle;

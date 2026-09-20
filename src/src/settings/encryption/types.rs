@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[allow(
     clippy::struct_excessive_bools,
-    reason = r#"This mirrors a Tauri IPC payload where frontend compatibility benefits from
+    reason = r#"This mirrors a host IPC payload where frontend compatibility benefits from
             explicit booleans for independent encryption settings and account presence."#
 )]
 pub struct EncryptionOverview {

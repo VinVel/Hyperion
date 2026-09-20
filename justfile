@@ -39,13 +39,6 @@ check-typescript:
 fmt-typescript:
     pnpm format
 
-# Build Commands
-build-desktop-debug:
-    pnpm tauri build --verbose --no-bundle --debug
-
-build-android-debug:
-    pnpm tauri android build --verbose --debug --apk --split-per-abi --target aarch64
-
 storybook:
     pnpm build-storybook
     pnpm storybook
@@ -54,4 +47,3 @@ storybook:
 test: test-rust test-typescript
 check: check-rust check-typescript
 fmt: fmt-rust fmt-typescript
-build-debug: build-desktop-debug build-android-debug

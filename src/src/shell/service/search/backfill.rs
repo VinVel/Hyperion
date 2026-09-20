@@ -16,7 +16,8 @@
 use std::{cmp::Reverse, collections::HashMap, path::Path, sync::Arc, time::Duration};
 
 use matrix_sdk::Client;
-use tauri::async_runtime::{JoinHandle, Mutex as AsyncMutex};
+use tokio::sync::Mutex as AsyncMutex;
+use tokio::task::JoinHandle;
 
 use super::{
     indexer::SearchIndexer,
@@ -140,7 +141,7 @@ impl SearchBackfillCoordinator {
         let store_dir = store_dir.to_owned();
         let coordinator = self.clone();
         let task_key_for_cleanup = task_key.clone();
-        let handle = tauri::async_runtime::spawn(async move {
+        let handle = tokio::spawn(async move {
             run_room_backfill(
                 client,
                 sync_coordinator,

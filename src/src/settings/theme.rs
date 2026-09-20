@@ -13,9 +13,9 @@
  * Project home: hyperion.velcore.net
  */
 
+use crate::host::AppHandle;
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
-use tauri::{AppHandle, Manager};
 
 pub const DEFAULT_THEME_MODE: &str = "system";
 

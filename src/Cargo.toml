@@ -18,6 +18,7 @@ workspace = true
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "hyperion_lib"
+path = "lib.rs"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [dependencies]

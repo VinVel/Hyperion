@@ -12,8 +12,14 @@
  *
  * Project home: hyperion.velcore.net
  */
+#![recursion_limit = "256"]
 
+mod account;
 pub mod cxxqt_object;
+mod host;
+mod settings;
+mod shell;
+mod utils;
 
 use cxx_qt::casting::Upcast;
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QQmlEngine, QUrl};
@@ -26,9 +32,7 @@ fn main() {
 
     // Load the QML path into the engine
     if let Some(engine) = engine.as_mut() {
-        engine.load(&QUrl::from(
-            "qrc:/qt/qml/net/velcore/hyperion/qml/main.qml",
-        ));
+        engine.load(&QUrl::from("qrc:/qt/qml/net/velcore/hyperion/qml/main.qml"));
     }
 
     if let Some(engine) = engine.as_mut() {

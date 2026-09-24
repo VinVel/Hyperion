@@ -1,3 +1,18 @@
+/*
+ * Copyright (c) 2026 VinVel
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, version 3 only.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * Project home: hyperion.velcore.net
+ */
+
 /// Qt-facing IPC surface. JSON strings keep the bridge independent of the
 /// Rust-only request and response DTOs used by the Matrix services.
 use std::{future::Future, pin::Pin, sync::OnceLock, thread};
@@ -49,6 +64,9 @@ pub mod qobject {
         #[qsignal]
         fn command_completed(self: Pin<&mut Self>, request_id: i64, result_json: &QString);
 
+        // Declare each QML-callable method here, then implement its Rust body in
+        // `impl qobject::HyperionIpc` below. Keep bridge arguments CXX-compatible;
+        // serialize Rust-only request and response types as JSON strings.
         #[qinvokable]
         #[cxx_name = "loginAccount"]
         fn login_account(self: Pin<&mut Self>, request_id: i64, request_json: &QString);
@@ -173,6 +191,8 @@ impl Default for HyperionIpcRust {
 }
 
 impl qobject::HyperionIpc {
+    /// Clone the QObject-owned backend dependencies before a command future is dispatched.
+    /// The future must own its inputs so it can safely outlive the synchronous QML call.
     fn backend_context(self: Pin<&Self>) -> (AppHandle, AccountManager, ShellManager) {
         let backend = self.rust();
         (
@@ -182,6 +202,8 @@ impl qobject::HyperionIpc {
         )
     }
 
+    /// Run the command future off the Qt event loop, then queue its serialized
+    /// result back onto the QObject's thread and emit `command_completed`.
     fn submit<T>(
         self: Pin<&mut Self>,
         request_id: i64,
@@ -205,6 +227,11 @@ impl qobject::HyperionIpc {
             });
         });
     }
+
+    // To add a command, declare its QML signature in the bridge above and add one
+    // method here. Decode any JSON request inside the `async move` block, obtain
+    // the backend values it needs with `backend_context`, then pass that future
+    // to `submit`; it handles worker execution and emits the correlated result.
 
     pub fn login_account(self: Pin<&mut Self>, request_id: i64, request_json: &QString) {
         let request_json = request_json.to_string();
@@ -804,10 +831,12 @@ struct ThemeModeRequest {
     mode: String,
 }
 
+/// Deserialize a QML JSON request after its command future starts on the worker thread.
 fn decode_request<T: serde::de::DeserializeOwned>(request_json: &str) -> Result<T, String> {
     serde_json::from_str(request_json).map_err(|error| format!("invalid IPC request: {error}"))
 }
 
+/// Encode the common `{ ok, value }` / `{ ok, error }` response sent by `command_completed`.
 fn encode_command_result<T: Serialize>(result: Result<T, String>) -> String {
     let response = match result {
         Ok(value) => match serde_json::to_value(value) {

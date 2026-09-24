@@ -28,22 +28,7 @@ check-rust:
 fmt-rust:
     cargo fmt
 
-# TypeScript
-test-typescript:
-    pnpm test
-
-check-typescript:
-    pnpm check
-    pnpm lint
-
-fmt-typescript:
-    pnpm format
-
-storybook:
-    pnpm build-storybook
-    pnpm storybook
-
 # Composite Tasks
-test: test-rust test-typescript
-check: check-rust check-typescript
-fmt: fmt-rust fmt-typescript
+test: test-rust
+check: check-rust
+fmt: fmt-rust 

@@ -22,29 +22,32 @@ use cxx_qt_lib::QString;
 use serde::Serialize;
 use tokio::runtime::Runtime;
 
-use crate::account::{AccountManager, LoginRequest, RegisterAccountRequest};
-use crate::host::{AppHandle, State};
-use crate::settings::theme::{
-    get_theme_mode as load_theme_mode, get_theme_preset as load_theme_preset,
-    set_theme_mode as save_theme_mode, set_theme_preset as save_theme_preset,
-};
-use crate::shell::{
-    service::{
-        ShellManager,
-        discovery::types::{
-            InviteUserToRoomRequest, JoinDiscoveryRoomRequest, ListInviteTargetsRequest,
-            SearchDiscoveryEntitiesRequest,
+use crate::{
+    account::{AccountManager, LoginRequest, RegisterAccountRequest},
+    host::{AppHandle, State},
+    settings::theme::{
+        get_theme_mode as load_theme_mode, get_theme_preset as load_theme_preset,
+        set_theme_mode as save_theme_mode, set_theme_preset as save_theme_preset,
+    },
+    shell::{
+        service::{
+            ShellManager,
+            discovery::types::{
+                InviteUserToRoomRequest, JoinDiscoveryRoomRequest, ListInviteTargetsRequest,
+                SearchDiscoveryEntitiesRequest,
+            },
+        },
+        types::{
+            EditRoomMessageRequest, GetRoomEventContextRequest, GetRoomSummaryRequest,
+            GetRoomTimelineRequest, GlobalSearchIndexStatus, GlobalSearchRequest,
+            GlobalSearchResponse, ListRoomThreadsRequest, ListSpacesRequest,
+            PaginateRoomTimelineRequest, RedactRoomMessageRequest, ReplyToRoomMessageRequest,
+            ResolveRoomReplyPreviewRequest, SendRoomMessageRequest, SetRoomTypingRequest,
+            ToggleRoomReactionRequest,
         },
     },
-    types::{
-        EditRoomMessageRequest, GetRoomEventContextRequest, GetRoomSummaryRequest,
-        GetRoomTimelineRequest, GlobalSearchIndexStatus, GlobalSearchRequest, GlobalSearchResponse,
-        ListRoomThreadsRequest, ListSpacesRequest, PaginateRoomTimelineRequest,
-        RedactRoomMessageRequest, ReplyToRoomMessageRequest, ResolveRoomReplyPreviewRequest,
-        SendRoomMessageRequest, SetRoomTypingRequest, ToggleRoomReactionRequest,
-    },
+    utils,
 };
-use crate::utils;
 
 static IPC_RUNTIME: OnceLock<Runtime> = OnceLock::new();
 

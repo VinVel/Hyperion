@@ -1,5 +1,6 @@
 [package]
 name = "hyperion"
+autolib = false
 version = "0.1.0"
 description = "A multiplatform Matrix client"
 authors = ["VinVel <dev+hyperion@velcore.net>"]
@@ -21,15 +22,8 @@ needless_collect = "warn"
 useless_let_if_seq = "warn"
 equatable_if_let = "warn"
 
-[lib]
-# The `_lib` suffix may seem redundant but it is necessary on Windows so the library name does not conflict with the binary.
-name = "hyperion_lib"
-path = "src/lib.rs"
-crate-type = ["staticlib", "cdylib", "rlib"]
-
-[[bin]]
-name = "hyperion"
-path = "src/main.rs"
+[build-dependencies]
+cxx-qt-build = {version = "0.10", features = [ "link_qt_object_files" ] }
 
 [dependencies]
 thiserror = "2"
@@ -49,6 +43,9 @@ eyeball-im = "0.8"
 # This revision avoids an EventCache pagination panic in the final persisted chunk.
 matrix-sdk-crypto = { git = "https://github.com/matrix-org/matrix-rust-sdk", rev = "1c74383", default-features = false }
 keyring-core = "1.0.0"
+cxx = "1.0.202"
+cxx-qt = "0.10"
+cxx-qt-lib = { version = "0.10", features = ["full"] }
 
 [dependencies.matrix-sdk]
 git = "https://github.com/matrix-org/matrix-rust-sdk"

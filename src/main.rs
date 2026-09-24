@@ -13,14 +13,36 @@
  * Project home: hyperion.velcore.net
  */
 
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+pub mod cxxqt_object;
+
+use cxx_qt::casting::Upcast;
+use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QQmlEngine, QUrl};
+use std::pin::Pin;
 
 fn main() {
-    // SAFETY: This runs before the application or any worker threads are started.
-    #[cfg(target_os = "linux")]
-    unsafe {
-        std::env::set_var("__NV_DISABLE_EXPLICIT_SYNC", "1");
+    // Create the application and engine
+    let mut app = QGuiApplication::new();
+    let mut engine = QQmlApplicationEngine::new();
+
+    // Load the QML path into the engine
+    if let Some(engine) = engine.as_mut() {
+        engine.load(&QUrl::from(
+            "qrc:/qt/qml/net/velcore/hyperion/qml/main.qml",
+        ));
     }
-    hyperion_lib::run();
+
+    if let Some(engine) = engine.as_mut() {
+        let engine: Pin<&mut QQmlEngine> = engine.upcast_pin();
+        // Listen to a signal from the QML Engine
+        engine
+            .on_quit(|_| {
+                println!("QML Quit!");
+            })
+            .release();
+    }
+
+    // Start the app
+    if let Some(app) = app.as_mut() {
+        app.exec();
+    }
 }

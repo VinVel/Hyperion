@@ -49,9 +49,11 @@ When choosing where new behavior belongs:
 
 ### Language standards:
 
-- Use Qt Quick (QML) for frontend work. 
+- Use Qt Quick (QML) for frontend work.
+- When using Qt make sure that everything you do is Wayland compatible on Linux 
 - Use Rust for backend work.
-
+- For iOS native Code try to use Rust > Swift > C++
+- For Android native Code try to use Rust (JNI) > Kotlin
 
 ### UI, layout, and design-token rules:
 
@@ -154,8 +156,8 @@ Verification rules:
 
 Testing expectations:
 
-- Prefer adding or updating tests alongside meaningful behavior changes instead of relying only on manual verification.
-- Write tests first, verify that they fail for the missing behavior, and only then write the accompanying implementation.
+- Add or update tests alongside meaningful behavior changes instead of relying only on manual verification.
+- Important!: Write tests FIRST, verify that they fail for the missing behavior, and only then write the accompanying implementation.
 - Rust unit tests should stay close to the code they exercise, usually in the same `.rs` file under an inline `#[cfg(test)] mod tests { ... }` module. A separate test-only source file under `src/` is acceptable only when keeping the tests inline would make the production module unreasonably large or hard to scan.
 - Rust integration tests should live under `src/tests/`. Add integration coverage when a change affects user-facing command behavior, persistence flows, cross-module service behavior, or any path where multiple backend modules must work together correctly.
 - Do not turn private implementation details public only to make an integration test possible. If the behavior is still internal and narrow, keep it as a unit test. If the behavior is observable through a public API, command-facing facade, or stable service boundary, prefer an integration test in addition to focused unit tests.
@@ -204,4 +206,4 @@ Use for all meaningful Rust work.
 
 ### qt-*
 
-Use when involving yourself in any way with Qt
+Use when involving yourself in any way with Qt. For research into qt make use of the qt mcp.

@@ -19,7 +19,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::host::AppHandle;
+use crate::native::host::AppHandle;
 use matrix_sdk::{Client, SqliteStoreConfig, search_index::SearchIndexStoreKind};
 use matrix_sdk_crypto::CollectStrategy;
 use tokio::sync::Mutex as AsyncMutex;

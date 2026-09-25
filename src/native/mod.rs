@@ -13,13 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-mod commands;
-mod types;
+pub(crate) mod host;
 
-pub use commands::{
-    create_recovery_key, delete_recovery, disable_server_key_storage, enable_server_key_storage,
-    export_room_keys, get_encryption_overview, import_room_keys, recover_with_recovery_key,
-    reset_crypto_identity, rotate_recovery_key, set_share_encrypted_history_on_invite,
-    set_verified_devices_only,
-};
-pub use types::{EncryptionOverview, RoomKeyFileRequest};
+#[cfg(target_os = "ios")]
+pub(crate) mod ios_picker;

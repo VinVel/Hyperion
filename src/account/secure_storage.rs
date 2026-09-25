@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-use crate::host::AppHandle;
+use crate::native::host::AppHandle;
 #[cfg(any(target_os = "android", target_os = "linux"))]
 use std::collections::HashMap;
 use std::{

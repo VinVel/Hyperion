@@ -24,7 +24,8 @@ use tokio::runtime::Runtime;
 
 use crate::{
     account::{AccountManager, LoginRequest, RegisterAccountRequest},
-    host::{AppHandle, State},
+    native::host::{AppHandle, State},
+    settings::encryption::{RoomKeyFileRequest, export_room_keys, import_room_keys},
     settings::theme::{
         get_theme_mode as load_theme_mode, get_theme_preset as load_theme_preset,
         set_theme_mode as save_theme_mode, set_theme_preset as save_theme_preset,
@@ -65,7 +66,16 @@ pub mod qobject {
         type HyperionIpc = super::HyperionIpcRust;
 
         #[qsignal]
+        #[cxx_name = "commandCompleted"]
         fn command_completed(self: Pin<&mut Self>, request_id: i64, result_json: &QString);
+
+        #[qinvokable]
+        #[cxx_name = "initializeAppPaths"]
+        fn initialize_app_paths(
+            self: Pin<&mut Self>,
+            app_data_url: &QString,
+            app_cache_url: &QString,
+        );
 
         // Declare each QML-callable method here, then implement its Rust body in
         // `impl qobject::HyperionIpc` below. Keep bridge arguments CXX-compatible;
@@ -172,13 +182,19 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "setThemeMode"]
         fn set_theme_mode(self: Pin<&mut Self>, request_id: i64, request_json: &QString);
+        #[qinvokable]
+        #[cxx_name = "exportRoomKeys"]
+        fn export_room_keys(self: Pin<&mut Self>, request_id: i64, request_json: &QString);
+        #[qinvokable]
+        #[cxx_name = "importRoomKeys"]
+        fn import_room_keys(self: Pin<&mut Self>, request_id: i64, request_json: &QString);
     }
 
     impl cxx_qt::Threading for HyperionIpc {}
 }
 
 pub struct HyperionIpcRust {
-    app: crate::host::AppHandle,
+    app: crate::native::host::AppHandle,
     account_manager: crate::account::AccountManager,
     shell_manager: crate::shell::service::ShellManager,
 }
@@ -186,7 +202,7 @@ pub struct HyperionIpcRust {
 impl Default for HyperionIpcRust {
     fn default() -> Self {
         Self {
-            app: crate::host::AppHandle,
+            app: crate::native::host::AppHandle,
             account_manager: crate::account::AccountManager::new(),
             shell_manager: crate::shell::service::ShellManager::new(),
         }
@@ -194,6 +210,14 @@ impl Default for HyperionIpcRust {
 }
 
 impl qobject::HyperionIpc {
+    fn initialize_app_paths(self: Pin<&mut Self>, app_data_url: &QString, app_cache_url: &QString) {
+        let result = crate::native::host::set_qt_app_directories(
+            &app_data_url.to_string(),
+            &app_cache_url.to_string(),
+        );
+        let _ = crate::utils::tracing::report_command_result("initializeAppPaths", "host", result);
+    }
+
     /// Clone the QObject-owned backend dependencies before a command future is dispatched.
     /// The future must own its inputs so it can safely outlive the synchronous QML call.
     fn backend_context(self: Pin<&Self>) -> (AppHandle, AccountManager, ShellManager) {
@@ -807,6 +831,24 @@ impl qobject::HyperionIpc {
                 "settings.theme",
                 save_theme_mode(&app, &request.mode),
             )
+        });
+    }
+
+    pub fn export_room_keys(self: Pin<&mut Self>, request_id: i64, request_json: &QString) {
+        let request_json = request_json.to_string();
+        let (app, account_manager, _) = self.as_ref().backend_context();
+        self.submit(request_id, async move {
+            let request = decode_request::<RoomKeyFileRequest>(&request_json)?;
+            export_room_keys(app, State(&account_manager), request).await
+        });
+    }
+
+    pub fn import_room_keys(self: Pin<&mut Self>, request_id: i64, request_json: &QString) {
+        let request_json = request_json.to_string();
+        let (app, account_manager, _) = self.as_ref().backend_context();
+        self.submit(request_id, async move {
+            let request = decode_request::<RoomKeyFileRequest>(&request_json)?;
+            import_room_keys(app, State(&account_manager), request).await
         });
     }
 }

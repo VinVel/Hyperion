@@ -17,7 +17,7 @@ use std::{path::Path, sync::Arc};
 
 use matrix_sdk::{Client, Room, ruma::OwnedEventId};
 
-use crate::host::AppHandle;
+use crate::native::host::AppHandle;
 use crate::shell::{
     service::{
         ShellRoomListKind, paging, room::list::snapshot_room_list_for_account,

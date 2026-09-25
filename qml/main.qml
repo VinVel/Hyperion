@@ -16,6 +16,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Window
+import QtCore
 
 // This must match the uri and version
 // specified in the qml_module in the build.rs script.
@@ -30,6 +31,73 @@ ApplicationWindow {
     color: palette.window
 
     readonly property HyperionIpc ipc: HyperionIpc {}
+    property int nextRequestId: 1
+    property string pendingRoomKeyPassphrase: ""
+
+    signal roomKeyCommandCompleted(int requestId, string resultJson)
+
+    Component.onCompleted: ipc.initializeAppPaths(
+                               StandardPaths.writableLocation(StandardPaths.AppDataLocation).toString(),
+                               StandardPaths.writableLocation(StandardPaths.CacheLocation).toString())
+
+    function chooseRoomKeyImport(passphrase) {
+        if (Qt.platform.os === "ios") {
+            const requestId = nextRequestId++
+            const request = { passphrase: passphrase, file_url: "" }
+            ipc.importRoomKeys(requestId, JSON.stringify(request))
+            return
+        }
+
+        pendingRoomKeyPassphrase = passphrase
+        roomKeyFilePicker.openImport()
+    }
+
+    function chooseRoomKeyExport(passphrase) {
+        if (Qt.platform.os === "ios") {
+            const requestId = nextRequestId++
+            const request = { passphrase: passphrase, file_url: "" }
+            ipc.exportRoomKeys(requestId, JSON.stringify(request))
+            return
+        }
+
+        pendingRoomKeyPassphrase = passphrase
+        roomKeyFilePicker.openExport()
+    }
+
+    RoomKeyFilePicker {
+        id: roomKeyFilePicker
+
+        onImportFileSelected: function(fileUrl) {
+            const requestId = root.nextRequestId++
+            const request = {
+                passphrase: root.pendingRoomKeyPassphrase,
+                file_url: fileUrl.toString()
+            }
+            root.ipc.importRoomKeys(requestId, JSON.stringify(request))
+            root.pendingRoomKeyPassphrase = ""
+        }
+
+        onExportFileSelected: function(fileUrl) {
+            const requestId = root.nextRequestId++
+            const request = {
+                passphrase: root.pendingRoomKeyPassphrase,
+                file_url: fileUrl.toString()
+            }
+            root.ipc.exportRoomKeys(requestId, JSON.stringify(request))
+            root.pendingRoomKeyPassphrase = ""
+        }
+
+        onImportCanceled: root.pendingRoomKeyPassphrase = ""
+        onExportCanceled: root.pendingRoomKeyPassphrase = ""
+    }
+
+    Connections {
+        target: root.ipc
+
+        function onCommandCompleted(requestId, resultJson) {
+            root.roomKeyCommandCompleted(requestId, resultJson)
+        }
+    }
 
     Column {
         anchors.fill: parent

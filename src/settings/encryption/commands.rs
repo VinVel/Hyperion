@@ -13,16 +13,20 @@
  * Project home: hyperion.velcore.net
  */
 
-use crate::host::{AppHandle, FilePath, OpenOptions};
+use crate::native::host::AppHandle;
+#[cfg(target_os = "android")]
+use crate::native::host::{FilePath, OpenOptions};
 use matrix_sdk::{
     Client,
     encryption::CrossSigningResetAuthType,
     ruma::{events::GlobalAccountDataEventType, serde::Raw},
 };
+use reqwest::Url;
 use serde_json::json;
+#[cfg(target_os = "android")]
+use std::io::Write;
 use std::{
     fs,
-    io::Write,
     path::{Path, PathBuf},
 };
 
@@ -42,15 +46,15 @@ pub use super::types::{
 const SECRET_STORAGE_DEFAULT_KEY_EVENT_TYPE: &str = "m.secret_storage.default_key";
 // Matrix Rust SDK uses this custom marker to prevent automatic backup re-creation after recovery deletion.
 const BACKUP_DISABLED_EVENT_TYPE: &str = "m.org.matrix.custom.backup_disabled";
-// Default export name shown by mobile document pickers when creating encrypted room-key files.
-const ROOM_KEY_EXPORT_FILE_NAME: &str = "hyperion-room-keys.txt";
 // App-private staging folder for Matrix SDK room-key import/export, because the SDK requires local paths.
 const ROOM_KEY_TRANSFER_DIRECTORY_NAME: &str = "room-key-transfer";
+// Bound collision retries while allocating an unpredictable temporary transfer filename.
+const ROOM_KEY_TRANSFER_FILE_ATTEMPTS: usize = 8;
 pub const ENCRYPTION_OVERVIEW_UPDATED_EVENT: &str = "hyperion://encryption-overview-updated";
 
 pub async fn get_encryption_overview(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
 ) -> Result<EncryptionOverview, String> {
     crate::utils::tracing::report_command_future(
         "get_encryption_overview",
@@ -204,7 +208,7 @@ fn schedule_encryption_overview_refresh(app: AppHandle, account: AccountClientSn
 
 pub async fn enable_server_key_storage(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
 ) -> Result<(), String> {
     crate::utils::tracing::report_command_future(
         "enable_server_key_storage",
@@ -236,7 +240,7 @@ pub async fn enable_server_key_storage(
 
 pub async fn disable_server_key_storage(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
 ) -> Result<(), String> {
     crate::utils::tracing::report_command_future(
         "disable_server_key_storage",
@@ -268,7 +272,7 @@ pub async fn disable_server_key_storage(
 
 pub async fn create_recovery_key(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
 ) -> Result<GeneratedRecoveryKey, String> {
     crate::utils::tracing::report_command_future(
         "create_recovery_key",
@@ -287,7 +291,7 @@ pub async fn create_recovery_key(
 
 pub async fn rotate_recovery_key(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
 ) -> Result<GeneratedRecoveryKey, String> {
     crate::utils::tracing::report_command_future(
         "rotate_recovery_key",
@@ -311,7 +315,7 @@ pub async fn rotate_recovery_key(
 
 pub async fn delete_recovery(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
 ) -> Result<(), String> {
     crate::utils::tracing::report_command_future("delete_recovery", "settings.encryption", async {
         let active_account = account_manager.require_active_account(&app).await?;
@@ -340,7 +344,7 @@ pub async fn delete_recovery(
 
 pub async fn recover_with_recovery_key(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
     request: RecoveryKeyRequest,
 ) -> Result<(), String> {
     crate::utils::tracing::report_command_future(
@@ -377,26 +381,56 @@ pub async fn recover_with_recovery_key(
 
 pub async fn export_room_keys(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
     request: RoomKeyFileRequest,
 ) -> Result<Option<String>, String> {
     crate::utils::tracing::report_command_future("export_room_keys", "settings.encryption", async {
         let active_account = account_manager.require_active_account(&app).await?;
         let account = active_account.snapshot();
         let passphrase = normalized_passphrase(&request.passphrase)?;
-        let Some(destination) = room_key_export_destination(&app)? else {
-            return Ok(None);
+        let destination = selected_room_key_file(&request.file_url)?;
+        let transfer_file: Option<RoomKeyTransferFile> = match &destination {
+            RoomKeySelectedFile::LocalPath(_) => None,
+            #[cfg(target_os = "android")]
+            RoomKeySelectedFile::DocumentUri(_) => {
+                Some(RoomKeyTransferFile::create(&app, "export")?)
+            }
+            #[cfg(target_os = "ios")]
+            RoomKeySelectedFile::Picker => Some(RoomKeyTransferFile::create(&app, "export")?),
         };
-        let export_path = room_key_export_path(&app, &destination)?;
+        let export_path = match (&destination, &transfer_file) {
+            (RoomKeySelectedFile::LocalPath(path), None) => path.clone(),
+            #[cfg(target_os = "android")]
+            (RoomKeySelectedFile::DocumentUri(_), Some(transfer_file)) => {
+                transfer_file.path().to_path_buf()
+            }
+            #[cfg(target_os = "ios")]
+            (RoomKeySelectedFile::Picker, Some(transfer_file)) => {
+                transfer_file.path().to_path_buf()
+            }
+            _ => return Err(String::from("Invalid room-key export destination state")),
+        };
 
         let encryption = account.client.encryption();
         encryption
             .export_room_keys(export_path.clone(), &passphrase, |_room_key| true)
             .await
             .map_err(|error| format!("Failed to export room keys: {error}"))?;
-        if let RoomKeySelectedFile::DocumentUri(destination_uri) = &destination {
-            copy_local_file_to_document_uri(&app, &export_path, destination_uri.clone())?;
-            remove_transfer_file(&export_path)?;
+        match &destination {
+            RoomKeySelectedFile::LocalPath(_) => {}
+            #[cfg(target_os = "android")]
+            RoomKeySelectedFile::DocumentUri(destination_uri) => {
+                copy_local_file_to_document_uri(&app, &export_path, destination_uri.clone())?;
+            }
+            #[cfg(target_os = "ios")]
+            RoomKeySelectedFile::Picker => {
+                if crate::native::ios_picker::pick_export_file(export_path)
+                    .await?
+                    .is_none()
+                {
+                    return Ok(None);
+                }
+            }
         }
 
         Ok(Some(destination.to_display_string()))
@@ -406,27 +440,48 @@ pub async fn export_room_keys(
 
 pub async fn import_room_keys(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
     request: RoomKeyFileRequest,
 ) -> Result<Option<RoomKeyImportSummary>, String> {
     crate::utils::tracing::report_command_future("import_room_keys", "settings.encryption", async {
         let active_account = account_manager.require_active_account(&app).await?;
         let account = active_account.snapshot();
         let passphrase = normalized_passphrase(&request.passphrase)?;
-        let Some(source) = room_key_import_source(&app)? else {
-            return Ok(None);
+        let source = selected_room_key_file(&request.file_url)?;
+        let transfer_file: Option<RoomKeyTransferFile> = match &source {
+            RoomKeySelectedFile::LocalPath(_) => None,
+            #[cfg(target_os = "android")]
+            RoomKeySelectedFile::DocumentUri(_) => {
+                Some(RoomKeyTransferFile::create(&app, "import")?)
+            }
+            #[cfg(target_os = "ios")]
+            RoomKeySelectedFile::Picker => Some(RoomKeyTransferFile::create(&app, "import")?),
         };
-        let import_path = room_key_import_path(&app, &source)?;
+        let import_path = match (&source, &transfer_file) {
+            (RoomKeySelectedFile::LocalPath(path), None) => path.clone(),
+            #[cfg(target_os = "android")]
+            (RoomKeySelectedFile::DocumentUri(source_uri), Some(transfer_file)) => {
+                copy_document_uri_to_local_file(&app, source_uri.clone(), transfer_file.path())?;
+                transfer_file.path().to_path_buf()
+            }
+            #[cfg(target_os = "ios")]
+            (RoomKeySelectedFile::Picker, Some(transfer_file)) => {
+                if crate::native::ios_picker::pick_import_file(transfer_file.path().to_path_buf())
+                    .await?
+                    .is_none()
+                {
+                    return Ok(None);
+                }
+                transfer_file.path().to_path_buf()
+            }
+            _ => return Err(String::from("Invalid room-key import source state")),
+        };
 
         let encryption = account.client.encryption();
         let result = encryption
             .import_room_keys(import_path.clone(), &passphrase)
             .await
             .map_err(|error| format!("Failed to import room keys: {error}"))?;
-        if matches!(source, RoomKeySelectedFile::DocumentUri(_source_uri)) {
-            remove_transfer_file(&import_path)?;
-        }
-
         Ok(Some(RoomKeyImportSummary {
             imported_count: result.imported_count,
             total_count: result.total_count,
@@ -437,7 +492,7 @@ pub async fn import_room_keys(
 
 pub async fn reset_crypto_identity(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
 ) -> Result<CryptoIdentityResetOutcome, String> {
     crate::utils::tracing::report_command_future(
         "reset_crypto_identity",
@@ -473,8 +528,8 @@ pub async fn reset_crypto_identity(
 
 pub async fn set_verified_devices_only(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
-    shell_manager: crate::host::State<'_, ShellManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
+    shell_manager: crate::native::host::State<'_, ShellManager>,
     enabled: bool,
 ) -> Result<(), String> {
     crate::utils::tracing::report_command_future(
@@ -509,8 +564,8 @@ pub async fn set_verified_devices_only(
 
 pub async fn set_share_encrypted_history_on_invite(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
-    shell_manager: crate::host::State<'_, ShellManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
+    shell_manager: crate::native::host::State<'_, ShellManager>,
     enabled: bool,
 ) -> Result<(), String> {
     crate::utils::tracing::report_command_future(
@@ -570,85 +625,129 @@ fn recovery_state_label(
 
 enum RoomKeySelectedFile {
     LocalPath(PathBuf),
+    #[cfg(target_os = "android")]
     DocumentUri(FilePath),
+    #[cfg(target_os = "ios")]
+    Picker,
 }
 
 impl RoomKeySelectedFile {
     fn to_display_string(&self) -> String {
         match self {
             Self::LocalPath(path) => path.to_string_lossy().into_owned(),
+            #[cfg(target_os = "android")]
             Self::DocumentUri(path) => path.to_string(),
+            #[cfg(target_os = "ios")]
+            Self::Picker => String::from("iOS Files"),
         }
     }
 }
 
-fn room_key_export_destination(app: &AppHandle) -> Result<Option<RoomKeySelectedFile>, String> {
-    let selected = app
-        .dialog()
-        .file()
-        .add_filter("Encrypted Matrix room keys", &["txt", "keys"])
-        .set_file_name(ROOM_KEY_EXPORT_FILE_NAME)
-        .blocking_save_file();
+fn selected_room_key_file(file_url: &str) -> Result<RoomKeySelectedFile, String> {
+    #[cfg(target_os = "ios")]
+    if file_url.is_empty() {
+        return Ok(RoomKeySelectedFile::Picker);
+    }
 
-    selected.map(classify_dialog_file).transpose()
+    classify_selected_file_url(file_url)
 }
 
-fn room_key_import_source(app: &AppHandle) -> Result<Option<RoomKeySelectedFile>, String> {
-    let selected = app
-        .dialog()
-        .file()
-        .add_filter("Encrypted Matrix room keys", &["txt", "keys"])
-        .blocking_pick_file();
+fn classify_selected_file_url(file_url: &str) -> Result<RoomKeySelectedFile, String> {
+    let url =
+        Url::parse(file_url).map_err(|error| format!("Invalid selected file URL: {error}"))?;
+    if url.scheme() == "file" {
+        #[cfg(target_os = "ios")]
+        {
+            let _ = url;
+            return Err(String::from(
+                "iOS room-key files must be selected with the system document picker",
+            ));
+        }
 
-    selected.map(classify_dialog_file).transpose()
-}
-
-fn classify_dialog_file(file_path: FilePath) -> Result<RoomKeySelectedFile, String> {
-    match file_path {
-        FilePath::Path(path) => Ok(RoomKeySelectedFile::LocalPath(path)),
-        FilePath::Url(url) if url.scheme() == "file" => {
+        #[cfg(not(target_os = "ios"))]
+        {
             let path = url
                 .to_file_path()
                 .map_err(|()| format!("Selected file URL is not a valid path: {url}"))?;
-            Ok(RoomKeySelectedFile::LocalPath(path))
-        }
-        FilePath::Url(url) => Ok(RoomKeySelectedFile::DocumentUri(FilePath::Url(url))),
-    }
-}
-
-fn room_key_export_path(
-    app: &AppHandle,
-    destination: &RoomKeySelectedFile,
-) -> Result<PathBuf, String> {
-    match destination {
-        RoomKeySelectedFile::LocalPath(path) => Ok(path.clone()),
-        RoomKeySelectedFile::DocumentUri(_destination_uri) => room_key_transfer_path(app, "export"),
-    }
-}
-
-fn room_key_import_path(app: &AppHandle, source: &RoomKeySelectedFile) -> Result<PathBuf, String> {
-    match source {
-        RoomKeySelectedFile::LocalPath(path) => Ok(path.clone()),
-        RoomKeySelectedFile::DocumentUri(source_uri) => {
-            let import_path = room_key_transfer_path(app, "import")?;
-            copy_document_uri_to_local_file(app, source_uri.clone(), &import_path)?;
-            Ok(import_path)
+            return Ok(RoomKeySelectedFile::LocalPath(path));
         }
     }
+
+    #[cfg(target_os = "android")]
+    if url.scheme() == "content" {
+        return Ok(RoomKeySelectedFile::DocumentUri(FilePath::Url(url)));
+    }
+
+    Err(format!(
+        "Unsupported selected file URL scheme: {}",
+        url.scheme()
+    ))
 }
 
-fn room_key_transfer_path(app: &AppHandle, operation_name: &str) -> Result<PathBuf, String> {
-    let transfer_directory = app
-        .path()
-        .app_cache_dir()
-        .map_err(|error| format!("Failed to resolve app cache directory: {error}"))?
-        .join(ROOM_KEY_TRANSFER_DIRECTORY_NAME);
-    fs::create_dir_all(&transfer_directory)
-        .map_err(|error| format!("Failed to prepare room-key transfer directory: {error}"))?;
-
-    Ok(transfer_directory.join(format!("{operation_name}-{}.keys", rand::random::<u64>())))
+struct RoomKeyTransferFile {
+    path: PathBuf,
 }
 
+impl RoomKeyTransferFile {
+    fn create(app: &AppHandle, operation_name: &str) -> Result<Self, String> {
+        let transfer_directory = app
+            .path()
+            .app_cache_dir()
+            .map_err(|error| format!("Failed to resolve app cache directory: {error}"))?
+            .join(ROOM_KEY_TRANSFER_DIRECTORY_NAME);
+        fs::create_dir_all(&transfer_directory)
+            .map_err(|error| format!("Failed to prepare room-key transfer directory: {error}"))?;
+
+        for _attempt in 0..ROOM_KEY_TRANSFER_FILE_ATTEMPTS {
+            let file_name = if operation_name == "export" {
+                format!("hyperion-room-keys-{}.txt", rand::random::<u64>())
+            } else {
+                format!("{operation_name}-{}.keys", rand::random::<u64>())
+            };
+            let path = transfer_directory.join(file_name);
+            match fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+            {
+                Ok(file) => {
+                    drop(file);
+                    return Ok(Self { path });
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => {
+                    return Err(format!("Failed to prepare room-key transfer file: {error}"));
+                }
+            }
+        }
+
+        Err(String::from(
+            "Failed to allocate a unique room-key transfer file",
+        ))
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for RoomKeyTransferFile {
+    fn drop(&mut self) {
+        if let Err(error) = fs::remove_file(&self.path) {
+            if error.kind() != std::io::ErrorKind::NotFound {
+                crate::utils::tracing::report_recoverable_error(
+                    "settings.encryption",
+                    "cleanup_room_key_transfer_file",
+                    "settings.room_key_transfer_cleanup_failed",
+                    "storage",
+                    &error,
+                );
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "android")]
 fn copy_local_file_to_document_uri(
     app: &AppHandle,
     source_path: &Path,
@@ -669,6 +768,7 @@ fn copy_local_file_to_document_uri(
         .map_err(|error| format!("Failed to flush exported room keys: {error}"))
 }
 
+#[cfg(target_os = "android")]
 fn copy_document_uri_to_local_file(
     app: &AppHandle,
     source_uri: FilePath,
@@ -687,11 +787,6 @@ fn copy_document_uri_to_local_file(
     destination
         .flush()
         .map_err(|error| format!("Failed to flush room-key import file: {error}"))
-}
-
-fn remove_transfer_file(path: &Path) -> Result<(), String> {
-    fs::remove_file(path)
-        .map_err(|error| format!("Failed to remove temporary room-key transfer file: {error}"))
 }
 
 async fn enable_recovery_with_clean_backup(client: &Client) -> Result<String, String> {

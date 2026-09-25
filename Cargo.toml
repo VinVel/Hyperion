@@ -69,10 +69,15 @@ android-native-keyring-store = "1.0.0"
 rustls-native-certs = "0.8.4"
 webpki-roots = "1.0.9"
 tracing-logcat = "0.1.0"
+jni = "0.22.4"
 
 [target.'cfg(target_os = "ios")'.dependencies]
 apple-native-keyring-store = { version = "1.0.2", features = ["protected"] }
 tracing-oslog = "0.3.0"
+dispatch2 = "0.3.1"
+objc2 = "0.6.4"
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSArray", "NSEnumerator", "NSObject", "NSString", "NSURL"] }
+objc2-ui-kit = { version = "0.3.2", default-features = false, features = ["UIApplication", "UIDocumentPickerViewController", "UIResponder", "UIView", "UIViewController", "UIWindow"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-native-keyring-store = "1.1.0"

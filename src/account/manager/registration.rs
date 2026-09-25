@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-use crate::host::AppHandle;
+use crate::native::host::AppHandle;
 use matrix_sdk::{
     Client, Error as MatrixError,
     ruma::api::client::account::register::v3::{

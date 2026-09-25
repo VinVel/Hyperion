@@ -15,7 +15,7 @@
 
 use std::sync::{Arc, RwLock};
 
-use crate::host::AppHandle;
+use crate::native::host::AppHandle;
 use matrix_sdk::Room;
 use tokio::task::JoinHandle;
 

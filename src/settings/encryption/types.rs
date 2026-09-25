@@ -46,6 +46,7 @@ pub struct RecoveryKeyRequest {
 #[derive(Debug, Deserialize)]
 pub struct RoomKeyFileRequest {
     pub passphrase: String,
+    pub file_url: String,
 }
 
 #[derive(Debug, Serialize)]

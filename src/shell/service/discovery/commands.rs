@@ -917,4 +917,4 @@ mod tests {
         );
     }
 }
-use crate::host::AppHandle;
+use crate::native::host::AppHandle;

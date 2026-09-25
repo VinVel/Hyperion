@@ -227,4 +227,4 @@ impl ShellManager {
             .await;
     }
 }
-use crate::host::AppHandle;
+use crate::native::host::AppHandle;

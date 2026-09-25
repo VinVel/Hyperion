@@ -18,7 +18,7 @@ use super::{
 };
 use crate::shell::types::{GlobalSearchRequest, GlobalSearchResponse};
 
-use crate::host::AppHandle;
+use crate::native::host::AppHandle;
 
 impl ShellManager {
     pub async fn global_search(

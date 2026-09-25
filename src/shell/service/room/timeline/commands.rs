@@ -23,7 +23,7 @@ use matrix_sdk::{Room, ruma::EventId};
 
 use crate::{
     account::{AccountClientSnapshot, AccountManager, ActiveAccount},
-    host::AppHandle,
+    native::host::AppHandle,
     shell::{
         service::emit_shell_room_updated,
         service::{

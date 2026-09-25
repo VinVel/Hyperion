@@ -36,7 +36,7 @@ use super::{
         RoomTimelineReplyPreviewState, RoomTimelineSendState,
     },
 };
-use crate::host::AppHandle;
+use crate::native::host::AppHandle;
 
 // The SDK room latest event can be updated shortly before the UI Timeline has
 // consumed the same event-cache update. Wait briefly so timeline snapshots do

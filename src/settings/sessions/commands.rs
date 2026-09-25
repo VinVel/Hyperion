@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-use crate::host::AppHandle;
+use crate::native::host::AppHandle;
 use matrix_sdk::{
     Client,
     encryption::{
@@ -120,7 +120,7 @@ pub fn register_session_verification_event_handler(
 
 pub async fn get_session_overview(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
 ) -> Result<SessionOverview, String> {
     crate::utils::tracing::report_command_future(
         "get_session_overview",
@@ -161,7 +161,7 @@ pub async fn get_session_overview(
 
 pub async fn start_session_verification(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
     request: StartSessionVerificationRequest,
 ) -> Result<VerificationStart, String> {
     crate::utils::tracing::report_command_future(
@@ -214,7 +214,7 @@ pub async fn start_session_verification(
 
 pub async fn start_current_session_verification(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
 ) -> Result<VerificationStart, String> {
     crate::utils::tracing::report_command_future(
         "start_current_session_verification",
@@ -274,7 +274,7 @@ pub async fn start_current_session_verification(
 
 pub async fn accept_session_verification_request(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<VerificationState, String> {
     crate::utils::tracing::report_command_future(
@@ -298,7 +298,7 @@ pub async fn accept_session_verification_request(
 
 pub async fn deny_session_verification_request(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<(), String> {
     crate::utils::tracing::report_command_future(
@@ -320,7 +320,7 @@ pub async fn deny_session_verification_request(
 
 pub async fn start_sas_verification(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<SasVerificationView, String> {
     crate::utils::tracing::report_command_future(
@@ -339,7 +339,7 @@ pub async fn start_sas_verification(
 
 pub async fn accept_sas_verification(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<SasVerificationView, String> {
     crate::utils::tracing::report_command_future(
@@ -361,7 +361,7 @@ pub async fn accept_sas_verification(
 
 pub async fn get_sas_verification(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<SasVerificationView, String> {
     crate::utils::tracing::report_command_future(
@@ -380,7 +380,7 @@ pub async fn get_sas_verification(
 
 pub async fn confirm_sas_verification(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<SasVerificationView, String> {
     crate::utils::tracing::report_command_future(
@@ -402,7 +402,7 @@ pub async fn confirm_sas_verification(
 
 pub async fn cancel_sas_verification(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
     request: VerificationFlowRequest,
 ) -> Result<SasVerificationView, String> {
     crate::utils::tracing::report_command_future(
@@ -424,7 +424,7 @@ pub async fn cancel_sas_verification(
 
 pub async fn deauthorize_sessions(
     app: AppHandle,
-    account_manager: crate::host::State<'_, AccountManager>,
+    account_manager: crate::native::host::State<'_, AccountManager>,
     request: DeauthorizeSessionsRequest,
 ) -> Result<DeauthorizeSessionsOutcome, String> {
     crate::utils::tracing::report_command_future(

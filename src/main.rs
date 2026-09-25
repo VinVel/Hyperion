@@ -16,18 +16,27 @@
 
 mod account;
 pub mod cxxqt_object;
-mod host;
+mod native;
 mod settings;
 mod shell;
 mod utils;
 
 use cxx_qt::casting::Upcast;
-use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QQmlEngine, QUrl};
+use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QQmlEngine, QString, QUrl};
 use std::pin::Pin;
 
+// Keep Qt's app-specific data locations aligned with the previous Tauri bundle identifier.
+const APPLICATION_IDENTIFIER: &str = "net.velcore.hyperion";
+
 fn main() {
+    configure_linux_wayland_portal_theme();
+
     // Create the application and engine
     let mut app = QGuiApplication::new();
+    if let Some(app) = app.as_mut() {
+        app.set_application_name(&QString::from(APPLICATION_IDENTIFIER));
+    }
+
     let mut engine = QQmlApplicationEngine::new();
 
     // Load the QML path into the engine
@@ -50,3 +59,30 @@ fn main() {
         app.exec();
     }
 }
+
+#[cfg(target_os = "linux")]
+fn configure_linux_wayland_portal_theme() {
+    use std::env;
+
+    // Qt's Wayland platform theme uses the desktop portal for native file dialogs.
+    const XDG_PORTAL_PLATFORM_THEME: &str = "xdgdesktopportal";
+
+    if env::var_os("QT_QPA_PLATFORMTHEME").is_some() {
+        return;
+    }
+
+    let is_wayland_session = env::var("XDG_SESSION_TYPE")
+        .is_ok_and(|session_type| session_type.eq_ignore_ascii_case("wayland"));
+    let has_wayland_display = env::var_os("WAYLAND_DISPLAY").is_some();
+    if !(is_wayland_session || has_wayland_display) {
+        return;
+    }
+
+    // This runs before QGuiApplication creation and before the process starts worker threads.
+    unsafe {
+        env::set_var("QT_QPA_PLATFORMTHEME", XDG_PORTAL_PLATFORM_THEME);
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn configure_linux_wayland_portal_theme() {}

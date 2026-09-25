@@ -15,7 +15,7 @@
 
 use crate::{
     account::{AccountClientSnapshot, AccountManager},
-    host::AppHandle,
+    native::host::AppHandle,
     shell::service::caching::remove_legacy_timeline_view_cache,
 };
 

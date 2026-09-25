@@ -25,7 +25,7 @@ use matrix_sdk::{
 
 use crate::{
     account::{AccountManager, ActiveAccount},
-    host::AppHandle,
+    native::host::AppHandle,
     shell::{
         service::{
             RECENT_TIMELINE_WARM_ROOM_COUNT, ShellCacheState, ShellManager, ShellRoomListKind,

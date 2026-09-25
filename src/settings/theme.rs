@@ -13,7 +13,7 @@
  * Project home: hyperion.velcore.net
  */
 
-use crate::host::AppHandle;
+use crate::native::host::AppHandle;
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
 

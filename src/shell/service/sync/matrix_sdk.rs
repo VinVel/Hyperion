@@ -18,7 +18,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::host::AppHandle;
+use crate::native::host::AppHandle;
 use futures_util::{StreamExt, pin_mut};
 use matrix_sdk::{
     Client, Error as MatrixError, HttpError, RefreshTokenError, SessionChange, ruma::RoomId,
